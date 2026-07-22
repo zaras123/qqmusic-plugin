@@ -21,7 +21,7 @@
 
 **本项目仅供技术学习与交流使用。**
 
-- 本项目不提供任何音源服务，仅作为客户端对接用户自行部署的 API 服务
+- 本项目不提供任何音源服务，API 由用户自行解决
 - 使用者应遵守所在地区法律法规及相关平台用户协议
 - 本项目不鼓励、不支持任何商业用途或侵犯版权的行为
 - 因使用本项目产生的一切后果由使用者自行承担
@@ -63,33 +63,31 @@
 
 ## 安装
 
-> 本插件需要配合 **qqmusic-api-enhanced** 使用，请先部署 API。
-
-### 1. 部署 API
-
-```bash
-cd qqmusic-api-enhanced
-# Windows
-一键部署.bat
-# Linux/Mac
-bash 一键部署.sh
-```
-
-默认地址 `http://127.0.0.1:3300`。
-
-### 2. 安装插件
+### 1. 安装插件
 
 ```bash
 cd Yunzai/plugins
-git clone <本仓库地址> qqmusic-plugin
-pnpm install
+git clone https://github.com/zaras123/qqmusic-plugin.git
+cd qqmusic-plugin && pnpm install
 ```
+
+### 2. 配置 API
+
+本插件需要配合后端 API 使用。API 因特殊原因不开源，请加入用户群申请 API 地址和 Token。
+
+在锅巴配置中填写：
+- **API 地址**：入群后申请获取
+- **API Token**：入群后申请获取
+
+或机器人发送：`#qqm api <地址>`
 
 ### 3. 启动
 
 重启 Yunzai，日志出现 `qqmusic-plugin 已加载` 即成功。
 
 主人发送 `#qqm登录` 扫码即可开始使用。
+
+> 📌 **关于 API**：后端 API 涉及平台接口对接等技术细节，出于安全和合规考虑不对外开源。如需使用请加入用户群申请。
 
 ---
 
