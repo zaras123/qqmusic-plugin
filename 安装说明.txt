@@ -1,0 +1,53 @@
+========================================
+  qqmusic-plugin 安装说明
+========================================
+
+本插件对接独立服务 qqmusic-api-enhanced，请先部署 API。
+适配 TRSS-Yunzai：ICQQ-Plugin / OneBotv11 反向 WS / QQBot-Plugin(ts-yf)
+
+【1. 部署 API】
+  解压 qqmusic-api-enhanced 包后：
+  Windows: 双击「一键部署.bat」
+  Linux/Mac: bash 一键部署.sh
+  默认地址: http://127.0.0.1:3300
+
+【2. 安装插件到 Yunzai】
+  将整个 qqmusic-plugin 文件夹放到：
+    Yunzai/plugins/qqmusic-plugin/
+
+  或在 Yunzai 根目录用目录联接（Windows 管理员）：
+    mklink /J "plugins\qqmusic-plugin" "本插件解压路径"
+
+【3. 协议适配器（任选/可并存）】
+  - ICQQ：plugins/ICQQ-Plugin + 本地 @icqqjs/icqq
+  - 反向 WS：TRSS 内置 OneBotv11 适配器（NapCat / LLOneBot 等）
+  - 官方 QQ 机器人：安装 QQBot-Plugin
+    https://gitee.com/ts-yf/QQBot-Plugin
+
+【4. 安装依赖】
+  在 Yunzai 根目录：
+    pnpm install
+  或仅装插件依赖：
+    cd plugins/qqmusic-plugin
+    npm install
+
+【5. 重启 Yunzai】
+  日志出现「qqmusic-plugin 已加载（… · ICQQ/OneBot/QQBot）」即成功。
+
+【6. 配置】
+  - 锅巴插件面板可改 API 地址、音质、Cookie
+  - 或机器人主人命令：
+      #qqm api http://127.0.0.1:3300
+      #qqm登录
+      #qqm状态 / #qqm设置   （设置里会显示当前 adapter）
+      #qqm帮助
+
+【常用指令】（点歌相关均带 #qqm 前缀）
+  #qqm点歌 七里香   →  #qqm听1（会话内也可 #听1）
+  #qqm播放 晴天
+  #qqm歌词 / #qqm热搜
+  #qqm状态 / #qms
+  #qqm帮助
+
+付费曲与高音质需要 #qqm登录 扫码绑定 Cookie。
+官方 QQBot 无原生 music 卡，默认走「语音 + 文件」。

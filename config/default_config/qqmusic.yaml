@@ -1,0 +1,38 @@
+# QQ 音乐 API 地址（qqmusic-api-enhanced）
+apiBase: http://127.0.0.1:3300
+
+# API Token（与 API 端配置的 Token 一致）
+apiToken: ""
+
+# 功能开关
+enable: true
+enableSongRequest: true
+enableResolve: true
+
+# 点歌
+maxList: 10
+quality: "auto"
+qualityFallback: true
+
+# 发送方式
+sendNativeCard: false
+sendCustomCard: false
+sendVocal: true
+uploadFile: true
+sendTextInfo: true
+tempDir: temp/qqmusic-plugin
+downloadTimeout: 90000
+keepFileSec: 60
+
+# 解析触发
+resolveLinks: true
+resolveCards: true
+
+# 点歌结果渲染为图片卡片
+renderListCard: true
+
+# 前缀提示
+identifyPrefix: "识别："
+
+# 扫码登录
+qrLoginEnable: true
