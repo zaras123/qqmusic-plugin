@@ -32,6 +32,27 @@
 
 ---
 
+## 🤖 AI 辅助开发声明
+
+**本插件部分代码由 AI 辅助完成，请勿将其作为生产环境或商业项目的基础直接使用。**
+
+- AI 生成的代码可能存在隐蔽的逻辑缺陷或安全漏洞
+- 使用者应自行审查代码，确保理解其行为后再部署
+- 不建议在未经授权的情况下将本项目用于大规模自动化服务
+- 如发现问题请通过 Issue 反馈，欢迎贡献修复
+
+---
+
+## 📮 用户群
+
+QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
+
+- API 地址和 Token 申请
+- 使用问题反馈
+- 更新通知
+
+---
+
 ## 功能一览
 
 | 分类 | 功能 | 说明 |
@@ -135,6 +156,14 @@ qqmusic-plugin/
 - 语音 / 群文件 / 音乐卡开关
 - 点歌 / 解析功能开关
 - 登录状态查询
+
+---
+
+## 致谢
+
+- [TRSS-Yunzai](https://gitee.com/TimeRainStarSky/Yunzai) — 多协议 Bot 框架，本插件运行基础
+- [Miao-Yunzai](https://gitee.com/yoimiya-kokomi/Miao-Yunzai) — 优秀的 Yunzai 分支，插件兼容参考
+- [rconsole-plugin](https://gitee.com/kyrzy0416/rconsole-plugin) — 点歌交互与卡片解析的设计参考
 
 ---
 

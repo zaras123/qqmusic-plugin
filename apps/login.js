@@ -265,7 +265,7 @@ export class qqmusicLogin extends plugin {
       await e.reply(
         [
           tips || '请使用 QQ / 微信 / QQ音乐 App 扫码',
-          `二维码约 ${Math.round((expiresIn || 900) / 60)} 分钟内有效`,
+          `二维码 ${Math.round((expiresIn || 900) / 60)} 分钟内有效`,
           imgSent ? '' : '（图片发送失败可重新 #qqm登录）',
         ]
           .filter(Boolean)
@@ -286,7 +286,7 @@ export class qqmusicLogin extends plugin {
     const maxMs = Math.min(expiresIn, 900) * 1000
     let notifiedScan = false
     let failStreak = 0
-    let completeTried = false
+    let completeTried = 0
 
     const task = {
       qrcodeID,
@@ -338,7 +338,7 @@ export class qqmusicLogin extends plugin {
           qrcodeID,
           elapsed,
           isFirstScan: !notifiedScan,
-          completeTried,
+          completeTried: completeTried > 0,
         }, 'get', userKey)
         const data = body?.data || {}
         const status = data.status || 'wait'
@@ -368,9 +368,9 @@ export class qqmusicLogin extends plugin {
           return
         }
 
-        // 尝试一次 complete
-        if ((status === 'scanned' || status === 'confirmed') && !completeTried && elapsed > 18000) {
-          completeTried = true
+        // 尝试 complete（10 秒后开始，最多 2 次）
+        if ((status === 'scanned' || status === 'confirmed') && completeTried < 2 && elapsed > 10000) {
+          completeTried++
           try {
             const done = await request('/login/qr/complete', { qrcodeID }, 'post', userKey)
             const info = pickLoginSuccess(done)
