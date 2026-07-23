@@ -1,5 +1,5 @@
 /**
- * 组装 QQ 音乐状态卡片数据（对齐 R 插件 neteaseStatus / kugouStatus 字段风格）
+ * 组装 QQ 音乐状态卡片数据
  */
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -18,7 +18,7 @@ function loginTypeText(cookie = {}, status = {}) {
   if (String(cookie.tmeLoginType) === '1' || (t === 2 && cookie.wxuin)) return '微信登录'
   if (String(cookie.tmeLoginType) === '2' || t === 1) return 'QQ 登录'
   if (t === 2) return '微信登录'
-  if (cookie.qm_keyst || cookie.qqmusic_key || status.hasKey) return 'Cookie 登录'
+  if (cookie.qm_keyst || cookie.qqmusic_key || status.hasKey) return '扫码登录'
   return '未登录'
 }
 
@@ -119,7 +119,7 @@ export async function buildQQMusicStatusData(userKey = '') {
     vipStateText = status.hasRefresh ? 'Key 可刷新' : '已登录'
     vipExpireText = cookie.keyExpiresIn
       ? `Key 相关时效字段: ${cookie.keyExpiresIn}`
-      : '建议定期 #qqm登录 刷新 Cookie，保持高音质可用'
+      : '建议定期 #qqm登录 保持高音质可用'
   }
 
   const avatarUrl = profile.avatarUrl || DEFAULT_AVATAR

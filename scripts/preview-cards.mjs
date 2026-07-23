@@ -131,7 +131,7 @@ const samples = {
     subtitle: '当前插件运行配置一览',
     loginOk: true,
     quality: 'FLAC',
-    tip: '详细开关可在锅巴面板修改；付费曲需主人 #qqm登录 扫码绑定 Cookie',
+    tip: '详细开关可在锅巴面板修改；付费曲需主人 #qqm登录',
     tiles: [
       { label: '点歌', value: '开', on: true },
       { label: '解析', value: '开', on: true },

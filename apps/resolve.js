@@ -197,7 +197,7 @@ export class qqmusicResolve extends plugin {
       return false
     }
 
-    // 取最高可用音质并下载发送（对齐 R 插件：语音 + 群文件）
+    // 取最高可用音质并下载发送
     let play = {
       url: '',
       quality: cfg.quality || 'flac',

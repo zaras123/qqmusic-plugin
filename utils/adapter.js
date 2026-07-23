@@ -102,7 +102,7 @@ export async function ensureSegment() {
     }
   }
 
-  // 最小兜底，对齐 TRSS oicq segment 形状
+  // 最小兜底
   global.segment = global.segment || {
     image: (file, name) => ({ type: 'image', file, name }),
     record: (file, name) => ({ type: 'record', file, name }),

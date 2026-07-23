@@ -1,20 +1,5 @@
 /**
  * QQ 音乐音质档位（最高音质 + 自动降级/自适配）
- *
- * API filename 前缀:
- *   master / atmos_master  RS01  （臻品母带，体积多在 size_new[0]）
- *   hires                  RS02
- *   atmos / dolby          Q000  （size_dolby 或 size_new[10]）
- *   flac / ape             F000 / A000
- *   320 / 128 / m4a        M800 / M500 / C400
- *
- * size_new 下标（APK Song_table.size_new + 多曲 size_* 对齐实测）:
- *   [0]  臻品母带级（通常远大于 flac，如 150~240MB）→ master / RS01
- *   [1]  常接近 size_flac，不当作更高档
- *   [2]  增强/Hi-Res 候选 → hires / RS02（size_hires 为 0 时仍可能有）
- *   [3]  常接近 size_320mp3
- *   [10] 对齐 size_dolby → atmos / Q000
- *   其余下标暂不单独映射，避免误要链
  */
 export const QQMUSIC_QUALITY_LIST = Object.freeze([
   { label: '自动（自适配最高可用）', value: 'auto' },

@@ -98,7 +98,7 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
 }
 
 /**
- * 仅取登录态元信息（不含原始 Cookie）
+ * 仅取登录态元信息
  */
 export async function pullLoginMeta(userKey = '') {
   const st = await request('/login/status', {}, 'get', userKey)
@@ -353,7 +353,7 @@ export async function songUrlBest(
   const pay = payload.pay || lastErr?.pay
   const payHint =
     pay && Number(pay.pay_play) === 1
-      ? ' 该曲需会员播放；若手机 SVIP 可播仍失败，请 #qqm绑定 网页完整 Cookie'
+      ? ' 该曲需会员播放，请 #qqm登录'
       : ''
   const detail = payload.errMsg || payload.tip || lastErr?.message || ''
   const msg = detail

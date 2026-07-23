@@ -33,10 +33,10 @@ export function buildHelpCardData() {
         title: '账号状态',
         tag: '登录',
         items: [
-          { name: '扫码登录', desc: '主人扫码绑定 Cookie（付费音质）', example: '#qqm登录' },
+          { name: '扫码登录', desc: '主人扫码登录（付费音质）', example: '#qqm登录' },
           { name: '状态卡片', desc: '账号 / 会员 / 音质 可视化', example: '#qqm状态' },
           { name: '快捷状态', desc: '状态卡短指令', example: '#qms' },
-          { name: '登出解绑', desc: '清除 API 中的登录 Cookie', example: '#qqm登出' },
+          { name: '登出解绑', desc: '清除登录态', example: '#qqm登出' },
         ],
       },
       {

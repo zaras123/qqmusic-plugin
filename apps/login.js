@@ -84,10 +84,10 @@ async function sendImage(e, fileOrUrl) {
 
 /** 登录成功后：只记录元信息 */
 async function onLoginSuccess(e, info = {}) {
-  const uin = info.uin || info.cookie?.uin || ''
-  const nick = info.nick || info.cookie?.nick || ''
-  const hasKey = info.hasKey ?? info.cookie?.hasKey ?? true
-  const channel = info.channel || info.cookie?.channel || ''
+  const uin = info.uin || ''
+  const nick = info.nick || ''
+  const hasKey = info.hasKey ?? true
+  const channel = info.channel || ''
   const userKey = String(e.user_id || '')
 
   let meta = null
@@ -144,29 +144,17 @@ async function onLoginSuccess(e, info = {}) {
  */
 function pickLoginSuccess(body) {
   const data = body?.data || body || {}
-  const uin = data.cookie?.uin || data.uin || ''
-  const hasKey = Boolean(
-    data.cookie?.hasKey ?? data.hasKey ?? data.cookie?.qm_keyst ?? data.qm_keyst
-  )
-  const nick = data.cookie?.nick || data.nick || ''
+  const uin = data.uin || ''
+  const hasKey = Boolean(data.hasKey ?? data.qm_keyst)
+  const nick = data.nick || ''
   const channel = data.channel || ''
 
-  // /login/qr/check 成功
   if (data.status === 'success' && (uin || hasKey)) {
-    return {
-      ok: true,
-      ...data,
-      uin,
-      nick,
-      hasKey: hasKey || Boolean(data.cookie?.hasKey),
-      channel: channel || 'mqtt',
-    }
+    return { ok: true, ...data, uin, nick, hasKey, channel: channel || 'mqtt' }
   }
-  // /login/qr/complete 或 deeplink / setCookie：顶层 uin + hasKey
   if (uin && hasKey === true) {
     return { ok: true, ...data, uin, nick, hasKey: true, channel }
   }
-  // /login/status
   if (data.login === true && uin && hasKey) {
     return { ok: true, ...data, uin, nick, hasKey: true, channel: channel || 'status' }
   }
@@ -196,12 +184,12 @@ export class qqmusicLogin extends plugin {
           permission: 'master',
         },
         {
-          reg: '^#?(qq|QQ)m(同步|拉取)(ck|CK|cookie|Cookie|登录态)?$|^#?(qq|QQ)m\\s*sync(\\s*ck)?$',
+          reg: '^#?(qq|QQ)m(同步|拉取|sync)(登录态)?$',
           fnc: 'syncFromApi',
           permission: 'master',
         },
         {
-          reg: '^#?(qq|QQ)m(刷新|续期|refresh)(登录|key|ck|CK|cookie|Cookie)?$',
+          reg: '^#?(qq|QQ)m(刷新|续期|refresh)(登录|key)?$',
           fnc: 'refreshKey',
           permission: 'master',
         },

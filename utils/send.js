@@ -743,7 +743,7 @@ export async function deliverSong(e, song, play, options = {}) {
       song.albumName ? `专辑：${song.albumName}` : '',
       qualityLabel ? `音质：${qualityLabel}` : '',
       adapter.kind !== 'unknown' ? `通道：${adapter.name || adapter.kind}` : '',
-      play?.url ? '' : '⚠ 未获取到播放链（请 #qqm登录 或锅巴填写 Cookie）',
+      play?.url ? '' : '⚠ 未获取到播放链，请 #qqm登录',
     ].filter(Boolean)
     await e.reply(lines.join('\n'))
   }
