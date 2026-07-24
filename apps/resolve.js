@@ -9,9 +9,14 @@ import {
   searchSongs,
   songUrlBest,
   songDetail,
+  parseQQMusicExtendedIds,
+  albumSongs,
+  songlistDetail,
+  singerSongs,
 } from '../utils/api.js'
 import { deliverSong, QUALITY_LABEL } from '../utils/send.js'
-import { getCfg, isPluginCommandMsg } from '../utils/common.js'
+import { setSession } from '../utils/session.js'
+import { getCfg, isPluginCommandMsg, replyCardOrText } from '../utils/common.js'
 import { logError, logInfo, logWarn } from '../utils/log.js'
 
 const plugin = await loadPluginBase()
@@ -184,6 +189,70 @@ export class qqmusicResolve extends plugin {
       if (urlMatch) {
         const url = urlMatch[0]
         logInfo(`识别链接: ${url}`)
+
+        // 优先识别专辑/歌单/歌手链接
+        const extIds = parseQQMusicExtendedIds(url)
+
+        if (extIds.albummid) {
+          try {
+            const result = await albumSongs(extIds.albummid, { userKey })
+            const songs = (result.list || []).map((item, idx) => ({
+              songmid: item.songmid || item.mid || '',
+              songid: item.songid || item.id || 0,
+              media_mid: item.media_mid || item.songmid || '',
+              songName: item.songname || item.title || item.name || '',
+              singerName: Array.isArray(item.singer) ? item.singer.map(s => s.name).join(' / ') : item.singername || '',
+              albumName: item.albumname || item.album?.name || '',
+              albummid: extIds.albummid,
+              cover: `https://y.gtimg.cn/music/photo_new/T002R300x300M000${extIds.albummid}.jpg`,
+            }))
+            if (songs.length) {
+              const scope = e.group_id || e.user_id
+              await setSession(scope, { type: 'album', data: songs, user_id: e.user_id, title: '专辑' })
+              await e.reply(`识别到专辑链接，共${songs.length}首。发送 #qqm听序号 播放`)
+              return true
+            }
+          } catch (err) { logWarn(`专辑解析失败: ${err.message}`) }
+        }
+
+        if (extIds.disstid) {
+          try {
+            const detail = await songlistDetail(extIds.disstid, userKey)
+            const raw = detail.songlist || []
+            const songs = raw.map((item, idx) => ({
+              songmid: item.songmid || item.mid || '',
+              songid: item.songid || item.id || 0,
+              media_mid: item.media_mid || item.songmid || '',
+              songName: item.songname || item.title || item.name || '',
+              singerName: Array.isArray(item.singer) ? item.singer.map(s => s.name).join(' / ') : item.singername || '',
+              albumName: item.albumname || item.album?.name || '',
+              albummid: item.albummid || item.album?.mid || '',
+              cover: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
+            }))
+            if (songs.length) {
+              const scope = e.group_id || e.user_id
+              const title = detail.dissname || detail.title || '歌单'
+              await setSession(scope, { type: 'playlist', data: songs, user_id: e.user_id, title })
+              await e.reply(`识别到歌单「${title}」，共${songs.length}首。发送 #qqm听序号 播放`)
+              return true
+            }
+          } catch (err) { logWarn(`歌单解析失败: ${err.message}`) }
+        }
+
+        if (extIds.singermid) {
+          try {
+            const result = await singerSongs(extIds.singermid, { pageSize: 30, userKey })
+            if (result.list?.length) {
+              const scope = e.group_id || e.user_id
+              const title = '歌手热门歌曲'
+              await setSession(scope, { type: 'singer', data: result.list, user_id: e.user_id, title })
+              await e.reply(`识别到歌手链接，热门歌曲${result.list.length}首。发送 #qqm听序号 播放`)
+              return true
+            }
+          } catch (err) { logWarn(`歌手解析失败: ${err.message}`) }
+        }
+
+        // 原有：单曲链接解析
         const ids = parseQQMusicIds(url)
         song = await this.idsToSong(ids, text, userKey)
       }
@@ -231,7 +300,7 @@ export class qqmusicResolve extends plugin {
       }
     }
 
-    // 仅发一条识别文案；不再发第二段文本 / 原生 music 卡
+    // 尝试渲染详情卡片，失败则纯文本
     const qLabel = play.qualityLabel || QUALITY_LABEL[play.quality] || play.quality || ''
     const prefix = cfg.identifyPrefix || '识别：'
     let failHint = ''
@@ -241,22 +310,50 @@ export class qqmusicResolve extends plugin {
       if (errText) {
         failHint = `⚠ ${errText}`
       } else if (pay && Number(pay.pay_play) === 1) {
-        failHint =
-          '⚠ 该曲需会员播放，请 #qqm登录'
+        failHint = '⚠ 该曲需会员播放，请 #qqm登录'
       } else {
         failHint = '⚠ 未获取到播放链（请 #qqm登录 重新扫码；或 #qqm刷新 后重试）'
       }
     }
-    await e.reply(
-      [
-        `${prefix}QQ音乐 · 解析下载中`,
-        `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}`,
-        play.url && qLabel ? `音质：${qLabel}` : !play.url ? '' : qLabel ? `音质：${qLabel}` : '',
-        failHint,
-      ]
-        .filter(Boolean)
-        .join('\n')
-    )
+
+    // 渲染详情卡片
+    try {
+      const { buildDetailCardData } = await import('../utils/card-data.js')
+      const { renderDetailCard } = await import('../utils/render.js')
+      const cardData = buildDetailCardData(song, {
+        qualityLabel: qLabel,
+        payplay: Boolean(song.payplay),
+        source: fromCard ? '卡片' : '链接',
+      })
+      cardData.tip = play.url
+        ? `正在下载并发送语音（${qLabel || '默认音质'}）...`
+        : (failHint || '未获取到播放链')
+      const img = await renderDetailCard(e, cardData)
+      if (img) {
+        await e.reply(img)
+      } else {
+        // 卡片渲染失败，纯文本兜底
+        await e.reply(
+          [
+            `${prefix}QQ音乐 · 解析下载中`,
+            `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}`,
+            song.albumName ? `专辑：${song.albumName}` : '',
+            play.url && qLabel ? `音质：${qLabel}` : '',
+            failHint,
+          ].filter(Boolean).join('\n')
+        )
+      }
+    } catch {
+      // 纯文本兜底
+      await e.reply(
+        [
+          `${prefix}QQ音乐 · 解析下载中`,
+          `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}`,
+          play.url && qLabel ? `音质：${qLabel}` : '',
+          failHint,
+        ].filter(Boolean).join('\n')
+      )
+    }
 
     // 跳过 deliverSong 内的文本/原生卡，只下语音+群文件
     await deliverSong(e, song, play, {

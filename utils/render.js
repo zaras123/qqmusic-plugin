@@ -286,6 +286,10 @@ export async function renderSettingsCard(e, data) {
   return renderCard(e, data, 'qqmusic-settings')
 }
 
+export async function renderDetailCard(e, data) {
+  return renderCard(e, data, 'qqmusic-detail')
+}
+
 export function formatStatusText(data) {
   return [
     `【${data.title || 'QQ音乐状态'}】`,

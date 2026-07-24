@@ -13,11 +13,11 @@ export function buildHelpCardData() {
 
   return {
     version: `v${getLocalVersion()}`,
-    statCommands: '15+',
+    statCommands: '25+',
     statQuality: quality,
     statMode: songOn && resolveOn ? '全开' : songOn ? '点歌' : resolveOn ? '解析' : '待机',
     apiHint: apiHintFor(),
-    tip: '付费曲需主人 #qqm登录 扫码绑定；点歌统一 #qqm 前缀，列表内 #qqm听1（会话内也可 #听1）；群内分享 QQ 音乐卡片/链接可自动解析。',
+    tip: '付费曲需主人扫码登录；指令统一 #qqm 前缀；#听序号 仅在本群点歌会话有效；分享 QQ 音乐卡片/链接可自动解析。',
     sections: [
       {
         title: '点歌播放',
@@ -28,6 +28,22 @@ export function buildHelpCardData() {
           { name: '直接播放', desc: '搜索并立即播放第一条', example: '#qqm播放 晴天' },
           { name: '查看歌词', desc: '按歌名或 mid 取歌词', example: '#qqm歌词 七里香' },
           { name: '热搜榜', desc: '查看 QQ 音乐热搜', example: '#qqm热搜' },
+        ],
+      },
+      {
+        title: '发现音乐',
+        tag: '探索',
+        items: [
+          { name: '排行榜', desc: '查看各大榜单歌曲', example: '#qqm排行 飙升' },
+          { name: '推荐歌单', desc: '热门推荐歌单列表', example: '#qqm推荐' },
+          { name: '随机推荐', desc: '随机推荐一首歌并播放', example: '#qqm来首歌' },
+          { name: '个性电台', desc: '根据口味推荐 5 首', example: '#qqm电台' },
+          { name: '每日推荐', desc: '每日推荐歌曲（需登录）', example: '#qqm日推' },
+          { name: '我的收藏', desc: '查看收藏歌曲（需登录）', example: '#qqm收藏' },
+          { name: '歌手搜索', desc: '搜索歌手并展示热门歌曲', example: '#qqm歌手 周杰伦' },
+          { name: '专辑搜索', desc: '搜索专辑并展示曲目列表', example: '#qqm专辑 叶惠美' },
+          { name: '歌单搜索', desc: '搜索歌单并展示歌曲', example: '#qqm歌单 华语流行' },
+          { name: '歌曲评论', desc: '查看歌曲热门评论', example: '#qqm评论 晴天' },
         ],
       },
       {

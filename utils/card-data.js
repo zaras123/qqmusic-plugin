@@ -227,3 +227,30 @@ export function formatSettingsText(data) {
     '#qqm 开启点歌 / #qqm 关闭解析 / #qqm 测试',
   ].join('\n')
 }
+
+/** 歌曲详情卡片（解析后展示） */
+export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '' } = {}) {
+  return {
+    songName: song.songName || '未知',
+    singerName: song.singerName || '未知歌手',
+    albumName: song.albumName || '',
+    cover: song.cover || '',
+    songmid: song.songmid || '',
+    duration: song.duration || '',
+    qualityLabel: qualityLabel || '',
+    payplay: payplay || Boolean(song.payplay),
+    source: source || '',
+    tip: '正在下载并发送语音...',
+  }
+}
+
+/** 纯文本兜底：歌曲详情 */
+export function formatDetailText(song, { qualityLabel = '' } = {}) {
+  const lines = [
+    `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}`,
+  ]
+  if (song.albumName) lines.push(`专辑：${song.albumName}`)
+  if (song.duration) lines.push(`时长：${song.duration}`)
+  if (qualityLabel) lines.push(`音质：${qualityLabel}`)
+  return lines.join('\n')
+}

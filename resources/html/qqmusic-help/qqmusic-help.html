@@ -262,6 +262,10 @@
       text-overflow: ellipsis;
     }
 
+    .cmd-example:empty {
+      display: none;
+    }
+
     .tips {
       margin-top: 12px;
       padding: 12px 14px;
@@ -371,7 +375,9 @@
                 <div class="cmd-name">{{item.name}}</div>
                 <div class="cmd-desc">{{item.desc}}</div>
               </div>
+              {{if item.example}}
               <div class="cmd-example">{{item.example}}</div>
+              {{/if}}
             </div>
             {{/each}}
           </div>

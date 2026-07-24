@@ -461,6 +461,243 @@ export function coverUrl(albummid, size = 300) {
   return `https://y.gtimg.cn/music/photo_new/T002R${size}x${size}M000${albummid}.jpg`
 }
 
+// ──────────── 排行榜 ────────────
+
+export async function topCategory(userKey = '') {
+  const body = await request('/top/category', {}, 'get', userKey)
+  return body?.data || []
+}
+
+export async function topDetail(id, { pageNo = 1, pageSize = 100, period, userKey = '' } = {}) {
+  const body = await request('/top', { id, pageNo, pageSize, ...(period ? { period } : {}) }, 'get', userKey)
+  return body?.data || body
+}
+
+// ──────────── 推荐 ────────────
+
+export async function recommendHot(userKey = '') {
+  const body = await request('/recommend/playlist/u', {}, 'get', userKey)
+  return body?.data?.list || []
+}
+
+// ──────────── 搜索扩展 ────────────
+
+export async function searchSingers(keyword, { pageNo = 1, pageSize = 20, userKey = '' } = {}) {
+  const body = await request('/search', { key: keyword, t: 9, pageNo, pageSize }, 'get', userKey)
+  return (body?.data?.list || []).map((item, idx) => ({
+    index: idx + 1,
+    singermid: item.singerMID || item.singermid || item.mid || '',
+    singerName: item.singerName || item.name || item.singer || '',
+    songNum: item.songNum || item.songnum || 0,
+    albumNum: item.albumNum || item.albumnum || 0,
+    cover: item.singerMID ? `https://y.gtimg.cn/music/photo_new/T001R300x300M000${item.singerMID || item.singermid || item.mid}.jpg` : '',
+    raw: item,
+  }))
+}
+
+export async function searchAlbums(keyword, { pageNo = 1, pageSize = 20, userKey = '' } = {}) {
+  const body = await request('/search', { key: keyword, t: 8, pageNo, pageSize }, 'get', userKey)
+  return (body?.data?.list || []).map((item, idx) => ({
+    index: idx + 1,
+    albummid: item.albumMID || item.albummid || item.mid || '',
+    albumName: item.albumName || item.name || '',
+    singerName: item.singerName || item.singer || '',
+    songCount: item.song_count || item.songCount || 0,
+    publicTime: item.publicTime || item.publish_date || '',
+    cover: item.albumMID || item.albummid ? coverUrl(item.albumMID || item.albummid) : '',
+    raw: item,
+  }))
+}
+
+export async function searchSonglists(keyword, { pageNo = 1, pageSize = 20, userKey = '' } = {}) {
+  const body = await request('/search', { key: keyword, t: 2, pageNo, pageSize }, 'get', userKey)
+  return (body?.data?.list || []).map((item, idx) => ({
+    index: idx + 1,
+    disstid: item.dissid || item.disstid || item.id || '',
+    dissname: item.dissname || item.title || item.name || '',
+    creator: item.creator?.nick || item.creator?.nickname || item.nickname || '',
+    songCount: item.song_count || item.songCount || item.songnum || 0,
+    listenNum: item.listennum || item.listen_count || 0,
+    cover: item.imgurl || item.logo || '',
+    raw: item,
+  }))
+}
+
+// ──────────── 歌手 ────────────
+
+export async function singerSongs(singermid, { pageNo = 1, pageSize = 50, order = 1, userKey = '' } = {}) {
+  const body = await request('/singer/songs', { singermid, pageNo, pageSize, order }, 'get', userKey)
+  const d = body?.data || {}
+  return {
+    list: (d.list || []).map((item, idx) => normalizeSearchItem(item, idx)),
+    total: d.total || 0,
+    pageNo: d.pageNo || pageNo,
+    singermid,
+  }
+}
+
+export async function singerAlbum(singermid, { pageNo = 1, pageSize = 50, userKey = '' } = {}) {
+  const body = await request('/singer/album', { singermid, pageNo, pageSize }, 'get', userKey)
+  return body?.data || { list: [], total: 0 }
+}
+
+export async function singerDesc(singermid, userKey = '') {
+  const body = await request('/singer/desc', { singermid }, 'get', userKey)
+  return body?.data || body
+}
+
+// ──────────── 专辑 ────────────
+
+export async function albumDetail(albummid, userKey = '') {
+  const body = await request('/album', { albummid }, 'get', userKey)
+  return body?.data || body
+}
+
+export async function albumSongs(albummid, { begin = 0, num = 999, userKey = '' } = {}) {
+  const body = await request('/album/songs', { albummid, begin, num }, 'get', userKey)
+  const d = body?.data || {}
+  return {
+    list: (d.list || []).map((item, idx) => normalizeSearchItem(item, idx)),
+    total: d.total || 0,
+    albummid,
+  }
+}
+
+// ──────────── 歌单 ────────────
+
+export async function songlistDetail(disstid, userKey = '') {
+  const body = await request('/songlist', { id: disstid }, 'get', userKey)
+  return body?.data || body
+}
+
+// ──────────── 评论 ────────────
+
+export async function comment(id, { pageNo = 1, pageSize = 20, biztype = 1, userKey = '' } = {}) {
+  const body = await request('/comment', { id, pageNo, pageSize, biztype }, 'get', userKey)
+  return body?.data || body
+}
+
+// ──────────── 相似歌曲 ────────────
+
+export async function similarSongs(songid, userKey = '') {
+  const body = await request('/song/similar', { id: songid }, 'get', userKey)
+  return body?.data?.list || body?.data || []
+}
+
+// ──────────── 链接 ID 提取（扩展专辑/歌单/歌手） ────────────
+
+export function parseQQMusicExtendedIds(text = '') {
+  const s = String(text)
+  const out = { ...parseQQMusicIds(s) }
+
+  // 专辑
+  const albumMid =
+    s.match(/\/album\/([A-Za-z0-9]+)/i) ||
+    s.match(/[?&]albummid=([A-Za-z0-9]+)/i)
+  if (albumMid) out.albummid = out.albummid || albumMid[1]
+
+  // 歌单
+  const dissid =
+    s.match(/\/playlist\/(\d+)/i) ||
+    s.match(/disstid[=:](\d+)/i)
+  if (dissid) out.disstid = dissid[1]
+
+  // 歌手
+  const singerMid =
+    s.match(/\/singer\/([A-Za-z0-9]+)/i) ||
+    s.match(/[?&]singermid=([A-Za-z0-9]+)/i)
+  if (singerMid) out.singermid = singerMid[1]
+
+  return out
+}
+
+// ──────────── CGI 代理（调用 QQ 音乐内部模块） ────────────
+
+export async function cgiProxy(module, method, param = {}, userKey = '') {
+  const body = await request('/cgi', { module, method, param: JSON.stringify(param) }, 'get', userKey)
+  return body?.data || body
+}
+
+// ──────────── 推荐歌曲（随机一首） ────────────
+
+export async function recommendFeed(userKey = '') {
+  const body = await request('/cgi', {
+    module: 'recommend.RecommendFeedServer',
+    method: 'get_recommend_feed',
+    param: JSON.stringify({ direction: 1, page: 1, v_cache: [], v_uniq: [], s_num: 0 }),
+  }, 'get', userKey)
+  const v_shelf = body?.data?.v_shelf || []
+  const idSet = new Set()
+  for (const shelf of v_shelf) {
+    if (shelf.style === 1) {
+      for (const niche of shelf.v_niche || []) {
+        for (const card of niche.v_card || []) {
+          if (card.id) idSet.add(card.id)
+        }
+      }
+    }
+  }
+  const ids = [...idSet]
+  if (!ids.length) return []
+  try {
+    const detailBody = await request('/cgi', {
+      module: 'track_info.UniformRuleCtrlServer',
+      method: 'GetTrackInfo',
+      param: JSON.stringify({ ids: ids.slice(0, 20), types: ids.slice(0, 20).map(() => 200) }),
+    }, 'get', userKey)
+    return (detailBody?.data?.tracks || []).map((item, idx) => normalizeSearchItem(item, idx))
+  } catch (e) {
+    console.warn('[qqmusic-plugin] recommendFeed failed:', e.message)
+    return []
+  }
+}
+
+// ──────────── 个性电台 ────────────
+
+export async function personalRadio(count = 5, userKey = '') {
+  const body = await request('/cgi', {
+    module: 'pc_track_radio_svr',
+    method: 'get_radio_track',
+    param: JSON.stringify({ id: 99, num: count }),
+  }, 'get', userKey)
+  const tracks = body?.data?.tracks || []
+  return tracks.map((item, idx) => normalizeSearchItem(item, idx))
+}
+
+// ──────────── 每日推荐 / 收藏（dirid: 202=日推, 201=收藏） ────────────
+
+export async function userDissList(dirid = 202, { songBegin = 0, songNum = 30, userKey = '' } = {}) {
+  const body = await request('/cgi', {
+    module: 'srf_diss_info.DissInfoServer',
+    method: 'CgiGetDiss',
+    param: JSON.stringify({ disstid: 0, dirid, onlysonglist: 0, song_begin: songBegin, song_num: songNum, userinfo: 1, pic_dpi: 800, orderlist: 1 }),
+  }, 'get', userKey)
+  const d = body?.data || {}
+  const songs = (d.songlist || []).map((item, idx) => normalizeSearchItem(item, idx))
+  const dirinfo = d.dirinfo || {}
+  return { songs, title: dirinfo.title || '', desc: dirinfo.desc || '' }
+}
+
+export async function dailyRecommend(opts = {}) {
+  return userDissList(202, opts)
+}
+
+export async function userFavorites(opts = {}) {
+  return userDissList(201, opts)
+}
+
+// ──────────── 用户歌单列表 ────────────
+
+export async function userSonglists(qqId, userKey = '') {
+  const body = await request('/user/songlist', { id: qqId }, 'get', userKey)
+  return body?.data?.list || []
+}
+
+export async function userCollectSonglists(qqId, { pageNo = 1, pageSize = 20, userKey = '' } = {}) {
+  const body = await request('/user/collect/songlist', { id: qqId, pageNo, pageSize }, 'get', userKey)
+  return body?.data || { list: [] }
+}
+
 export default {
   searchSongs,
   songDetail,
@@ -474,4 +711,26 @@ export default {
   request,
   pullLoginMeta,
   refreshLogin,
+  topCategory,
+  topDetail,
+  recommendHot,
+  searchSingers,
+  searchAlbums,
+  searchSonglists,
+  singerSongs,
+  singerAlbum,
+  singerDesc,
+  albumDetail,
+  albumSongs,
+  songlistDetail,
+  comment,
+  similarSongs,
+  parseQQMusicExtendedIds,
+  cgiProxy,
+  recommendFeed,
+  personalRadio,
+  dailyRecommend,
+  userFavorites,
+  userSonglists,
+  userCollectSonglists,
 }
