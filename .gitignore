@@ -1,4 +1,6 @@
 node_modules/
-config/config/
+# 运行时用户配置（保留目录占位，删除 yaml 后重启会按 default 重新生成）
+config/config/*
+!config/config/.gitkeep
 *.log
 .DS_Store

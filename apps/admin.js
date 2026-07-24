@@ -7,6 +7,7 @@ import { request, listAccounts } from '../utils/api.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
+import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
 
 const plugin = await loadPluginBase()
 
@@ -45,6 +46,22 @@ export class qqmusicAdmin extends plugin {
         {
           reg: '^#?(qq|QQ)m\\s*(账号|accounts|已登录)$',
           fnc: 'listAccounts',
+          permission: 'master',
+        },
+        {
+          // #qqm更新 / #qqm强制更新 / #qq音乐更新
+          reg: '^#?(qq|QQ)m\\s*强制更新$|^#?(qq|QQ)音乐\\s*强制更新$',
+          fnc: 'forceUpdate',
+          permission: 'master',
+        },
+        {
+          reg: '^#?(qq|QQ)m\\s*更新日志$|^#?(qq|QQ)音乐\\s*更新日志$',
+          fnc: 'updateLog',
+          permission: 'master',
+        },
+        {
+          reg: '^#?(qq|QQ)m\\s*更新$|^#?(qq|QQ)音乐\\s*更新$',
+          fnc: 'update',
           permission: 'master',
         },
       ],
@@ -108,6 +125,9 @@ export class qqmusicAdmin extends plugin {
         '#qqm 开启点歌 / #qqm 关闭解析',
         '#qqm 音质 flac',
         '#qqm 测试',
+        `#qqm更新          拉取最新代码（当前 v${getLocalVersion()}）`,
+        '#qqm强制更新      丢弃本地改动并同步远程',
+        '#qqm更新日志      最近提交',
       ].join('\n')
     )
     return true
@@ -175,6 +195,28 @@ export class qqmusicAdmin extends plugin {
     } catch (err) {
       await e.reply(`查询失败：${err.message}`)
     }
+    return true
+  }
+
+  async update(e) {
+    await e.reply(`开始更新 qqmusic-plugin（v${getLocalVersion()}）…`)
+    const ret = await updatePlugin({ force: false })
+    await e.reply(ret.message || (ret.ok ? '更新完成' : '更新失败'))
+    return true
+  }
+
+  async forceUpdate(e) {
+    await e.reply(
+      `开始强制更新 qqmusic-plugin（v${getLocalVersion()}）…\n将丢弃插件目录内未提交的本地修改（保留 config/config 用户配置）`
+    )
+    const ret = await updatePlugin({ force: true })
+    await e.reply(ret.message || (ret.ok ? '强制更新完成' : '强制更新失败'))
+    return true
+  }
+
+  async updateLog(e) {
+    const ret = await getUpdateLog({ limit: 15 })
+    await e.reply(ret.message || '暂无更新日志')
     return true
   }
 }

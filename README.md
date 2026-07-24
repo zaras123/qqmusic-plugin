@@ -13,6 +13,10 @@
   <img src="https://img.shields.io/badge/Yunzai-v3-blue" alt="yunzai">
   <img src="https://img.shields.io/badge/TRSS-Multi--Protocol-purple" alt="trss">
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="license">
+  <img src="https://img.shields.io/github/stars/zaras123/qqmusic-plugin?style=flat&logo=github" alt="stars">
+  <a href="https://github.com/zaras123/qqmusic-plugin">
+    <img src="https://count.getloli.com/get/@zaras123.qqmusic-plugin?theme=rule34" alt="visitors">
+  </a>
 </p>
 
 ---
@@ -73,6 +77,9 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 | ⚙️ 配置 | `#qqm 音质 flac` | 设置最高音质（主人） |
 | ⚙️ 配置 | `#qqm 开启/关闭 点歌/解析` | 功能开关（主人） |
 | ⚙️ 配置 | `#qqm 测试` | 测试 API 连通（主人） |
+| 🔄 更新 | `#qqm更新` | 拉取最新插件代码（主人，需 git 安装） |
+| 🔄 更新 | `#qqm强制更新` | 丢弃本地改动并同步远程（主人） |
+| 🔄 更新 | `#qqm更新日志` | 查看最近提交（主人） |
 
 ### 音质选项
 
@@ -106,7 +113,23 @@ cd qqmusic-plugin && pnpm install
 
 重启 Yunzai，日志出现 `qqmusic-plugin 已加载` 即成功。
 
+首次启动（或删除 `config/config/qqmusic.yaml` 后重启）会自动从 `config/default_config/` 生成用户配置文件。
+
 主人发送 `#qqm登录` 扫码即可开始使用。
+
+### 4. 更新插件
+
+需通过 `git clone` 安装（目录内有 `.git`）。主人发送：
+
+```text
+#qqm更新        # 快进拉取（本地有改动时会提示）
+#qqm强制更新    # reset 到远程，丢弃插件内未提交修改（保留 config/config）
+#qqm更新日志    # 最近提交记录
+```
+
+也可使用 Yunzai 自带：`#更新qqmusic-plugin`。
+
+更新成功后请 `#重启` 使新代码生效。若 `package.json` 有变更，插件会尝试自动 `pnpm/npm install`。
 
 > 📌 **关于 API**：后端 API 涉及平台接口对接等技术细节，出于安全和合规考虑不对外开源。如需使用请加入用户群申请。
 

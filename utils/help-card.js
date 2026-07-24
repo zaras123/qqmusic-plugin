@@ -3,6 +3,7 @@
  */
 import Config from '../components/Config.js'
 import { apiHintFor } from './privacy.js'
+import { getLocalVersion } from './update.js'
 
 export function buildHelpCardData() {
   const cfg = Config.getConfig('qqmusic') || {}
@@ -11,7 +12,7 @@ export function buildHelpCardData() {
   const resolveOn = cfg.enableResolve !== false
 
   return {
-    version: 'v1.0',
+    version: `v${getLocalVersion()}`,
     statCommands: '15+',
     statQuality: quality,
     statMode: songOn && resolveOn ? '全开' : songOn ? '点歌' : resolveOn ? '解析' : '待机',
@@ -48,6 +49,9 @@ export function buildHelpCardData() {
           { name: '切换音质', desc: '128 / 320 / flac / hires …', example: '#qqm 音质 flac' },
           { name: '功能开关', desc: '开启或关闭点歌、解析', example: '#qqm 开启点歌' },
           { name: '连通测试', desc: '探测 API 是否可用', example: '#qqm 测试' },
+          { name: '插件更新', desc: 'git 拉取最新代码', example: '#qqm更新' },
+          { name: '强制更新', desc: '丢弃本地改动同步远程', example: '#qqm强制更新' },
+          { name: '更新日志', desc: '查看最近提交', example: '#qqm更新日志' },
         ],
       },
       {

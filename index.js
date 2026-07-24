@@ -7,10 +7,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pluginPath } from './utils/path.js'
 import { ensureSegment } from './utils/adapter.js'
+import Config from './components/Config.js'
 
 const log = global.logger || console
 
 await ensureSegment()
+
+// 启动即生成/补全 config/config/*.yaml（删除后重启也会重新生成）
+Config.init()
 
 const appsDir = path.join(pluginPath, 'apps')
 const files = fs.readdirSync(appsDir).filter((f) => f.endsWith('.js'))
