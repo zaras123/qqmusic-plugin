@@ -123,18 +123,22 @@ export async function listAccounts() {
 
 export async function searchSongs(keyword, { pageNo = 1, pageSize = 10 } = {}) {
   const body = await request('/search', { key: keyword, t: 0, pageNo, pageSize })
-  return (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx))
+  return (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
 }
 
 function normalizeSearchItem(item, idx = 0) {
-  const singer = Array.isArray(item.singer)
-    ? item.singer.map((s) => s.name || s.title).filter(Boolean).join(' / ')
-    : item.singername || item.singerName || ''
-  const albummid = item.albummid || item.album?.mid || ''
+  // 兼容多种 API 返回结构：/data 包裹、/track_info 包裹、扁平结构
+  const raw = item?.data || item?.track_info || item
+  if (!raw) return null
+
+  const singer = Array.isArray(raw.singer)
+    ? raw.singer.map((s) => s.name || s.title).filter(Boolean).join(' / ')
+    : raw.singername || raw.singerName || raw.singer || ''
+  const albummid = raw.albummid || raw.album?.mid || raw.albumMID || ''
   const cover = albummid
     ? coverUrl(albummid)
-    : item.album?.pic || ''
-  const interval = Number(item.interval || item.songTime || 0)
+    : raw.album?.pic || raw.album?.cover || ''
+  const interval = Number(raw.interval || raw.songTime || 0)
   const duration =
     interval > 0
       ? `${String(Math.floor(interval / 60)).padStart(2, '0')}:${String(interval % 60).padStart(2, '0')}`
@@ -142,19 +146,19 @@ function normalizeSearchItem(item, idx = 0) {
 
   return {
     index: idx + 1,
-    songmid: item.songmid || item.mid || '',
-    songid: item.songid || item.id || 0,
-    media_mid: item.media_mid || item.strMediaMid || item.songmid || '',
+    songmid: raw.songmid || raw.mid || '',
+    songid: raw.songid || raw.id || 0,
+    media_mid: raw.media_mid || raw.strMediaMid || raw.songmid || '',
     songName:
-      item.songname || item.songname_hilight?.replace(/<[^>]+>/g, '') || item.name || '',
+      raw.songname || raw.songname_hilight?.replace(/<[^>]+>/g, '') || raw.name || raw.title || '',
     singerName: singer,
-    albumName: item.albumname || item.album?.name || '',
+    albumName: raw.albumname || raw.album?.name || '',
     albummid,
     cover,
     duration,
     interval,
-    payplay: item.pay?.payplay ?? item.payplay,
-    msgid: item.msgid,
+    payplay: raw.pay?.payplay ?? raw.pay?.pay_play ?? raw.payplay,
+    msgid: raw.msgid,
     raw: item,
   }
 }
@@ -528,8 +532,9 @@ export async function searchSonglists(keyword, { pageNo = 1, pageSize = 20, user
 export async function singerSongs(singermid, { pageNo = 1, pageSize = 50, order = 1, userKey = '' } = {}) {
   const body = await request('/singer/songs', { singermid, pageNo, pageSize, order }, 'get', userKey)
   const d = body?.data || {}
+  const list = Array.isArray(d.list) ? d.list : (Array.isArray(d.songs) ? d.songs : (d.songlist || []))
   return {
-    list: (d.list || []).map((item, idx) => normalizeSearchItem(item, idx)),
+    list: list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean),
     total: d.total || 0,
     pageNo: d.pageNo || pageNo,
     singermid,
@@ -556,8 +561,9 @@ export async function albumDetail(albummid, userKey = '') {
 export async function albumSongs(albummid, { begin = 0, num = 999, userKey = '' } = {}) {
   const body = await request('/album/songs', { albummid, begin, num }, 'get', userKey)
   const d = body?.data || {}
+  const list = Array.isArray(d.list) ? d.list : (Array.isArray(d.songs) ? d.songs : [])
   return {
-    list: (d.list || []).map((item, idx) => normalizeSearchItem(item, idx)),
+    list: list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean),
     total: d.total || 0,
     albummid,
   }
@@ -567,7 +573,35 @@ export async function albumSongs(albummid, { begin = 0, num = 999, userKey = '' 
 
 export async function songlistDetail(disstid, userKey = '') {
   const body = await request('/songlist', { id: disstid }, 'get', userKey)
-  return body?.data || body
+  const d = body?.data || body || {}
+  const raw = d.songlist || d.songs || d.list || []
+  const songs = (Array.isArray(raw) ? raw : []).map((item, idx) => {
+    const singer = Array.isArray(item.singer)
+      ? item.singer.map(s => s.name).filter(Boolean).join(' / ')
+      : item.singername || item.singer || ''
+    const albummid = item.albummid || item.album?.mid || ''
+    return {
+      index: idx + 1,
+      songmid: item.songmid || item.mid || '',
+      songid: item.songid || item.id || 0,
+      media_mid: item.media_mid || item.songmid || '',
+      songName: item.songname || item.title || item.name || '',
+      singerName: singer,
+      albumName: item.albumname || item.album?.name || '',
+      albummid,
+      cover: albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg` : '',
+      payplay: item.pay?.pay_play ?? item.payplay,
+    }
+  }).filter(s => s.songmid)
+  return {
+    dissname: d.dissname || d.title || d.name || '',
+    songCount: d.song_count || d.songCount || songs.length,
+    listenNum: d.listennum || d.listenNum || 0,
+    disstid,
+    creator: d.creator?.nick || d.creator?.nickname || d.nickname || '',
+    songlist: songs,
+    raw: d,
+  }
 }
 
 // ──────────── 评论 ────────────
