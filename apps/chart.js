@@ -6,7 +6,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong } from '../utils/send.js'
-import { getCfg } from '../utils/common.js'
+import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 import { formatSongList } from '../utils/format.js'
 
@@ -100,10 +100,24 @@ export class qqmusicChart extends plugin {
 
       await e.reply(`正在获取 ${match.label}...`)
       const detail = await topDetail(match.topId, { userKey })
-      const songs = (detail.list || []).map((item, idx) => normalizeSong(item, idx))
+      const songs = (detail.list || detail.data?.list || []).map((item, idx) => normalizeSong(item, idx)).filter(Boolean)
       if (!songs.length) { await e.reply('该榜单暂无数据'); return true }
 
       await setSession(scope, { type: 'top', data: songs, user_id: e.user_id, title: match.label })
+
+      // 渲染列表卡片
+      if (cfg.renderListCard !== false) {
+        const { buildListCardData } = await import('../utils/card-data.js')
+        const { renderListCard } = await import('../utils/render.js')
+        const ok = await replyCardOrText(e, {
+          render: renderListCard,
+          data: buildListCardData(match.label, songs),
+          formatText: () => formatSongList(songs, match.label),
+          tag: '排行卡片',
+        })
+        if (ok) return true
+      }
+
       await e.reply(formatSongList(songs, match.label))
     } catch (err) {
       logError(`排行失败: ${err.message}`)
@@ -131,6 +145,24 @@ export class qqmusicChart extends plugin {
       lines.push('\n发送 #qqm推荐听序号 查看歌单歌曲')
 
       await setSession(scope, { type: 'recommend', data: list, user_id: e.user_id })
+
+      // 渲染热搜卡片样式的推荐卡片
+      if (cfg.renderListCard !== false) {
+        const { buildHotCardData } = await import('../utils/card-data.js')
+        const { renderHotCard } = await import('../utils/render.js')
+        const hotItems = list.slice(0, 15).map(p => ({
+          k: p.title || p.dissname || '',
+          n: p.listenNum || p.listennum || 0,
+        }))
+        const ok = await replyCardOrText(e, {
+          render: renderHotCard,
+          data: buildHotCardData(hotItems),
+          formatText: () => lines.join('\n'),
+          tag: '推荐卡片',
+        })
+        if (ok) return true
+      }
+
       await e.reply(lines.join('\n'))
     } catch (err) {
       logError(`推荐失败: ${err.message}`)

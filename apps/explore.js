@@ -1,6 +1,6 @@
 /**
  * 歌手 + 专辑 + 歌单 + 评论
- * 命令：#qqm歌手 关键词  /  #qqm专辑 关键词  /  #qqm歌单 关键词  /  #qqm评论 关键词
+ * 命令：#qqm歌手 关键词  /  #qqm专辑 关键词  /  #qqm歌单 关键词  / #qqm评论 关键词
  */
 import { loadPluginBase } from '../utils/plugin-base.js'
 import {
@@ -12,7 +12,7 @@ import {
 } from '../utils/api.js'
 import { setSession } from '../utils/session.js'
 import { formatSongList } from '../utils/format.js'
-import { getCfg } from '../utils/common.js'
+import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 
 const plugin = await loadPluginBase()
@@ -97,8 +97,24 @@ export class qqmusicExplore extends plugin {
 
       const title = `${alb.singerName} - ${alb.albumName}`
       await setSession(scope, { type: 'album', data: result.list, user_id: e.user_id, title, album: alb })
-      await e.reply(formatSongList(result.list, title))
 
+      // 渲染卡片
+      if (cfg.renderListCard !== false) {
+        const { buildListCardData } = await import('../utils/card-data.js')
+        const { renderListCard } = await import('../utils/render.js')
+        const ok = await replyCardOrText(e, {
+          render: renderListCard,
+          data: buildListCardData(title, result.list),
+          formatText: () => formatSongList(result.list, title),
+          tag: '专辑卡片',
+        })
+        if (ok) {
+          if (alb.publicTime) await e.reply(`发行时间：${alb.publicTime}`)
+          return true
+        }
+      }
+
+      await e.reply(formatSongList(result.list, title))
       if (alb.publicTime) {
         await e.reply(`发行时间：${alb.publicTime}`)
       }
@@ -127,29 +143,25 @@ export class qqmusicExplore extends plugin {
 
       const pl = lists[0]
       const detail = await songlistDetail(pl.disstid, userKey)
-      const raw = detail.songlist || []
-      const songs = raw.map((item, idx) => {
-        const singer = Array.isArray(item.singer)
-          ? item.singer.map(s => s.name).filter(Boolean).join(' / ')
-          : item.singername || ''
-        const albummid = item.albummid || item.album?.mid || ''
-        return {
-          index: idx + 1,
-          songmid: item.songmid || item.mid || '',
-          songid: item.songid || item.id || 0,
-          media_mid: item.media_mid || item.songmid || '',
-          songName: item.songname || item.title || item.name || '',
-          singerName: singer,
-          albumName: item.albumname || item.album?.name || '',
-          albummid,
-          cover: albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg` : '',
-          payplay: item.pay?.pay_play ?? item.payplay,
-        }
-      })
+      const songs = detail.songlist || []
       if (!songs.length) { await e.reply('该歌单暂无歌曲'); return true }
 
-      const title = pl.dissname || '歌单'
+      const title = detail.dissname || pl.dissname || '歌单'
       await setSession(scope, { type: 'playlist', data: songs, user_id: e.user_id, title, playlist: pl })
+
+      // 渲染卡片
+      if (cfg.renderListCard !== false) {
+        const { buildListCardData } = await import('../utils/card-data.js')
+        const { renderListCard } = await import('../utils/render.js')
+        const ok = await replyCardOrText(e, {
+          render: renderListCard,
+          data: buildListCardData(title, songs),
+          formatText: () => formatSongList(songs, title),
+          tag: '歌单卡片',
+        })
+        if (ok) return true
+      }
+
       await e.reply(formatSongList(songs, title))
     } catch (err) {
       logError(`歌单搜索失败: ${err.message}`)
@@ -190,19 +202,41 @@ export class qqmusicExplore extends plugin {
         return true
       }
 
-      const lines = [`♫ ${song.songName} - ${song.singerName} 热门评论\n`]
-      for (let i = 0; i < Math.min(allComments.length, 10); i++) {
-        const c = allComments[i]
+      // 渲染歌词卡片样式的评论卡片
+      const commentLines = allComments.slice(0, 10).map((c, i) => {
         const nick = c.nick || c.nickname || '匿名'
         const text = c.rootcommentcontent || c.content || c.comment || ''
         const likes = c.praisenum || c.likeCount || 0
-        if (text) {
-          lines.push(`${i + 1}. ${nick}（${likes}赞）：${text.slice(0, 100)}`)
-        }
+        return `${i + 1}. ${nick}（${likes}赞）：${text.slice(0, 80)}`
+      }).filter(Boolean)
+
+      if (cfg.renderListCard !== false) {
+        const { buildLyricCardData } = await import('../utils/card-data.js')
+        const { renderLyricCard } = await import('../utils/render.js')
+        const cardData = buildLyricCardData({
+          songName: song.songName,
+          singerName: song.singerName,
+          cover: song.cover || '',
+          albumName: song.albumName || '',
+          lines: commentLines,
+        })
+        cardData.tip = '发送 #qqm点歌 关键词 可以搜索播放'
+        const ok = await replyCardOrText(e, {
+          render: renderLyricCard,
+          data: cardData,
+          formatText: () => [`♫ ${song.songName} - ${song.singerName} 热门评论`, '', ...commentLines].join('\n'),
+          tag: '评论卡片',
+        })
+        if (ok) return true
       }
-      await e.reply(lines.join('\n'))
+
+      await e.reply([`♫ ${song.songName} - ${song.singerName} 热门评论`, '', ...commentLines].join('\n'))
     } catch (err) {
       logError(`评论失败: ${err.message}`)
+      await e.reply('评论获取失败，请稍后重试')
+    }
+    return true
+  }
       await e.reply('评论获取失败，请稍后重试')
     }
     return true
