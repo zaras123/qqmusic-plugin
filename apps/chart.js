@@ -2,9 +2,10 @@
  * 排行榜 + 推荐 + 电台 + 日推 + 收藏
  * 命令：#qqm排行 / #qqm推荐 / #qqm来首歌 / #qqm电台 / #qqm日推 / #qqm收藏
  */
-import { loadPluginBaseSync } from '../utils/plugin-base.js'
+import { loadPluginBase } from '../utils/plugin-base.js'
 
-const Plugin = loadPluginBaseSync()
+// 预加载插件基类（支持 ESM + top-level await）
+await loadPluginBase()
 
 import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
@@ -39,7 +40,7 @@ function normalizeSong(item, idx = 0) {
   }
 }
 
-export class qqmusicChart extends Plugin {
+export class qqmusicChart extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-排行榜',

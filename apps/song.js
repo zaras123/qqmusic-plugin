@@ -7,10 +7,8 @@
  *   #qqm歌词 关键词或songmid
  *   #qqm热搜
  */
-import { loadPluginBaseSync } from '../utils/plugin-base.js'
 
-const Plugin = loadPluginBaseSync()
-
+// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
 import { searchSongs, songUrlBest, lyric, hotKeys } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong, sendNativeMusicCard, QUALITY_LABEL } from '../utils/send.js'
@@ -60,7 +58,7 @@ async function resolvePlay(song, cfg, userKey = '') {
   }
 }
 
-export class qqmusicSong extends Plugin {
+export class qqmusicSong extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-点歌',

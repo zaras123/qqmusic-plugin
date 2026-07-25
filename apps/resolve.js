@@ -2,10 +2,8 @@
  * QQ 音乐分享卡片 / 链接解析
  * 参考 rconsole-plugin apps/tools.js qqMusic
  */
-import { loadPluginBaseSync } from '../utils/plugin-base.js'
 
-const Plugin = loadPluginBaseSync()
-
+// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
 import {
   parseQQMusicCard,
   parseQQMusicIds,
@@ -104,7 +102,7 @@ function isQQMusicMessage(text) {
   return false
 }
 
-export class qqmusicResolve extends Plugin {
+export class qqmusicResolve extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-解析',

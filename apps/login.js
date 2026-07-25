@@ -4,10 +4,8 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { loadPluginBaseSync } from '../utils/plugin-base.js'
 
-const Plugin = loadPluginBaseSync()
-
+// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
 import Config from '../components/Config.js'
 import { request, pullLoginMeta, refreshLogin } from '../utils/api.js'
 import { getTempDir } from '../utils/send.js'
@@ -162,7 +160,7 @@ function pickLoginSuccess(body) {
   return null
 }
 
-export class qqmusicLogin extends Plugin {
+export class qqmusicLogin extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-扫码登录',

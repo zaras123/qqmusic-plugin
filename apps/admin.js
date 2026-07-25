@@ -1,10 +1,8 @@
 ﻿/**
  * 主人配置命令
  */
-import { loadPluginBaseSync } from '../utils/plugin-base.js'
 
-const Plugin = loadPluginBaseSync()
-
+// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
 import Config from '../components/Config.js'
 import { request, listAccounts } from '../utils/api.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
@@ -12,7 +10,7 @@ import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
 import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
 
-export class qqmusicAdmin extends Plugin {
+export class qqmusicAdmin extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-管理',
