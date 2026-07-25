@@ -3,22 +3,7 @@
  */
 import { loadPluginBaseSync } from '../utils/plugin-base.js'
 
-let Plugin = null
-let _pluginPromise = null
-
-function ensurePlugin() {
-  if (Plugin) return true
-  if (!_pluginPromise) {
-    _pluginPromise = loadPluginBase().then(p => {
-      Plugin = p
-      return p
-    })
-  }
-  return false
-}
-
-// Kick off loading immediately
-ensurePlugin()
+const Plugin = loadPluginBaseSync()
 
 import Config from '../components/Config.js'
 import { request, listAccounts } from '../utils/api.js'

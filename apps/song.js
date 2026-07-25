@@ -9,22 +9,7 @@
  */
 import { loadPluginBaseSync } from '../utils/plugin-base.js'
 
-let Plugin = null
-let _pluginPromise = null
-
-function ensurePlugin() {
-  if (Plugin) return true
-  if (!_pluginPromise) {
-    _pluginPromise = loadPluginBase().then(p => {
-      Plugin = p
-      return p
-    })
-  }
-  return false
-}
-
-// Kick off loading immediately
-ensurePlugin()
+const Plugin = loadPluginBaseSync()
 
 import { searchSongs, songUrlBest, lyric, hotKeys } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
