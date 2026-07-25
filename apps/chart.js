@@ -39,7 +39,7 @@ function normalizeSong(item, idx = 0) {
   }
 }
 
-export class qqmusicChart extends loadPluginBaseSync() {
+export class qqmusicChart extends Plugin {
   constructor() {
     super({
       name: 'QQ音乐-排行榜',

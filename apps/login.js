@@ -162,7 +162,7 @@ function pickLoginSuccess(body) {
   return null
 }
 
-export class qqmusicLogin extends loadPluginBaseSync() {
+export class qqmusicLogin extends Plugin {
   constructor() {
     super({
       name: 'QQ音乐-扫码登录',

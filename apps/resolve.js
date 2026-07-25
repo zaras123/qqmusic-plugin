@@ -104,7 +104,7 @@ function isQQMusicMessage(text) {
   return false
 }
 
-export class qqmusicResolve extends loadPluginBaseSync() {
+export class qqmusicResolve extends Plugin {
   constructor() {
     super({
       name: 'QQ音乐-解析',

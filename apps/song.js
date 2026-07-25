@@ -60,7 +60,7 @@ async function resolvePlay(song, cfg, userKey = '') {
   }
 }
 
-export class qqmusicSong extends loadPluginBaseSync() {
+export class qqmusicSong extends Plugin {
   constructor() {
     super({
       name: 'QQ音乐-点歌',

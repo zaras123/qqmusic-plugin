@@ -12,7 +12,7 @@ import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
 import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
 
-export class qqmusicAdmin extends loadPluginBaseSync() {
+export class qqmusicAdmin extends Plugin {
   constructor() {
     super({
       name: 'QQ音乐-管理',

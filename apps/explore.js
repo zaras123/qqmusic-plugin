@@ -16,7 +16,7 @@ import { formatSongList } from '../utils/format.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 
-export class qqmusicExplore extends loadPluginBaseSync() {
+export class qqmusicExplore extends Plugin {
   constructor() {
     super({
       name: 'QQ音乐-探索',
