@@ -53,7 +53,7 @@ export class qqmusicExplore extends loadPluginBaseSync() {
       // 取第一个匹配的歌手
       const singer = singers[0]
       const result = await singerSongs(singer.singermid, { pageSize: 30, userKey })
-      if (!result.list.length) { await e.reply('该歌手暂无歌曲'); return true }
+      if (!result?.list?.length) { await e.reply('该歌手暂无歌曲'); return true }
 
       const title = `${singer.singerName} 热门歌曲`
       await setSession(scope, { type: 'singer', data: result.list, user_id: e.user_id, title, singer })
@@ -119,7 +119,7 @@ export class qqmusicExplore extends loadPluginBaseSync() {
 
       const alb = albums[0]
       const result = await albumSongs(alb.albummid, { userKey })
-      if (!result.list.length) { await e.reply('该专辑暂无曲目'); return true }
+      if (!result?.list?.length) { await e.reply('该专辑暂无曲目'); return true }
 
       const title = `${alb.singerName} - ${alb.albumName}`
       await setSession(scope, { type: 'album', data: result.list, user_id: e.user_id, title, album: alb })
