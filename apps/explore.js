@@ -53,13 +53,40 @@ export class qqmusicExplore extends plugin {
 
       // 取第一个匹配的歌手
       const singer = singers[0]
-      const songs = await singerSongs(singer.singermid, { pageSize: 30, userKey })
-      if (!songs.list.length) { await e.reply('该歌手暂无歌曲'); return true }
+      const result = await singerSongs(singer.singermid, { pageSize: 30, userKey })
+      if (!result.list.length) { await e.reply('该歌手暂无歌曲'); return true }
 
       const title = `${singer.singerName} 热门歌曲`
-      await setSession(scope, { type: 'singer', data: songs.list, user_id: e.user_id, title, singer })
-      await e.reply(formatSongList(songs.list, title))
+      await setSession(scope, { type: 'singer', data: result.list, user_id: e.user_id, title, singer })
 
+      // 渲染列表卡片（统一风格）
+      if (cfg.renderListCard !== false) {
+        const { buildListCardData } = await import('../utils/card-data.js')
+        const { renderListCard } = await import('../utils/render.js')
+        const cardData = buildListCardData(title, result.list, {
+          singerInfo: singer.singerName || '',
+          tip: `发送 #qqm听序号 播放「${singer.singerName}」的歌曲`,
+        })
+        const ok = await replyCardOrText(e, {
+          render: renderListCard,
+          data: cardData,
+          formatText: () => formatSongList(result.list, title),
+          tag: '歌手卡片',
+        })
+        if (ok) {
+          // 歌手信息放在卡片后面
+          try {
+            const desc = await singerDesc(singer.singermid, userKey)
+            if (desc?.desc) {
+              const brief = String(desc.desc).slice(0, 200)
+              await e.reply(`【${singer.singerName}】${brief}${desc.desc.length > 200 ? '...' : ''}`)
+            }
+          } catch { /* 忽略 */ }
+          return true
+        }
+      }
+
+      await e.reply(formatSongList(result.list, title))
       // 额外展示歌手信息
       try {
         const desc = await singerDesc(singer.singermid, userKey)
@@ -98,13 +125,16 @@ export class qqmusicExplore extends plugin {
       const title = `${alb.singerName} - ${alb.albumName}`
       await setSession(scope, { type: 'album', data: result.list, user_id: e.user_id, title, album: alb })
 
-      // 渲染卡片
+      // 渲染卡片（统一风格）
       if (cfg.renderListCard !== false) {
         const { buildListCardData } = await import('../utils/card-data.js')
         const { renderListCard } = await import('../utils/render.js')
         const ok = await replyCardOrText(e, {
           render: renderListCard,
-          data: buildListCardData(title, result.list),
+          data: buildListCardData(title, result.list, {
+            albumInfo: alb.publicTime ? `发行时间：${alb.publicTime}` : '',
+            tip: `发送 #qqm听序号 播放「${alb.albumName}」`,
+          }),
           formatText: () => formatSongList(result.list, title),
           tag: '专辑卡片',
         })

@@ -6,13 +6,16 @@ import { QUALITY_LABEL } from './quality.js'
 import { request } from './api.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 
-/** 点歌列表卡片 */
-export function buildListCardData(keyword, songs) {
+/** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
+export function buildListCardData(keyword, songs, options = {}) {
+  const cfg = Config.getConfig('qqmusic') || {}
   return {
-    keyword: keyword || '点歌结果',
+    keyword: keyword || '歌曲列表',
     total: songs.length,
-    quality: String((Config.getConfig('qqmusic') || {}).quality || 'auto').toUpperCase(),
+    quality: String(cfg.quality || 'auto').toUpperCase(),
     apiHint: apiHintFor(),
+    singerInfo: options.singerInfo || '',
+    albumInfo: options.albumInfo || '',
     songs: songs.map((s, i) => ({
       index: i + 1,
       songName: s.songName || '未知',
@@ -22,7 +25,7 @@ export function buildListCardData(keyword, songs) {
       duration: s.duration || '',
       payplay: Boolean(s.payplay),
     })),
-    tip: '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效',
+    tip: options.tip || '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效',
   }
 }
 
