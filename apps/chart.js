@@ -205,13 +205,20 @@ export class qqmusicChart extends plugin {
     try {
       await e.reply('正在获取每日推荐...')
       const { songs, title } = await dailyRecommend({ songNum: 30, userKey })
-      if (!songs.length) { await e.reply('获取日推失败，请先 #qqm登录'); return true }
+      if (!songs.length) {
+        await e.reply('📭 每日推荐为空\n可能原因：\n1. 今日已获取过，请明天再试\n2. 账号无听歌记录，无法生成推荐\n请先 #qqm登录 绑定有听歌记录的账号')
+        return true
+      }
 
       await setSession(scope, { type: 'daily', data: songs, user_id: e.user_id, title: title || '每日推荐' })
       await e.reply(formatSongList(songs, title || '每日推荐'))
     } catch (err) {
       logError(`日推失败: ${err.message}`)
-      await e.reply('日推失败，请先 #qqm登录 后重试')
+      if (err.message?.includes('登录') || err.message?.includes('login') || err.code === -1) {
+        await e.reply('日推失败，请先 #qqm登录 后重试')
+      } else {
+        await e.reply(`日推失败：${err.message || '未知错误'}`)
+      }
     }
     return true
   }
@@ -227,13 +234,20 @@ export class qqmusicChart extends plugin {
     try {
       await e.reply('正在获取收藏...')
       const { songs, title } = await userFavorites({ songNum: 30, userKey })
-      if (!songs.length) { await e.reply('获取收藏失败，请先 #qqm登录'); return true }
+      if (!songs.length) {
+        await e.reply('📭 我的收藏为空\n你的 QQ 音乐「我喜欢」歌单还没有收藏任何歌曲\n\n💡 你可以在 QQ 音乐 App 中收藏歌曲后再来查看')
+        return true
+      }
 
       await setSession(scope, { type: 'favorites', data: songs, user_id: e.user_id, title: title || '我的收藏' })
       await e.reply(formatSongList(songs, title || '我的收藏'))
     } catch (err) {
       logError(`收藏失败: ${err.message}`)
-      await e.reply('收藏失败，请先 #qqm登录 后重试')
+      if (err.message?.includes('登录') || err.message?.includes('login') || err.code === -1) {
+        await e.reply('收藏失败，请先 #qqm登录 后重试')
+      } else {
+        await e.reply(`收藏失败：${err.message || '未知错误'}`)
+      }
     }
     return true
   }
