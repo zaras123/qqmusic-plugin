@@ -1,17 +1,33 @@
-/**
+﻿/**
  * 扫码登录
  */
 
 import fs from 'node:fs'
 import path from 'node:path'
-import { loadPluginBase } from '../utils/plugin-base.js'
+import { loadPluginBaseSync } from '../utils/plugin-base.js'
+
+let Plugin = null
+let _pluginPromise = null
+
+function ensurePlugin() {
+  if (Plugin) return true
+  if (!_pluginPromise) {
+    _pluginPromise = loadPluginBase().then(p => {
+      Plugin = p
+      return p
+    })
+  }
+  return false
+}
+
+// Kick off loading immediately
+ensurePlugin()
+
 import Config from '../components/Config.js'
 import { request, pullLoginMeta, refreshLogin } from '../utils/api.js'
 import { getTempDir } from '../utils/send.js'
 import { buildQQMusicStatusData } from '../utils/status-card.js'
 import { renderStatusCard, formatStatusText } from '../utils/render.js'
-
-const plugin = await loadPluginBase()
 
 /** 进行中的扫码任务 user_id -> { qrcodeID, timer, e, stopped } */
 const activeLogins = new Map()
@@ -161,7 +177,7 @@ function pickLoginSuccess(body) {
   return null
 }
 
-export class qqmusicLogin extends plugin {
+export class qqmusicLogin extends loadPluginBaseSync() {
   constructor() {
     super({
       name: 'QQ音乐-扫码登录',

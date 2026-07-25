@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QQ 音乐点歌
  * 命令统一 #qqm 前缀，避免与其它插件 #点歌/#播放 冲突:
  *   #qqm点歌 / #qqm 点歌 关键词
@@ -7,7 +7,25 @@
  *   #qqm歌词 关键词或songmid
  *   #qqm热搜
  */
-import { loadPluginBase } from '../utils/plugin-base.js'
+import { loadPluginBaseSync } from '../utils/plugin-base.js'
+
+let Plugin = null
+let _pluginPromise = null
+
+function ensurePlugin() {
+  if (Plugin) return true
+  if (!_pluginPromise) {
+    _pluginPromise = loadPluginBase().then(p => {
+      Plugin = p
+      return p
+    })
+  }
+  return false
+}
+
+// Kick off loading immediately
+ensurePlugin()
+
 import { searchSongs, songUrlBest, lyric, hotKeys } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong, sendNativeMusicCard, QUALITY_LABEL } from '../utils/send.js'
@@ -15,8 +33,6 @@ import { buildHelpCardData } from '../utils/help-card.js'
 import { renderHelpCard } from '../utils/render.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError, logWarn } from '../utils/log.js'
-
-const plugin = await loadPluginBase()
 
 /** 匹配 #qqm点歌 / #qqm 点歌 等 */
 const RE_PICK = /^#?(?:qq|QQ)m\s*点歌\s*(.+)$/
@@ -59,7 +75,7 @@ async function resolvePlay(song, cfg, userKey = '') {
   }
 }
 
-export class qqmusicSong extends plugin {
+export class qqmusicSong extends loadPluginBaseSync() {
   constructor() {
     super({
       name: 'QQ音乐-点歌',

@@ -1,8 +1,9 @@
-/**
+﻿/**
  * 歌手 + 专辑 + 歌单 + 评论
  * 命令：#qqm歌手 关键词  /  #qqm专辑 关键词  /  #qqm歌单 关键词  / #qqm评论 关键词
  */
-import { loadPluginBase } from '../utils/plugin-base.js'
+import { loadPluginBaseSync } from '../utils/plugin-base.js'
+
 import {
   searchSingers, searchAlbums, searchSonglists, searchSongs,
   singerSongs, singerDesc,
@@ -15,9 +16,7 @@ import { formatSongList } from '../utils/format.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 
-const plugin = await loadPluginBase()
-
-export class qqmusicExplore extends plugin {
+export class qqmusicExplore extends loadPluginBaseSync() {
   constructor() {
     super({
       name: 'QQ音乐-探索',

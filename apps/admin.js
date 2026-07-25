@@ -1,7 +1,25 @@
-/**
+﻿/**
  * 主人配置命令
  */
-import { loadPluginBase } from '../utils/plugin-base.js'
+import { loadPluginBaseSync } from '../utils/plugin-base.js'
+
+let Plugin = null
+let _pluginPromise = null
+
+function ensurePlugin() {
+  if (Plugin) return true
+  if (!_pluginPromise) {
+    _pluginPromise = loadPluginBase().then(p => {
+      Plugin = p
+      return p
+    })
+  }
+  return false
+}
+
+// Kick off loading immediately
+ensurePlugin()
+
 import Config from '../components/Config.js'
 import { request, listAccounts } from '../utils/api.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
@@ -9,9 +27,7 @@ import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
 import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
 
-const plugin = await loadPluginBase()
-
-export class qqmusicAdmin extends plugin {
+export class qqmusicAdmin extends loadPluginBaseSync() {
   constructor() {
     super({
       name: 'QQ音乐-管理',

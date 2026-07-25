@@ -1,8 +1,26 @@
-/**
+﻿/**
  * QQ 音乐分享卡片 / 链接解析
  * 参考 rconsole-plugin apps/tools.js qqMusic
  */
-import { loadPluginBase } from '../utils/plugin-base.js'
+import { loadPluginBaseSync } from '../utils/plugin-base.js'
+
+let Plugin = null
+let _pluginPromise = null
+
+function ensurePlugin() {
+  if (Plugin) return true
+  if (!_pluginPromise) {
+    _pluginPromise = loadPluginBase().then(p => {
+      Plugin = p
+      return p
+    })
+  }
+  return false
+}
+
+// Kick off loading immediately
+ensurePlugin()
+
 import {
   parseQQMusicCard,
   parseQQMusicIds,
@@ -18,8 +36,6 @@ import { deliverSong, QUALITY_LABEL } from '../utils/send.js'
 import { setSession } from '../utils/session.js'
 import { getCfg, isPluginCommandMsg, replyCardOrText } from '../utils/common.js'
 import { logError, logInfo, logWarn } from '../utils/log.js'
-
-const plugin = await loadPluginBase()
 
 function collectMessageText(e) {
   const parts = []
@@ -103,7 +119,7 @@ function isQQMusicMessage(text) {
   return false
 }
 
-export class qqmusicResolve extends plugin {
+export class qqmusicResolve extends loadPluginBaseSync() {
   constructor() {
     super({
       name: 'QQ音乐-解析',

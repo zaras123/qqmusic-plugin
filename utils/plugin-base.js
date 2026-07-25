@@ -1,12 +1,14 @@
 /**
- * 加载 Yunzai 插件基类（兼容目录联接 / 软链导致的相对路径错位）
+ * 加载 Yunzai 插件基类（兼容旧版 Node.js，无顶层 await）
  */
+import { createRequire } from 'node:module'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+
+const require = createRequire(import.meta.url)
 
 let cached
 
-export async function loadPluginBase() {
+export function loadPluginBaseSync() {
   if (cached) return cached
   const candidates = [
     path.join(process.cwd(), 'lib/plugins/plugin.js'),
@@ -14,17 +16,22 @@ export async function loadPluginBase() {
   ]
   for (const p of candidates) {
     try {
-      const mod = await import(pathToFileURL(p).href)
+      const mod = require(p)
       cached = mod.default || mod.plugin || mod
       return cached
     } catch {}
   }
-  // 回退相对路径（物理位于 plugins/xxx/apps 时）
+  // 回退相对路径
   try {
-    const mod = await import('../../../lib/plugins/plugin.js')
+    const mod = require('../../../lib/plugins/plugin.js')
     cached = mod.default
     return cached
   } catch (e) {
-    throw new Error(`无法加载 Yunzai plugin 基类，请确认在 Yunzai 根目录启动。${e.message}`)
+    throw new Error(`无法加载 Yunzai plugin 基类: ${e.message}`)
   }
+}
+
+// 保持向后兼容
+export async function loadPluginBase() {
+  return loadPluginBaseSync()
 }

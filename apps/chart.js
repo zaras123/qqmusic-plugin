@@ -1,16 +1,32 @@
-/**
+﻿/**
  * 排行榜 + 推荐 + 电台 + 日推 + 收藏
  * 命令：#qqm排行 / #qqm推荐 / #qqm来首歌 / #qqm电台 / #qqm日推 / #qqm收藏
  */
-import { loadPluginBase } from '../utils/plugin-base.js'
+import { loadPluginBaseSync } from '../utils/plugin-base.js'
+
+let Plugin = null
+let _pluginPromise = null
+
+function ensurePlugin() {
+  if (Plugin) return true
+  if (!_pluginPromise) {
+    _pluginPromise = loadPluginBase().then(p => {
+      Plugin = p
+      return p
+    })
+  }
+  return false
+}
+
+// Kick off loading immediately
+ensurePlugin()
+
 import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong } from '../utils/send.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 import { formatSongList } from '../utils/format.js'
-
-const plugin = await loadPluginBase()
 
 function normalizeSong(item, idx = 0) {
   const singer = Array.isArray(item.singer)
@@ -38,7 +54,7 @@ function normalizeSong(item, idx = 0) {
   }
 }
 
-export class qqmusicChart extends plugin {
+export class qqmusicChart extends loadPluginBaseSync() {
   constructor() {
     super({
       name: 'QQ音乐-排行榜',
