@@ -3,7 +3,11 @@
  * 参考 rconsole-plugin apps/tools.js qqMusic
  */
 
-// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
+import { loadPluginBase } from '../utils/plugin-base.js'
+
+// 预加载插件基类（支持 ESM + top-level await）
+await loadPluginBase()
+
 import {
   parseQQMusicCard,
   parseQQMusicIds,

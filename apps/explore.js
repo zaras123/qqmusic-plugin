@@ -1,9 +1,12 @@
 ﻿/**
  * 歌手 + 专辑 + 歌单 + 评论
- * 命令：#qqm歌手 关键词  /  #qqm专辑 关键词  /  #qqm歌单 关键词  / #qqm评论 关键词
+ * 命令：#qqm歌手 关键词  /  #qqm专辑 关键词  /  #qqm歌单 关键词  /  #qqm评论 关键词
  */
+import { loadPluginBase } from '../utils/plugin-base.js'
 
-// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
+// 预加载插件基类（支持 ESM + top-level await）
+await loadPluginBase()
+
 import {
   searchSingers, searchAlbums, searchSonglists, searchSongs,
   singerSongs, singerDesc,
@@ -262,10 +265,6 @@ export class qqmusicExplore extends (await loadPluginBase()) {
       await e.reply([`♫ ${song.songName} - ${song.singerName} 热门评论`, '', ...commentLines].join('\n'))
     } catch (err) {
       logError(`评论失败: ${err.message}`)
-      await e.reply('评论获取失败，请稍后重试')
-    }
-    return true
-  }
       await e.reply('评论获取失败，请稍后重试')
     }
     return true

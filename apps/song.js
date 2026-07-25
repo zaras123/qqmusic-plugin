@@ -8,7 +8,11 @@
  *   #qqm热搜
  */
 
-// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
+import { loadPluginBase } from '../utils/plugin-base.js'
+
+// 预加载插件基类（支持 ESM + top-level await）
+await loadPluginBase()
+
 import { searchSongs, songUrlBest, lyric, hotKeys } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong, sendNativeMusicCard, QUALITY_LABEL } from '../utils/send.js'

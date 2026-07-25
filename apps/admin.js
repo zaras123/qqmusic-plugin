@@ -1,8 +1,11 @@
 ﻿/**
  * 主人配置命令
  */
+import { loadPluginBase } from '../utils/plugin-base.js'
 
-// 棰勫姞杞芥彃浠跺熀绫伙紙鏀寔 ESM + top-level await锛塦nawait loadPluginBase()
+// 预加载插件基类（支持 ESM + top-level await）
+await loadPluginBase()
+
 import Config from '../components/Config.js'
 import { request, listAccounts } from '../utils/api.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
