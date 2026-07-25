@@ -166,18 +166,55 @@ export class qqmusicSong extends plugin {
     }
 
     const song = session.data[n - 1]
-    await e.reply(`准备播放：${song.songName} - ${song.singerName}`)
-    const play = await resolvePlay(song, cfg, String(e.user_id || ''))
+    const userKey = String(e.user_id || '')
+
+    // 先获取播放链接信息
+    const play = await resolvePlay(song, cfg, userKey)
+
+    // 渲染详情卡片（与解析功能统一风格）
+    try {
+      const { buildDetailCardData } = await import('../utils/card-data.js')
+      const { renderDetailCard } = await import('../utils/render.js')
+      const cardData = buildDetailCardData(song, {
+        qualityLabel: play.qualityLabel || play.quality || '',
+        payplay: Boolean(song.payplay),
+        source: '点歌',
+        hasUrl: Boolean(play.url),
+      })
+      cardData.tip = play.url
+        ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
+        : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`
+
+      const img = await renderDetailCard(e, cardData)
+      if (img) {
+        await e.reply(img)
+      } else {
+        // 纯文本兜底
+        const { formatDetailText } = await import('../utils/card-data.js')
+        if (play.url) {
+          await e.reply(`下载中：${song.songName}（${play.qualityLabel || play.quality}）…`)
+        } else {
+          await e.reply(
+            [
+              `♪ ${song.songName} - ${song.singerName}${song.payplay ? ' [会员/付费]' : ''}`,
+              song.albumName ? `专辑：${song.albumName}` : '',
+              play.error ? `错误：${play.error}` : '获取播放链接失败，请 #qqm登录',
+            ].filter(Boolean).join('\n')
+          )
+        }
+      }
+    } catch {
+      const { formatDetailText } = await import('../utils/card-data.js')
+      await e.reply(formatDetailText(song, { qualityLabel: play.qualityLabel, hasUrl: Boolean(play.url) }))
+    }
+
     if (!play.url) {
-      await e.reply(
-        `获取播放链接失败${play.error ? `：${play.error}` : ''}。\n请 #qqm登录`
-      )
       if (cfg.sendNativeCard && song.songid) {
         await sendNativeMusicCard(e, 'qq', song.songid)
       }
       return true
     }
-    await e.reply(`下载中：${song.songName}（${play.qualityLabel || play.quality}）…`)
+
     await deliverSong(e, song, play)
     return true
   }
@@ -198,18 +235,50 @@ export class qqmusicSong extends plugin {
         return true
       }
       const song = list[0]
-      await e.reply(`播放：${song.songName} - ${song.singerName}`)
-      const play = await resolvePlay(song, cfg, String(e.user_id || ''))
+      const userKey = String(e.user_id || '')
+      const play = await resolvePlay(song, cfg, userKey)
+
+      // 渲染详情卡片（与解析功能统一风格）
+      try {
+        const { buildDetailCardData } = await import('../utils/card-data.js')
+        const { renderDetailCard } = await import('../utils/render.js')
+        const cardData = buildDetailCardData(song, {
+          qualityLabel: play.qualityLabel || play.quality || '',
+          payplay: Boolean(song.payplay),
+          source: '播放',
+          hasUrl: Boolean(play.url),
+        })
+        cardData.tip = play.url
+          ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
+          : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`
+        const img = await renderDetailCard(e, cardData)
+        if (img) {
+          await e.reply(img)
+        } else {
+          const { formatDetailText } = await import('../utils/card-data.js')
+          if (play.url) {
+            await e.reply(`下载中：${song.songName}（${play.qualityLabel || play.quality}）…`)
+          } else {
+            await e.reply(
+              [
+                `♪ ${song.songName} - ${song.singerName}${song.payplay ? ' [会员/付费]' : ''}`,
+                song.albumName ? `专辑：${song.albumName}` : '',
+                play.error ? `错误：${play.error}` : '获取播放链接失败，请 #qqm登录',
+              ].filter(Boolean).join('\n')
+            )
+          }
+        }
+      } catch {
+        const { formatDetailText } = await import('../utils/card-data.js')
+        await e.reply(formatDetailText(song, { qualityLabel: play.qualityLabel, hasUrl: Boolean(play.url) }))
+      }
+
       if (!play.url) {
-        await e.reply(
-          `获取播放链接失败${play.error ? `：${play.error}` : ''}。\n请 #qqm登录`
-        )
         if (cfg.sendNativeCard && song.songid) {
           await sendNativeMusicCard(e, 'qq', song.songid)
         }
         return true
       }
-      await e.reply(`下载中（${play.qualityLabel || play.quality}）…`)
       await deliverSong(e, song, play)
     } catch (err) {
       await e.reply(`播放失败：${err.message}`)

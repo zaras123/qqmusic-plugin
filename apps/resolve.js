@@ -324,32 +324,32 @@ export class qqmusicResolve extends plugin {
         qualityLabel: qLabel,
         payplay: Boolean(song.payplay),
         source: fromCard ? '卡片' : '链接',
+        hasUrl: Boolean(play.url),
       })
       cardData.tip = play.url
         ? `正在下载并发送语音（${qLabel || '默认音质'}）...`
-        : (failHint || '未获取到播放链')
+        : (failHint || '未获取到播放链接')
       const img = await renderDetailCard(e, cardData)
       if (img) {
         await e.reply(img)
       } else {
         // 卡片渲染失败，纯文本兜底
+        const { formatDetailText } = await import('../utils/card-data.js')
         await e.reply(
           [
             `${prefix}QQ音乐 · 解析下载中`,
-            `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}`,
-            song.albumName ? `专辑：${song.albumName}` : '',
-            play.url && qLabel ? `音质：${qLabel}` : '',
+            formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
             failHint,
           ].filter(Boolean).join('\n')
         )
       }
     } catch {
       // 纯文本兜底
+      const { formatDetailText } = await import('../utils/card-data.js')
       await e.reply(
         [
           `${prefix}QQ音乐 · 解析下载中`,
-          `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}`,
-          play.url && qLabel ? `音质：${qLabel}` : '',
+          formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
           failHint,
         ].filter(Boolean).join('\n')
       )

@@ -232,8 +232,21 @@ export function formatSettingsText(data) {
 }
 
 /** 歌曲详情卡片（解析后展示） */
-export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '' } = {}) {
+export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '', hasUrl = false } = {}) {
+  const isVip = Boolean(song.payplay) || payplay
+  const payInfo = isVip ? '🔒 会员' : (song.pay?.pay_down ? '💰 付费' : '🆓 免费')
+  const urlStatus = hasUrl ? '✅ 有播放链接' : '⚠️ 仅免费链接'
+
+  let title = song.songName || '未知'
+  if (isVip) title += ' [会员]'
+  else if (song.pay?.pay_down) title += ' [付费]'
+
+  let sourceText = source || '未知来源'
+  if (source === '链接') sourceText = '🔗 链接解析'
+  else if (source === '卡片') sourceText = '📋 卡片解析'
+
   return {
+    title: title,
     songName: song.songName || '未知',
     singerName: song.singerName || '未知歌手',
     albumName: song.albumName || '',
@@ -241,19 +254,52 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
     songmid: song.songmid || '',
     duration: song.duration || '',
     qualityLabel: qualityLabel || '',
-    payplay: payplay || Boolean(song.payplay),
-    source: source || '',
-    tip: '正在下载并发送语音...',
+    payplay: isVip,
+    payInfo,
+    urlStatus,
+    source: sourceText,
+    tip: hasUrl ? `正在下载并发送语音（${qualityLabel || '默认音质'}）...` : '未获取到播放链接',
   }
 }
 
 /** 纯文本兜底：歌曲详情 */
-export function formatDetailText(song, { qualityLabel = '' } = {}) {
+export function formatDetailText(song, { qualityLabel = '', hasUrl = false } = {}) {
+  const isVip = Boolean(song.payplay)
   const lines = [
-    `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}`,
+    `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}${isVip ? ' [会员/付费]' : ''}`,
   ]
   if (song.albumName) lines.push(`专辑：${song.albumName}`)
   if (song.duration) lines.push(`时长：${song.duration}`)
   if (qualityLabel) lines.push(`音质：${qualityLabel}`)
+  if (!hasUrl && isVip) lines.push('⚠️ 该曲需会员，请 #qqm登录')
   return lines.join('\n')
+}
+
+/** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行/搜索 */
+export function buildListCardData(keyword, songs, options = {}) {
+  const cfg = Config.getConfig('qqmusic') || {}
+  return {
+    keyword: keyword || '歌曲列表',
+    total: songs.length,
+    quality: String(cfg.quality || 'auto').toUpperCase(),
+    apiHint: apiHintFor(),
+    singerInfo: options.singerInfo || '',
+    albumInfo: options.albumInfo || '',
+    songs: songs.map((s, i) => {
+      const isVip = Boolean(s.payplay) || s.pay?.pay_play
+      const isPaid = s.pay?.pay_down && !isVip
+      return {
+        index: i + 1,
+        songName: s.songName || '未知',
+        singerName: s.singerName || '未知',
+        albumName: s.albumName || '',
+        cover: s.cover || '',
+        duration: s.duration || '',
+        payplay: Boolean(isVip),
+        isPaid: Boolean(isPaid),
+        tag: isVip ? '会员' : (isPaid ? '付费' : ''),
+      }
+    }),
+    tip: options.tip || '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效',
+  }
 }

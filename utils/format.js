@@ -14,9 +14,11 @@ export function formatSongList(list, title, startIdx = 0) {
   for (let i = 0; i < list.length; i++) {
     const s = list[i]
     const idx = startIdx + i + 1
-    const pay = s.payplay ? ' [付费]' : ''
+    const isVip = Boolean(s.payplay) || s.pay?.pay_play
+    const isPaid = s.pay?.pay_down && !isVip
+    const tag = isVip ? ' [会员]' : (isPaid ? ' [付费]' : '')
     const dur = s.duration ? ` (${s.duration})` : ''
-    lines.push(`${idx}. ${s.songName || s.title || s.name || '未知'} - ${s.singerName || s.singer || '未知'}${pay}${dur}`)
+    lines.push(`${idx}. ${s.songName || s.title || s.name || '未知'} - ${s.singerName || s.singer || '未知'}${tag}${dur}`)
   }
   lines.push(`\n发送 #qqm听序号 播放（共${list.length}首）`)
   return lines.join('\n')
