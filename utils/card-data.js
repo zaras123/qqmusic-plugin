@@ -274,32 +274,3 @@ export function formatDetailText(song, { qualityLabel = '', hasUrl = false } = {
   if (!hasUrl && isVip) lines.push('⚠️ 该曲需会员，请 #qqm登录')
   return lines.join('\n')
 }
-
-/** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行/搜索 */
-export function buildListCardData(keyword, songs, options = {}) {
-  const cfg = Config.getConfig('qqmusic') || {}
-  return {
-    keyword: keyword || '歌曲列表',
-    total: songs.length,
-    quality: String(cfg.quality || 'auto').toUpperCase(),
-    apiHint: apiHintFor(),
-    singerInfo: options.singerInfo || '',
-    albumInfo: options.albumInfo || '',
-    songs: songs.map((s, i) => {
-      const isVip = Boolean(s.payplay) || s.pay?.pay_play
-      const isPaid = s.pay?.pay_down && !isVip
-      return {
-        index: i + 1,
-        songName: s.songName || '未知',
-        singerName: s.singerName || '未知',
-        albumName: s.albumName || '',
-        cover: s.cover || '',
-        duration: s.duration || '',
-        payplay: Boolean(isVip),
-        isPaid: Boolean(isPaid),
-        tag: isVip ? '会员' : (isPaid ? '付费' : ''),
-      }
-    }),
-    tip: options.tip || '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效',
-  }
-}

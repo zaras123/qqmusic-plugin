@@ -9,7 +9,8 @@ function key(groupId) {
 
 export async function getSession(groupId) {
   const k = key(groupId)
-  if (typeof global.redis !== 'undefined' && redis) {
+  const redis = global.redis
+  if (redis) {
     try {
       const raw = await redis.get(k)
       if (raw) return JSON.parse(raw)
@@ -20,13 +21,14 @@ export async function getSession(groupId) {
 
 export async function setSession(groupId, session, ttlSec = 600) {
   const k = key(groupId)
+  const redis = global.redis
   const data = {
     group_id: groupId,
     updatedAt: Date.now(),
     ...session,
   }
   mem.set(String(groupId), data)
-  if (typeof global.redis !== 'undefined' && redis) {
+  if (redis) {
     try {
       await redis.set(k, JSON.stringify(data), { EX: ttlSec })
     } catch {}
@@ -35,8 +37,9 @@ export async function setSession(groupId, session, ttlSec = 600) {
 }
 
 export async function clearSession(groupId) {
+  const redis = global.redis
   mem.delete(String(groupId))
-  if (typeof global.redis !== 'undefined' && redis) {
+  if (redis) {
     try {
       await redis.del(key(groupId))
     } catch {}
