@@ -532,9 +532,13 @@ export async function searchSonglists(keyword, { pageNo = 1, pageSize = 20, user
 export async function singerSongs(singermid, { pageNo = 1, pageSize = 50, order = 1, userKey = '' } = {}) {
   const body = await request('/singer/songs', { singermid, pageNo, pageSize, order }, 'get', userKey)
   const d = body?.data || {}
-  const list = Array.isArray(d.list) ? d.list : (Array.isArray(d.songs) ? d.songs : (d.songlist || []))
+  const list = d.list || []
   return {
-    list: list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean),
+    list: list.map((item, idx) => {
+      // 歌手歌曲接口返回的是 { songInfo: {...} } 结构
+      const raw = item?.songInfo || item
+      return normalizeSearchItem(raw, idx)
+    }).filter(Boolean),
     total: d.total || 0,
     pageNo: d.pageNo || pageNo,
     singermid,
@@ -655,31 +659,39 @@ export async function cgiProxy(module, method, param = {}, userKey = '') {
 // ──────────── 推荐歌曲（随机一首） ────────────
 
 export async function recommendFeed(userKey = '') {
-  const body = await request('/cgi', {
-    module: 'recommend.RecommendFeedServer',
-    method: 'get_recommend_feed',
-    param: JSON.stringify({ direction: 1, page: 1, v_cache: [], v_uniq: [], s_num: 0 }),
-  }, 'get', userKey)
-  const v_shelf = body?.data?.v_shelf || []
-  const idSet = new Set()
-  for (const shelf of v_shelf) {
-    if (shelf.style === 1) {
-      for (const niche of shelf.v_niche || []) {
-        for (const card of niche.v_card || []) {
-          if (card.id) idSet.add(card.id)
+  try {
+    const body = await request('/cgi', {
+      module: 'recommend.RecommendFeedServer',
+      method: 'get_recommend_feed',
+      param: JSON.stringify({ direction: 1, page: 1, v_cache: [], v_uniq: [], s_num: 0 }),
+    }, 'get', userKey)
+    const v_shelf = body?.data?.data?.v_shelf || body?.data?.v_shelf || []
+    const playlists = []
+    for (const shelf of v_shelf) {
+      if (shelf.style === 1 || true) {
+        for (const niche of shelf.v_niche || []) {
+          for (const card of niche.v_card || []) {
+            if (card.id && card.type === 500) {
+              playlists.push({
+                disstid: card.id,
+                dissname: card.title || '',
+                cover: card.cover || '',
+                listenNum: card.cnt || 0,
+              })
+            }
+          }
         }
       }
     }
-  }
-  const ids = [...idSet]
-  if (!ids.length) return []
-  try {
-    const detailBody = await request('/cgi', {
-      module: 'track_info.UniformRuleCtrlServer',
-      method: 'GetTrackInfo',
-      param: JSON.stringify({ ids: ids.slice(0, 20), types: ids.slice(0, 20).map(() => 200) }),
-    }, 'get', userKey)
-    return (detailBody?.data?.tracks || []).map((item, idx) => normalizeSearchItem(item, idx))
+    if (!playlists.length) return []
+    // 随机选一个歌单，获取其歌曲
+    const pl = playlists[Math.floor(Math.random() * playlists.length)]
+    try {
+      const detail = await songlistDetail(pl.disstid, userKey)
+      return detail.songlist || []
+    } catch {
+      return []
+    }
   } catch (e) {
     logWarn(`recommendFeed failed: ${e.message}`)
     return []
@@ -694,8 +706,36 @@ export async function personalRadio(count = 5, userKey = '') {
     method: 'get_radio_track',
     param: JSON.stringify({ id: 99, num: count }),
   }, 'get', userKey)
-  const tracks = body?.data?.tracks || []
-  return tracks.map((item, idx) => normalizeSearchItem(item, idx))
+  const tracks = body?.data?.data?.tracks || body?.data?.tracks || []
+  return tracks.map((item, idx) => normalizeRadioTrack(item, idx))
+}
+
+function normalizeRadioTrack(item, idx = 0) {
+  if (!item) return null
+  // 电台返回的是扁平结构，直接用 item 而非 item.data
+  const singer = Array.isArray(item.singer)
+    ? item.singer.map((s) => s.name || s.title).filter(Boolean).join(' / ')
+    : item.singername || item.singerName || item.singer || ''
+  const albummid = item.albummid || item.album?.mid || ''
+  const interval = Number(item.interval || 0)
+  const duration = interval > 0
+    ? `${String(Math.floor(interval / 60)).padStart(2, '0')}:${String(interval % 60).padStart(2, '0')}`
+    : ''
+  return {
+    index: idx + 1,
+    songmid: item.mid || item.songmid || '',
+    songid: item.id || item.songid || 0,
+    media_mid: item.file?.media_mid || item.media_mid || item.mid || '',
+    songName: item.name || item.title || item.songname || '',
+    singerName: singer,
+    albumName: item.album?.name || item.albumname || item.title || '',
+    albummid,
+    cover: albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg` : (item.album?.cover || ''),
+    duration,
+    interval,
+    payplay: item.pay?.pay_play ?? item.payplay,
+    raw: item,
+  }
 }
 
 // ──────────── 每日推荐 / 收藏（dirid: 202=日推, 201=收藏） ────────────
@@ -706,8 +746,8 @@ export async function userDissList(dirid = 202, { songBegin = 0, songNum = 30, u
     method: 'CgiGetDiss',
     param: JSON.stringify({ disstid: 0, dirid, onlysonglist: 0, song_begin: songBegin, song_num: songNum, userinfo: 1, pic_dpi: 800, orderlist: 1 }),
   }, 'get', userKey)
-  const d = body?.data || {}
-  const songs = (d.songlist || []).map((item, idx) => normalizeSearchItem(item, idx))
+  const d = body?.data?.data || body?.data || {}
+  const songs = (d.songlist || d.song_list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
   const dirinfo = d.dirinfo || {}
   return { songs, title: dirinfo.title || '', desc: dirinfo.desc || '' }
 }
