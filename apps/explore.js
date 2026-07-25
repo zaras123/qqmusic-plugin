@@ -11,7 +11,7 @@ import {
   comment,
 } from '../utils/api.js'
 import { setSession } from '../utils/session.js'
-import { formatSongList } from './chart.js'
+import { formatSongList } from '../utils/format.js'
 import { getCfg } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 

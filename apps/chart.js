@@ -8,21 +8,9 @@ import { getSession, setSession } from '../utils/session.js'
 import { deliverSong } from '../utils/send.js'
 import { getCfg } from '../utils/common.js'
 import { logError } from '../utils/log.js'
+import { formatSongList } from '../utils/format.js'
 
 const plugin = await loadPluginBase()
-
-export function formatSongList(list, title, startIdx = 0) {
-  const lines = [`♫ ${title}`]
-  for (let i = 0; i < list.length; i++) {
-    const s = list[i]
-    const idx = startIdx + i + 1
-    const pay = s.payplay ? ' [付费]' : ''
-    const dur = s.duration ? ` (${s.duration})` : ''
-    lines.push(`${idx}. ${s.songName || s.title || s.name || '未知'} - ${s.singerName || s.singer || '未知'}${pay}${dur}`)
-  }
-  lines.push(`\n发送 #qqm听序号 播放（共${list.length}首）`)
-  return lines.join('\n')
-}
 
 function normalizeSong(item, idx = 0) {
   const singer = Array.isArray(item.singer)
@@ -45,7 +33,7 @@ function normalizeSong(item, idx = 0) {
     cover: albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg` : '',
     duration,
     interval,
-    payplay: item.pay?.pay_play ?? item.payplay,
+    payplay: item.pay?.payplay ?? item.pay?.pay_play ?? item.payplay,
     raw: item,
   }
 }

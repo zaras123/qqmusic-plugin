@@ -647,7 +647,7 @@ export async function recommendFeed(userKey = '') {
     }, 'get', userKey)
     return (detailBody?.data?.tracks || []).map((item, idx) => normalizeSearchItem(item, idx))
   } catch (e) {
-    console.warn('[qqmusic-plugin] recommendFeed failed:', e.message)
+    logWarn(`recommendFeed failed: ${e.message}`)
     return []
   }
 }
