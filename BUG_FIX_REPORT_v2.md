@@ -1,6 +1,6 @@
 # qqmusic-plugin 问题修复报告
 
-生成时间: 2026-07-25
+生成时间: 2026-07-26（原 2026-07-25）
 
 ## 用户反馈的问题
 
@@ -10,6 +10,7 @@
 | `#qqm收藏` | 获取失败 | ✅ 已修复 |
 | `#qqm来首歌` | 获取失败 | ✅ 已修复 |
 | `#qqm电台` | 获取失败 | ✅ 已修复 |
+| `#qqm来首歌 / #qqm推荐 / #qqm排行 飙升` | `Invalid character in header content ["x-qqmusic-user"]` | ✅ 已修复（见问题 5） |
 | `#qqm专辑 叶惠美` | 没有渲染卡片 | ⚠️ 需要检查 |
 | `#qqm推荐` | 没有渲染卡片 | ⚠️ 需要检查 |
 | `#qqm排行 飙升` | 没有渲染卡片 | ⚠️ 需要检查 |
@@ -179,11 +180,13 @@ dir D:\Yunzai\plugins\qqmusic-plugin\resources\html\qqmusic-detail\qqmusic-detai
 
 ## 更新插件到最新版本
 
-### 方式 1：Git 更新
+### 方式 1：Git 更新（推荐）
 ```bash
 cd D:\Yunzai\plugins\qqmusic-plugin
 git pull origin main
 ```
+
+> 本次修复（x-qqmusic-user header 清洗）已推送到 `main` 分支，`git pull` 即可获取。
 
 ### 方式 2：重新安装
 ```bash
@@ -252,3 +255,70 @@ const raw = item?.data || item?.track_info || item
 1. 扁平：`{ songname: "...", singer: [...] }`
 2. data 包裹：`{ data: { songname: "..." } }`
 3. track_info 包裹：`{ track_info: { data: {...} } }`
+
+---
+
+## 问题 5：`Invalid character in header content ["x-qqmusic-user"]` ✅ 已修复
+
+### 表现
+
+以下命令（以及所有其它命令）随机/必现报错：
+
+```
+[ERRO] [qqmusic-plugin] 排行失败: Invalid character in header content ["x-qqmusic-user"]
+[ERRO] [qqmusic-plugin] recommendFeed failed: Invalid character in header content ["x-qqmusic-user"]
+```
+
+涉及：`#qqm来首歌`、`#qqm推荐`、`#qqm排行`、`#qqm电台`、`#qqm日推`、`#qqm收藏`、`#qqm点歌`、`#qqm歌手/专辑/歌单/评论`、`#qqm登录/刷新` 等**全部命令**。
+
+### 原因分析
+
+`utils/api.js` 的 `request()` 函数把 `userKey` 直接写入 HTTP header：
+
+```javascript
+const userKey = String(e.user_id || '')   // 来自机器人框架，ICQQ 下可能带脏数据
+...
+if (userKey) headers['x-qqmusic-user'] = userKey   // ← 直接塞 header
+```
+
+Node.js 对 HTTP header 值要求严格：只允**可打印 ASCII**（`0x20-0x7E`）。一旦 `e.user_id` 含非 ASCII 字符、控制字符、换行等脏数据（ICQQ / Miao-Yunzai 某些场景），底层就抛 `ERR_INVALID_CHAR`。
+
+而 `userKey` 同时写入 query/body 参数——那边走 axios URL 编码，天然容错，不会炸。所以**只有 header 这一条路径会触发**。
+
+所有命令都走同一个 `request()` 入口，所以一处脏数据、全体命令受影响。
+
+### 修复方案
+
+在 `utils/api.js` 增加 `sanitizeForHeader()`，写入 header 前统一过滤：
+
+```javascript
+function sanitizeForHeader(value) {
+  return String(value)
+    .replace(/[^\x20-\x7E]/g, '')   // 去不可打印 / 非 ASCII
+    .replace(/[\r\n\t]/g, '')        // 再去 CR/LF/Tab（防御）
+    .trim()
+}
+```
+
+`request()` 里改为：
+
+```javascript
+const safeUserKey = sanitizeForHeader(userKey)
+if (safeUserKey) headers['x-qqmusic-user'] = safeUserKey
+```
+
+清洗后为空则**不置 header**，服务端会回退到 `default` 槽（单用户场景行为不变）。
+
+### 影响范围
+
+一处修改、**全部命令**受益（都过 `request()` 公共入口）。
+
+### 获取修复
+
+```bash
+cd D:\Yunzai\plugins\qqmusic-plugin
+git pull origin main
+# 然后重启 Yunzai
+```
+
+或下载最新 release 包覆盖。
