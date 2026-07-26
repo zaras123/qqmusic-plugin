@@ -25,6 +25,18 @@ function getApiToken() {
   return String(cfg.apiToken || cfg.api_token || process.env.QQMUSIC_API_TOKEN || '').trim()
 }
 
+/**
+ * 清洗 userKey 使其可作为 HTTP header 值。
+ * Node.js 对 header 值要求严格：仅可打印 ASCII（0x20-0x7E），其它字符抛 ERR_INVALID_CHAR。
+ * ICQQ 等场景下 e.user_id 可能带脏数据，故在此统一过滤；空则返回空串（调用方据此跳过 header）。
+ */
+function sanitizeForHeader(value) {
+  return String(value)
+    .replace(/[^\x20-\x7E]/g, '')   // 去不可打印 / 非 ASCII
+    .replace(/[\r\n\t]/g, '')        // 再去 CR/LF/Tab（防御）
+    .trim()
+}
+
 function emptyUrlResult(type, mediaId, extra = {}) {
   return {
     url: '',
@@ -46,12 +58,14 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
   const base = getBase()
   const url = `${base}${pathname.startsWith('/') ? pathname : `/${pathname}`}`
   // 多账号：带 userKey（机器人侧调用者标识，通常是 QQ 号）
+  // 仅作为 query/body 参数传递；header 版见下方 sanitizeForHeader
   if (userKey) {
     params = { ...params, userKey }
   }
   const token = getApiToken()
   const headers = {}
-  if (userKey) headers['x-qqmusic-user'] = userKey
+  const safeUserKey = sanitizeForHeader(userKey)
+  if (safeUserKey) headers['x-qqmusic-user'] = safeUserKey
   if (token) {
     headers['x-api-token'] = token
     headers.Authorization = `Bearer ${token}`
