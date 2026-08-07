@@ -234,27 +234,29 @@ export class qqmusicExplore extends (await loadPluginBase()) {
         return true
       }
 
-      // 渲染歌词卡片样式的评论卡片
-      const commentLines = allComments.slice(0, 10).map((c, i) => {
+      // 渲染独立评论卡片：每条评论一个格子（头像 + 昵称 + 时间 + 内容 + 赞数）
+      const { buildCommentCardData, cleanCommentText } = await import('../utils/card-data.js')
+      const { renderCommentCard } = await import('../utils/render.js')
+
+      const commentLines = allComments.slice(0, 10).map((c) => {
         const nick = c.nick || c.nickname || '匿名'
-        const text = c.rootcommentcontent || c.content || c.comment || ''
+        const text = cleanCommentText(c.rootcommentcontent || c.middlecommentcontent || c.content || c.comment) || '（仅表情 / 图片）'
         const likes = c.praisenum || c.likeCount || 0
-        return `${i + 1}. ${nick}（${likes}赞）：${text.slice(0, 80)}`
+        return `${nick}（${likes}赞）：${text}`
       }).filter(Boolean)
 
       if (cfg.renderListCard !== false) {
-        const { buildLyricCardData } = await import('../utils/card-data.js')
-        const { renderLyricCard } = await import('../utils/render.js')
-        const cardData = buildLyricCardData({
+        const cardData = buildCommentCardData({
           songName: song.songName,
           singerName: song.singerName,
           cover: song.cover || '',
           albumName: song.albumName || '',
-          lines: commentLines,
+          songmid: song.songmid || '',
+          comments: allComments.slice(0, 10),
         })
         cardData.tip = '发送 #qqm点歌 关键词 可以搜索播放'
         const ok = await replyCardOrText(e, {
-          render: renderLyricCard,
+          render: renderCommentCard,
           data: cardData,
           formatText: () => [`♫ ${song.songName} - ${song.singerName} 热门评论`, '', ...commentLines].join('\n'),
           tag: '评论卡片',

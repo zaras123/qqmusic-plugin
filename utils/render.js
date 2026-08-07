@@ -95,7 +95,7 @@ export async function renderCard(e, data, tplName = 'qqmusic-status') {
   // 优先直连截图：可控底色/清晰度；Yunzai 默认页底常为白，容易出现“白背景”
   try {
     const htmlFile = renderHtmlFile(data, tplName)
-    const vw = ['qqmusic-help', 'qqmusic-list', 'qqmusic-hot', 'qqmusic-lyric', 'qqmusic-settings'].includes(tplName)
+    const vw = ['qqmusic-help', 'qqmusic-list', 'qqmusic-hot', 'qqmusic-lyric', 'qqmusic-settings', 'qqmusic-comment'].includes(tplName)
       ? 640
       : 580
     const buf = await screenshotDirect(htmlFile, vw)
@@ -280,6 +280,10 @@ export async function renderHotCard(e, data) {
 
 export async function renderLyricCard(e, data) {
   return renderCard(e, data, 'qqmusic-lyric')
+}
+
+export async function renderCommentCard(e, data) {
+  return renderCard(e, data, 'qqmusic-comment')
 }
 
 export async function renderSettingsCard(e, data) {

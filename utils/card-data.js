@@ -60,6 +60,72 @@ export function buildHotCardData(items = []) {
   }
 }
 
+/** 清理评论正文：去掉 QQ音乐表情代码 / 换行 / 音频图片标记 */
+export function cleanCommentText(text = '') {
+  return String(text || '')
+    .replace(/\[em\]e?\d+\[\/em\]/gi, '') // [em]e400668[/em] 表情代码
+    .replace(/\[[\w一-龥]{1,10}\]/g, ' ') // [音频] [图片] 等剩余标记
+    .replace(/\\r\\n|\\n/g, ' ') // 字面量 \r\n / \n（接口返回常是反斜杠+n）
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** 评论时间戳（秒）→ YYYY-MM-DD */
+function formatCommentTime(ts) {
+  if (!ts) return ''
+  const t = Number(ts)
+  if (!Number.isFinite(t) || t <= 0) return ''
+  const d = new Date(t * 1000)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/**
+ * 评论卡片：每条评论一个格子（头像 + 昵称 + 时间 + 内容 + 赞数）
+ * @param {object} opts
+ * @param {Array<object>} opts.comments 原始评论对象（含 nick/avatarurl/praisenum/time/rootcommentcontent）
+ */
+export function buildCommentCardData({
+  songName = '未知',
+  singerName = '未知',
+  cover = '',
+  albumName = '',
+  comments = [],
+  songmid = '',
+} = {}) {
+  const list = (Array.isArray(comments) ? comments : [])
+    .map((c, i) => {
+      const nick = c.nick || c.nickname || '匿名'
+      const raw = c.rootcommentcontent || c.middlecommentcontent || c.content || c.comment || ''
+      const content = cleanCommentText(raw) || '（仅表情 / 图片）'
+      return {
+        index: i + 1,
+        nick: String(nick),
+        avatar: c.avatarurl || c.headurl || c.headPic || '',
+        time: formatCommentTime(c.time),
+        likes: c.praisenum || c.likeCount || 0,
+        content,
+        hot: Boolean(c.is_hot || c.is_hot_cmt),
+      }
+    })
+    .filter(Boolean)
+    .slice(0, 20)
+
+  return {
+    songName,
+    singerName,
+    cover: cover || '',
+    albumName: albumName || '',
+    songmid: songmid || '',
+    comments: list,
+    total: list.length,
+    apiHint: apiHintFor(),
+    tip: '发送 #qqm点歌 关键词 可以搜索播放',
+  }
+}
+
 /** 歌词卡片 */
 export function buildLyricCardData({
   songName = '未知',

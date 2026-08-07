@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QQ音乐 · 评论</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --qm: #31c27c;
+      --qm-deep: #1f9a64;
+      --text: #143528;
+      --muted: #6a8276;
+      --line: rgba(49, 194, 124, 0.15);
+      --soft: #e9f8f0;
+      --chip: rgba(49, 194, 124, 0.1);
+    }
+
+    html, body {
+      width: fit-content;
+      height: fit-content;
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      /* QQ 多数协议会把透明 PNG 填成白底，这里改用不透明浅绿底，避免“白框” */
+      background: #e6f6ee !important;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: geometricPrecision;
+    }
+
+    .page {
+      display: block;
+      width: fit-content;
+      margin: 0;
+      padding: 16px;
+      background: #e6f6ee;
+    }
+
+    .card {
+      width: 600px;
+      border-radius: 28px;
+      overflow: hidden;
+      position: relative;
+      isolation: isolate;
+      background: linear-gradient(165deg, #f7fcf9 0%, #eef8f3 42%, #e3f4eb 100%);
+      border: 1px solid rgba(49, 194, 124, 0.18);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.85) inset,
+        0 14px 28px rgba(20, 90, 58, 0.12);
+    }
+
+    .hero {
+      padding: 26px 24px 22px;
+      border-radius: 28px 28px 0 0;
+      overflow: hidden;
+      position: relative;
+      color: #fff;
+      background:
+        radial-gradient(circle at 88% 18%, rgba(255,255,255,0.28) 0%, transparent 42%),
+        radial-gradient(circle at 12% 90%, rgba(0,0,0,0.07) 0%, transparent 45%),
+        linear-gradient(135deg, #36c580 0%, #2ab06f 50%, #1fa968 100%);
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .cover {
+      width: 72px;
+      height: 72px;
+      border-radius: 16px;
+      object-fit: cover;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.35);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+      display: block;
+      flex-shrink: 0;
+    }
+
+    .cover.ph {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 800;
+    }
+
+    .hero-text { flex: 1; min-width: 0; }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2.6px;
+      opacity: 0.86;
+      text-transform: uppercase;
+    }
+
+    .title {
+      margin-top: 6px;
+      font-size: 24px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 380px;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      opacity: 0.9;
+      line-height: 1.45;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 380px;
+    }
+
+    .version-pill {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.3);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      white-space: nowrap;
+    }
+
+    .hero-stats {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .stat {
+      padding: 10px 10px 9px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.14);
+      border: 1px solid rgba(255,255,255,0.22);
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .stat-label {
+      margin-top: 3px;
+      font-size: 11px;
+      opacity: 0.88;
+      font-weight: 600;
+    }
+
+    .body {
+      padding: 18px 18px 16px;
+    }
+
+    .section {
+      margin-bottom: 12px;
+    }
+
+    .section:last-child { margin-bottom: 0; }
+
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 2px 4px 10px;
+    }
+
+    .section-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(145deg, #3dd48a, #1fa968);
+      box-shadow: 0 0 0 3px rgba(49, 194, 124, 0.15);
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+    }
+
+    .section-tag {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--qm-deep);
+      background: var(--soft);
+      border: 1px solid var(--line);
+      padding: 3px 8px;
+      border-radius: 999px;
+    }
+
+    /* ── 评论列表：每条一个格子 ── */
+    .cmt-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .cmt {
+      display: flex;
+      gap: 12px;
+      padding: 14px 14px 12px;
+      border-radius: 16px;
+      background: linear-gradient(165deg, #ffffff 0%, #f8fcfa 100%);
+      border: 1px solid var(--line);
+      box-shadow: 0 4px 12px rgba(26, 100, 70, 0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cmt::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: linear-gradient(180deg, #3dd48a, #1fa968);
+      border-radius: 0 2px 2px 0;
+      opacity: 0.85;
+    }
+
+    .cmt-avatar {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--chip);
+      border: 1px solid rgba(49, 194, 124, 0.25);
+    }
+
+    .cmt-avatar.ph {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--qm-deep);
+    }
+
+    .cmt-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .cmt-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cmt-nick {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--qm-deep);
+      letter-spacing: 0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 240px;
+    }
+
+    .cmt-badge {
+      flex-shrink: 0;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.4;
+    }
+
+    .cmt-badge.hot {
+      color: #fff;
+      background: linear-gradient(135deg, #ff9a62, #ff5f6d);
+    }
+
+    .cmt-time {
+      margin-left: auto;
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .cmt-content {
+      margin-top: 6px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1.6;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .cmt-foot {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cmt-like {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .cmt-like svg {
+      width: 13px;
+      height: 13px;
+    }
+
+    .cmt-like.on {
+      color: var(--qm-deep);
+    }
+
+    .tips {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 100% 0%, rgba(49,194,124,0.12), transparent 50%),
+        linear-gradient(160deg, #f0faf5, #e8f7ef);
+      border: 1px solid var(--line);
+    }
+
+    .tips-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--qm-deep);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tips-title span {
+      display: inline-flex;
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      background: var(--qm);
+      color: #fff;
+      font-size: 11px;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+    }
+
+    .tips-body {
+      font-size: 11.5px;
+      color: var(--muted);
+      line-height: 1.55;
+      font-weight: 500;
+    }
+
+    .footer {
+      margin-top: 12px;
+      padding: 4px 6px 2px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .footer-left {
+      font-size: 10.5px;
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 400px;
+    }
+
+    .footer-right {
+      font-size: 10.5px;
+      color: var(--qm-deep);
+      font-weight: 700;
+      opacity: 0.9;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-top">
+          {{if data.cover}}
+          <img class="cover" src="{{data.cover}}" referrerpolicy="no-referrer" />
+          {{else}}
+          <div class="cover ph">♪</div>
+          {{/if}}
+          <div class="hero-text">
+            <div class="eyebrow">QQ MUSIC COMMENT</div>
+            <div class="title">{{data.songName || '热门评论'}}</div>
+            <div class="subtitle">{{data.singerName || ''}}{{data.albumName ? ' · ' + data.albumName : ''}}</div>
+          </div>
+          <div class="version-pill">{{data.total || 0}} 条</div>
+        </div>
+        <div class="hero-stats">
+          <div class="stat">
+            <div class="stat-num">{{data.total || 0}}</div>
+            <div class="stat-label">评论条数</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">精选</div>
+            <div class="stat-label">展示模式</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">{{data.songmid ? 'MID' : '—'}}</div>
+            <div class="stat-label">{{data.songmid || '无 mid'}}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="section">
+          <div class="section-head">
+            <div class="section-dot"></div>
+            <div class="section-title">热门评论</div>
+            <div class="section-tag">TOP {{data.total || 0}}</div>
+          </div>
+          <div class="cmt-list">
+            {{each data.comments c}}
+            <div class="cmt">
+              {{if c.avatar}}
+              <img class="cmt-avatar" src="{{c.avatar}}" referrerpolicy="no-referrer" alt="" />
+              {{else}}
+              <div class="cmt-avatar ph">{{c.nick.charAt(0)}}</div>
+              {{/if}}
+              <div class="cmt-main">
+                <div class="cmt-head">
+                  <span class="cmt-nick">{{c.nick}}</span>
+                  {{if c.hot}}<span class="cmt-badge hot">热</span>{{/if}}
+                  <span class="cmt-time">{{c.time}}</span>
+                </div>
+                <div class="cmt-content">{{c.content}}</div>
+                <div class="cmt-foot">
+                  <span class="cmt-like {{c.likes > 0 ? 'on' : ''}}">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M2 9h3v12H2a1 1 0 0 1-1-1V10a1 1 0 0 1 1-1zm5.293-1.293l6.4-6.4a1 1 0 0 1 1.4 0l.9.9a1 1 0 0 1 .3.707V6a1 1 0 0 1-1 1H9v2h11a2 2 0 0 1 2 2.1l-.9 6.4a2 2 0 0 1-2 1.9H7z"/></svg>
+                    {{c.likes}}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {{/each}}
+          </div>
+        </div>
+
+        <div class="tips">
+          <div class="tips-title"><span>!</span>小提示</div>
+          <div class="tips-body">{{data.tip || '发送 #qqm点歌 关键词 可以搜索播放'}}</div>
+        </div>
+
+        <div class="footer">
+          <div class="footer-left">{{data.apiHint || 'API 已对接'}}</div>
+          <div class="footer-right">qqmusic-plugin</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
