@@ -178,9 +178,9 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           permission: 'master',
         },
         {
-          // 浏览器扫码：一个二维码，微信 / QQ / QQ音乐 App 通用（走 api /login/webqr）
-          // 不带"登录"后缀：避免与上方 startQrLogin 的 (扫码)?(登录) 规则冲突
-          reg: '^#?(qq|QQ)m(扫码|web|网页)$|^#?(qq|QQ)音乐网页登录$',
+          // 浏览器扫码：按平台发单码（QQ 平台→QQ码；微信平台消息可用 #qqm扫码微信）
+          // 走 api /login/webqr（返回微信码+QQ码，插件按需选用）
+          reg: '^#?(qq|QQ)m(扫码|web|网页)(微信|wx)?$|^#?(qq|QQ)音乐网页登录$',
           fnc: 'startWebQrLogin',
           permission: 'master',
         },
@@ -442,7 +442,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const userKey = String(e.user_id || '')
 
     try {
-      await e.reply('正在生成登录二维码（微信 / QQ 各一个）…')
+      await e.reply('正在生成登录二维码…')
       const body = await request('/login/webqr', {}, 'post', userKey)
       const data = body?.data || body
       if (!data?.sessionId || (!data?.qrcodeWx && !data?.qrcodeQq)) {
@@ -451,11 +451,19 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       }
 
       const { sessionId, qrcodeWx, qrcodeQq, expiresIn } = data
-      // 两张码：微信码 + QQ 码（官方无通用码，微信/QQ 各有独立 OAuth）
-      const codes = [
-        ['微信', qrcodeWx],
+      // 平台取巧：机器人跑在 QQ 平台，命令发起者必是 QQ 用户 → 只发 QQ 码
+      // （QQ 用户扫 QQ 码 = 登录自己的 QQ 音乐账号，同时覆盖 QQ音乐 App 用户）
+      // 微信场景极少，用 #qqm扫码微信 显式请求微信码
+      const wantWx = /微信|wx/i.test(String(e.msg || ''))
+      let codes = []
+      if (wantWx && qrcodeWx) codes = [['微信', qrcodeWx]]
+      else if (qrcodeQq) codes = [['QQ', qrcodeQq]]
+      else if (qrcodeWx) codes = [['微信', qrcodeWx]]
+      else codes = [
         ['QQ', qrcodeQq],
+        ['微信', qrcodeWx],
       ].filter(([, c]) => c && c.startsWith('data:'))
+
       let imgSent = 0
       for (const [, code] of codes) {
         try {
@@ -475,9 +483,11 @@ export class qqmusicLogin extends (await loadPluginBase()) {
 
       await e.reply(
         [
-          codes.map(([label]) => `${label}码用${label}扫`).join('，') + '，确认后自动登录',
+          codes.length === 1
+            ? `请用${codes[0][0]}扫一扫，确认后自动登录`
+            : codes.map(([label]) => `${label}码用${label}扫`).join('，') + '，确认后自动登录',
           `二维码 ${Math.round((expiresIn || 180) / 60)} 分钟内有效`,
-          imgSent >= codes.length ? '' : '（部分图片发送失败可重新发命令）',
+          imgSent >= codes.length ? '' : '（图片发送失败可重新发命令）',
         ]
           .filter(Boolean)
           .join('\n')
