@@ -179,7 +179,8 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         },
         {
           // 浏览器扫码：一个二维码，微信 / QQ / QQ音乐 App 通用（走 api /login/webqr）
-          reg: '^#?(qq|QQ)m(扫码|web|网页)(登录)?$|^#?(qq|QQ)音乐网页登录$',
+          // 不带"登录"后缀：避免与上方 startQrLogin 的 (扫码)?(登录) 规则冲突
+          reg: '^#?(qq|QQ)m(扫码|web|网页)$|^#?(qq|QQ)音乐网页登录$',
           fnc: 'startWebQrLogin',
           permission: 'master',
         },
