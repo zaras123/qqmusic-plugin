@@ -178,6 +178,12 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           permission: 'master',
         },
         {
+          // 浏览器扫码：一个二维码，微信 / QQ / QQ音乐 App 通用（走 api /login/webqr）
+          reg: '^#?(qq|QQ)m(扫码|web|网页)(登录)?$|^#?(qq|QQ)音乐网页登录$',
+          fnc: 'startWebQrLogin',
+          permission: 'master',
+        },
+        {
           reg: '^#?(qq|QQ)m(登录|登陆)?状态$|^#?(qq|QQ)音乐状态$|^#?(qq|QQ)状态$|^#?(qms|QMS)$',
           fnc: 'loginStatus',
         },
@@ -318,7 +324,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       if (Date.now() - started > maxMs) {
         task.stopped = true
         activeLogins.delete(userId)
-        await e.reply('二维码已过期，请重新 #qqm登录 或自行获取ck')
+        await e.reply('二维码已过期，请重新 #qqm登录；微信/QQ 请用 #qqm扫码')
         return
       }
 
@@ -417,6 +423,121 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       if (t.timer) clearTimeout(t.timer)
       activeLogins.delete(userId)
     }
+  }
+
+  /**
+   * 浏览器无感扫码（#qqm扫码 / #qqmweb）
+   * 一个二维码，微信 / QQ / QQ音乐 App 均可扫；api 侧浏览器内自动完成 OAuth
+   */
+  async startWebQrLogin(e) {
+    const cfg = Config.getConfig('qqmusic')
+    if (!cfg.enable) return false
+    if (cfg.qrLoginEnable === false) {
+      await e.reply('扫码登录已在配置中关闭（锅巴：允许扫码登录命令）')
+      return true
+    }
+
+    this.stopPoll(e.user_id)
+    const userKey = String(e.user_id || '')
+
+    try {
+      await e.reply('正在生成登录二维码（微信 / QQ / QQ音乐 App 均可扫）…')
+      const body = await request('/login/webqr', {}, 'post', userKey)
+      const data = body?.data || body
+      if (!data?.sessionId || !data?.qrcode) {
+        await e.reply(`获取二维码失败：${body?.errMsg || '未知错误'}`)
+        return true
+      }
+
+      const { sessionId, qrcode, expiresIn } = data
+      let imgSent = false
+      if (qrcode?.startsWith('data:')) {
+        const b64 = qrcode.split(',')[1]
+        const file = await saveQrImage(b64)
+        imgSent = await sendImage(e, file)
+        setTimeout(() => {
+          try {
+            fs.unlinkSync(file)
+          } catch {}
+        }, 120_000)
+      }
+
+      await e.reply(
+        [
+          '请用 QQ音乐 / 微信 / QQ 扫码，确认后自动登录',
+          `二维码 ${Math.round((expiresIn || 180) / 60)} 分钟内有效`,
+          imgSent ? '' : '（图片发送失败可重新发命令）',
+        ]
+          .filter(Boolean)
+          .join('\n')
+      )
+
+      this.startWebQrPoll(e, sessionId, Number(expiresIn || 180))
+    } catch (err) {
+      await e.reply(`扫码登录失败：${err.message}`)
+    }
+    return true
+  }
+
+  /** webqr 会话轮询 */
+  startWebQrPoll(e, sessionId, expiresIn) {
+    const userId = e.user_id
+    const userKey = String(userId || '')
+    const started = Date.now()
+    const maxMs = Math.min(expiresIn, 180) * 1000
+
+    const task = { sessionId, stopped: false, busy: false, timer: null }
+    activeLogins.set(userId, task)
+
+    const finishOk = async (info) => {
+      if (task.stopped) return
+      task.stopped = true
+      if (task.timer) clearTimeout(task.timer)
+      activeLogins.delete(userId)
+      await onLoginSuccess(e, info)
+    }
+
+    const tick = async () => {
+      if (task.stopped) return
+      if (task.busy) {
+        task.timer = setTimeout(tick, 800)
+        return
+      }
+      if (Date.now() - started > maxMs) {
+        task.stopped = true
+        activeLogins.delete(userId)
+        await e.reply('二维码已过期，请重新扫码')
+        return
+      }
+
+      task.busy = true
+      try {
+        const body = await request('/login/webqr/check', { sessionId }, 'get', userKey)
+        const data = body?.data || {}
+        const status = data.status || 'wait'
+
+        if (status === 'success' && data.hasKey) {
+          await finishOk({ uin: data.uin, nick: data.nick, hasKey: true, channel: 'webqr' })
+          return
+        }
+        if (status === 'expired' || status === 'error') {
+          task.stopped = true
+          activeLogins.delete(userId)
+          await e.reply(data.error || '二维码已过期或扫码失败，请重新扫码')
+          return
+        }
+      } catch {
+        /* 轮询失败继续重试 */
+      } finally {
+        task.busy = false
+      }
+
+      if (!task.stopped && activeLogins.get(userId)?.sessionId === sessionId) {
+        task.timer = setTimeout(tick, 2500)
+      }
+    }
+
+    task.timer = setTimeout(tick, 2000)
   }
 
   async loginStatus(e) {
