@@ -142,6 +142,28 @@ async function onLoginSuccess(e, info = {}) {
   }
 }
 
+/**
+ * 判定登录成功
+ */
+function pickLoginSuccess(body) {
+  const data = body?.data || body || {}
+  const uin = data.uin || ''
+  const hasKey = Boolean(data.hasKey ?? data.qm_keyst)
+  const nick = data.nick || ''
+  const channel = data.channel || ''
+
+  if (data.status === 'success' && (uin || hasKey)) {
+    return { ok: true, ...data, uin, nick, hasKey, channel: channel || 'mqtt' }
+  }
+  if (uin && hasKey === true) {
+    return { ok: true, ...data, uin, nick, hasKey: true, channel }
+  }
+  if (data.login === true && uin && hasKey) {
+    return { ok: true, ...data, uin, nick, hasKey: true, channel: channel || 'status' }
+  }
+  return null
+}
+
 export class qqmusicLogin extends (await loadPluginBase()) {
   constructor() {
     super({
