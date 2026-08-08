@@ -442,32 +442,42 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const userKey = String(e.user_id || '')
 
     try {
-      await e.reply('正在生成登录二维码（微信 / QQ / QQ音乐 App 均可扫）…')
+      await e.reply('正在生成登录二维码（微信 / QQ 各一个）…')
       const body = await request('/login/webqr', {}, 'post', userKey)
       const data = body?.data || body
-      if (!data?.sessionId || !data?.qrcode) {
+      if (!data?.sessionId || (!data?.qrcodeWx && !data?.qrcodeQq)) {
         await e.reply(`获取二维码失败：${body?.errMsg || '未知错误'}`)
         return true
       }
 
-      const { sessionId, qrcode, expiresIn } = data
-      let imgSent = false
-      if (qrcode?.startsWith('data:')) {
-        const b64 = qrcode.split(',')[1]
-        const file = await saveQrImage(b64)
-        imgSent = await sendImage(e, file)
-        setTimeout(() => {
-          try {
-            fs.unlinkSync(file)
-          } catch {}
-        }, 120_000)
+      const { sessionId, qrcodeWx, qrcodeQq, expiresIn } = data
+      // 两张码：微信码 + QQ 码（官方无通用码，微信/QQ 各有独立 OAuth）
+      const codes = [
+        ['微信', qrcodeWx],
+        ['QQ', qrcodeQq],
+      ].filter(([, c]) => c && c.startsWith('data:'))
+      let imgSent = 0
+      for (const [, code] of codes) {
+        try {
+          const b64 = code.split(',')[1]
+          const file = await saveQrImage(b64)
+          const sent = await sendImage(e, file)
+          if (sent) imgSent++
+          setTimeout(() => {
+            try {
+              fs.unlinkSync(file)
+            } catch {}
+          }, 120_000)
+        } catch {
+          /* 单张失败继续 */
+        }
       }
 
       await e.reply(
         [
-          '请用 QQ音乐 / 微信 / QQ 扫码，确认后自动登录',
+          codes.map(([label]) => `${label}码用${label}扫`).join('，') + '，确认后自动登录',
           `二维码 ${Math.round((expiresIn || 180) / 60)} 分钟内有效`,
-          imgSent ? '' : '（图片发送失败可重新发命令）',
+          imgSent >= codes.length ? '' : '（部分图片发送失败可重新发命令）',
         ]
           .filter(Boolean)
           .join('\n')
