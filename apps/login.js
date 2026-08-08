@@ -142,28 +142,6 @@ async function onLoginSuccess(e, info = {}) {
   }
 }
 
-/**
- * 判定登录成功
- */
-function pickLoginSuccess(body) {
-  const data = body?.data || body || {}
-  const uin = data.uin || ''
-  const hasKey = Boolean(data.hasKey ?? data.qm_keyst)
-  const nick = data.nick || ''
-  const channel = data.channel || ''
-
-  if (data.status === 'success' && (uin || hasKey)) {
-    return { ok: true, ...data, uin, nick, hasKey, channel: channel || 'mqtt' }
-  }
-  if (uin && hasKey === true) {
-    return { ok: true, ...data, uin, nick, hasKey: true, channel }
-  }
-  if (data.login === true && uin && hasKey) {
-    return { ok: true, ...data, uin, nick, hasKey: true, channel: channel || 'status' }
-  }
-  return null
-}
-
 export class qqmusicLogin extends (await loadPluginBase()) {
   constructor() {
     super({
@@ -173,15 +151,17 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       priority: 450,
       rule: [
         {
-          reg: '^#?(qq|QQ)m(扫码)?(登录|登陆)$|^#?(qq|QQ)音乐(扫码)?(登录|登陆)$|^#?(qq|QQ)扫码(登录|登陆)$',
-          fnc: 'startQrLogin',
+          // 统一登录命令：#qqm登录（一张 QQ 码，覆盖 QQ + QQ音乐 App 用户）
+          // 微信备用：#qqm登录微信（走 webqr 微信码）
+          // 走 api /login/webqr（返回微信码+QQ码，插件按需选用）
+          reg: '^#?(qq|QQ)m(登录|登陆)(微信|wx)?$|^#?(qq|QQ)音乐(登录|登陆)(微信|wx)?$',
+          fnc: 'startWebQrLogin',
           permission: 'master',
         },
         {
-          // 浏览器扫码：按平台发单码（QQ 平台→QQ码；微信平台消息可用 #qqm扫码微信）
-          // 走 api /login/webqr（返回微信码+QQ码，插件按需选用）
-          reg: '^#?(qq|QQ)m(扫码|web|网页)(微信|wx)?$|^#?(qq|QQ)音乐网页登录$',
-          fnc: 'startWebQrLogin',
+          // QQ音乐 App 扫码（MQTT 通道，备用）：#qqm登录qq
+          reg: '^#?(qq|QQ)m登录(qq|app)$',
+          fnc: 'startQrLogin',
           permission: 'master',
         },
         {
@@ -430,6 +410,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
    * 浏览器无感扫码（#qqm扫码 / #qqmweb）
    * 一个二维码，微信 / QQ / QQ音乐 App 均可扫；api 侧浏览器内自动完成 OAuth
    */
+
   async startWebQrLogin(e) {
     const cfg = Config.getConfig('qqmusic')
     if (!cfg.enable) return false
@@ -453,7 +434,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       const { sessionId, qrcodeWx, qrcodeQq, expiresIn } = data
       // 平台取巧：机器人跑在 QQ 平台，命令发起者必是 QQ 用户 → 只发 QQ 码
       // （QQ 用户扫 QQ 码 = 登录自己的 QQ 音乐账号，同时覆盖 QQ音乐 App 用户）
-      // 微信场景极少，用 #qqm扫码微信 显式请求微信码
+      // 微信场景极少，用 #qqm登录微信 显式请求微信码
       const wantWx = /微信|wx/i.test(String(e.msg || ''))
       let codes = []
       if (wantWx && qrcodeWx) codes = [['微信', qrcodeWx]]
