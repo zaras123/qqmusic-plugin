@@ -344,7 +344,8 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
   let ext = '.mp3'
   const u = url.toLowerCase()
   const q = String(qualityHint || '').toLowerCase()
-  if (['flac', 'hires', 'master', 'atmos', 'atmos_master'].includes(q)) ext = '.flac'
+  if (q === 'video') ext = '.mp4'
+  else if (['flac', 'hires', 'master', 'atmos', 'atmos_master'].includes(q)) ext = '.flac'
   else if (q === 'ape') ext = '.ape'
   else if (q === 'm4a') ext = '.m4a'
   else if (

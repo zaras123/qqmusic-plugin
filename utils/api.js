@@ -293,6 +293,7 @@ export async function songUrlBest(
   let realMedia = mediaId || songmid
   let sizeInfo = null
   let predicted = ''
+  let mvVid = ''
 
   try {
     const detail = await songDetail(songmid, userKey)
@@ -300,6 +301,7 @@ export async function songUrlBest(
     realMedia = mediaId || file.media_mid || file.master_tape_media_mid || songmid
     sizeInfo = file
     predicted = pickBestAvailableQuality(file, preferred)
+    mvVid = detail?.track_info?.mv?.vid || ''
     const sz = summarizeFileSizes(file)
     logInfo(
       `音质自适配: 上限=${preferred} 预判=${predicted || 'unknown'} 候选=${list.join('→')} sizes(flac=${sz.flac},hires=${sz.hires},dolby=${sz.dolby},new0=${sz.new0},new2=${sz.new2},new10=${sz.new10})`
@@ -357,6 +359,7 @@ export async function songUrlBest(
         predicted,
         tried,
         playChannel: r.playChannel,
+        mvVid,
       }
     } catch (e) {
       lastErr = e
@@ -752,8 +755,30 @@ function normalizeRadioTrack(item, idx = 0) {
   }
 }
 
-// ──────────── 每日推荐 / 收藏（dirid: 202=日推, 201=收藏） ────────────
+// ──────────── 每日推荐 / 收藏（走 API 专用端点，替代 /cgi 裸透传） ────────────
 
+/** 通用：把 API 返回的 { list, title, desc } 转成插件侧 { songs, title, desc } */
+function dissPayload(body) {
+  const d = body?.data || {}
+  const list = Array.isArray(d.list) ? d.list : []
+  return {
+    songs: list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean),
+    title: d.title || '',
+    desc: d.desc || '',
+  }
+}
+
+export async function dailyRecommend({ songBegin = 0, songNum = 30, userKey = '' } = {}) {
+  const body = await request('/recommend/daily', { songBegin, num: songNum }, 'get', userKey)
+  return dissPayload(body)
+}
+
+export async function userFavorites({ songBegin = 0, songNum = 30, userKey = '' } = {}) {
+  const body = await request('/user/liked', { songBegin, num: songNum }, 'get', userKey)
+  return dissPayload(body)
+}
+
+/** 兼容旧：仍走 /cgi（不推荐，保留给其它调用方） */
 export async function userDissList(dirid = 202, { songBegin = 0, songNum = 30, userKey = '' } = {}) {
   const body = await request('/cgi', {
     module: 'srf_diss_info.DissInfoServer',
@@ -766,14 +791,6 @@ export async function userDissList(dirid = 202, { songBegin = 0, songNum = 30, u
   return { songs, title: dirinfo.title || '', desc: dirinfo.desc || '' }
 }
 
-export async function dailyRecommend(opts = {}) {
-  return userDissList(202, opts)
-}
-
-export async function userFavorites(opts = {}) {
-  return userDissList(201, opts)
-}
-
 // ──────────── 用户歌单列表 ────────────
 
 export async function userSonglists(qqId, userKey = '') {
@@ -784,6 +801,162 @@ export async function userSonglists(qqId, userKey = '') {
 export async function userCollectSonglists(qqId, { pageNo = 1, pageSize = 20, userKey = '' } = {}) {
   const body = await request('/user/collect/songlist', { id: qqId, pageNo, pageSize }, 'get', userKey)
   return body?.data || { list: [] }
+}
+
+// ──────────── MV 浏览 / 搜索（API 新增端点） ────────────
+
+/** 规范化 MV 对象：兼容 /mv/tag（vid/mvtitle/singer_name/picurl）与 /search t=12（v_id/mv_name/mv_pic_url/play_count）两组字段 */
+function normalizeMvItem(item, idx = 0) {
+  if (!item || typeof item !== 'object') return null
+  const vid = item.vid || item.v_id || ''
+  const title =
+    item.mv_name || item.mvname || item.name || item.mvtitle || item.title || item.songname || ''
+  if (!vid && !title) return null
+  const singer = Array.isArray(item.singer)
+    ? item.singer.map((s) => s.name || s.title).filter(Boolean).join(' / ')
+    : item.singer_name || item.singername || item.singer || ''
+  return {
+    index: idx + 1,
+    vid,
+    mvtitle: title,
+    name: title,
+    singerName: singer,
+    cover: item.mv_pic_url || item.pic || item.picurl || item.cover || '',
+    pubdate: item.publish_date || item.pubdate || item.pub_date || item.publictime || '',
+    listennum: Number(item.play_count || item.listennum || item.listenNum || item.playcnt || item.cnt || 0),
+    raw: item,
+  }
+}
+
+export async function mvCategory(userKey = '') {
+  const body = await request('/mv/category', {}, 'get', userKey)
+  const d = body?.data || {}
+  return { area: d.area || [], version: d.version || [], list: d.list || [] }
+}
+
+export async function mvByTag(tagId, { pageNo = 1, pageSize = 20, userKey = '' } = {}) {
+  const body = await request('/mv/tag', { tagId, pageNo, pageSize }, 'get', userKey)
+  const raw = body?.data?.list || body?.data?.mvlist || []
+  return { list: raw.map(normalizeMvItem).filter(Boolean), total: body?.data?.total || 0 }
+}
+
+export async function mvRelated(songid, { num = 10, userKey = '' } = {}) {
+  const body = await request('/mv/related', { songid, num }, 'get', userKey)
+  return (body?.data?.list || []).map(normalizeMvItem).filter(Boolean)
+}
+
+/** 搜索 MV（/search t=12） */
+export async function searchMv(keyword, { pageNo = 1, pageSize = 10, userKey = '' } = {}) {
+  const body = await request('/search', { key: keyword, t: 12, pageNo, pageSize }, 'get', userKey)
+  return (body?.data?.list || []).map(normalizeMvItem).filter(Boolean)
+}
+
+/** 取歌曲自带 MV 的 vid（track_info.mv.vid），无则空串 */
+export async function songMvVid(songmid, userKey = '') {
+  if (!songmid) return ''
+  try {
+    const d = await songDetail(songmid, userKey)
+    const mv = d?.track_info?.mv || d?.mv || {}
+    return mv.vid || ''
+  } catch {
+    return ''
+  }
+}
+
+/** 取 MV 视频流 URL（/mv/url 返回 mp4 变体数组），失败返回空串 */
+export async function mvUrl(vid, userKey = '') {
+  if (!vid) return ''
+  const body = await request('/mv/url', { id: vid }, 'get', userKey)
+  const d = body?.data
+  const mp4s = Array.isArray(d?.mp4) ? d.mp4 : []
+  // 仅取 code=0（可用）条目；倒序优先取体积小的（filetype 大 = 码率低），提高机器人发送成功率
+  const usable = mp4s.filter((m) => m && typeof m === 'object' && Number(m.code) === 0)
+  let src = ''
+  for (const m of usable.reverse()) {
+    src =
+      (Array.isArray(m.freeflow_url) && m.freeflow_url.find((u) => typeof u === 'string' && u.trim())) ||
+      (Array.isArray(m.comm_url) && m.comm_url.find((u) => typeof u === 'string' && u.trim())) || ''
+    if (src) break
+    const base = (Array.isArray(m.url) && m.url.find((u) => typeof u === 'string' && u.trim())) || ''
+    if (base && m.urlPath) {
+      src = `${base.replace(/\/+$/, '')}${String(m.urlPath).startsWith('/') ? m.urlPath : `/${m.urlPath}`}`
+      break
+    }
+    if (base && base.length > 10) { src = base; break }
+  }
+  const url = String(src || '').trim()
+  return url ? url.replace(/^http:\/\//, 'https://') : ''
+}
+
+// ──────────── 新歌速递 / 私人FM / 电台列表 ────────────
+
+export async function newSongs(type = 5, { num = 20, userKey = '' } = {}) {
+  const body = await request('/song/new', { type, num }, 'get', userKey)
+  const list = body?.data?.list || []
+  return list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
+}
+
+export async function privateFM(num = 20, userKey = '') {
+  const body = await request('/song/fm', { num }, 'get', userKey)
+  const list = body?.data?.list || []
+  return list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
+}
+
+export async function radioLists(userKey = '') {
+  const body = await request('/radio/lists', {}, 'get', userKey)
+  return body?.data || {}
+}
+
+// ──────────── 相似歌手 / 相关歌单 / 个人推荐 / 批量详情 ────────────
+
+export async function singerSimilar(singermid, { num = 5, userKey = '' } = {}) {
+  const body = await request('/singer/similar', { singermid, num }, 'get', userKey)
+  const list = body?.data?.list || []
+  return list
+    .map((item) => {
+      const mid = item.singerMID || item.singermid || item.mid || ''
+      return {
+        singermid: mid,
+        singerName: item.singerName || item.name || item.singer || '',
+        cover: mid ? `https://y.gtimg.cn/music/photo_new/T001R300x300M000${mid}.jpg` : '',
+        raw: item,
+      }
+    })
+    .filter((s) => s.singermid)
+}
+
+export async function relatedPlaylists(songid, { userKey = '' } = {}) {
+  const body = await request('/songlist/related', { songid }, 'get', userKey)
+  return body?.data?.list || []
+}
+
+export async function personalRecommend(type = 1, { userKey = '' } = {}) {
+  const body = await request('/recommend/personal', { type }, 'get', userKey)
+  const d = body?.data || {}
+  return { type: Number(type), list: d.list || [] }
+}
+
+export async function songInfoBatch(ids = [], { userKey = '' } = {}) {
+  if (!ids.length) return []
+  const body = await request('/song/info', { ids: ids.join(',') }, 'get', userKey)
+  return (body?.data?.list || [])
+    .map((item, idx) => {
+      const n = normalizeSearchItem(item, idx) || {}
+      n.mvVid = item?.mv?.vid || '' // track_info.mv.vid，供列表卡打 🎬 徽标
+      return n
+    })
+    .filter(Boolean)
+}
+
+// 歌词结构化解析（API /lyric?format=parsed）
+export async function lyricParsed(songmid, userKey = '') {
+  const body = await request('/lyric', { songmid, format: 'parsed' }, 'get', userKey)
+  return (
+    body?.data?.parsed || {
+      lyric: { lines: [], tags: {} },
+      trans: { lines: [], tags: {} },
+    }
+  )
 }
 
 export default {
@@ -821,4 +994,19 @@ export default {
   userFavorites,
   userSonglists,
   userCollectSonglists,
+  // 新增端点 wrapper
+  mvCategory,
+  mvByTag,
+  mvRelated,
+  mvUrl,
+  searchMv,
+  songMvVid,
+  newSongs,
+  privateFM,
+  radioLists,
+  singerSimilar,
+  relatedPlaylists,
+  personalRecommend,
+  songInfoBatch,
+  lyricParsed,
 }

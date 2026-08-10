@@ -24,8 +24,12 @@ export function buildListCardData(keyword, songs, options = {}) {
       cover: s.cover || '',
       duration: s.duration || '',
       payplay: Boolean(s.payplay),
+      hasMv: Boolean(s.mvVid),
     })),
-    tip: options.tip || '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效',
+    tip:
+      options.tip ||
+      '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效' +
+        (songs.some((s) => s.mvVid) ? '；🎬有MV可 #qqmMV 播放 序号' : ''),
   }
 }
 
@@ -298,10 +302,10 @@ export function formatSettingsText(data) {
 }
 
 /** 歌曲详情卡片（解析后展示） */
-export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '', hasUrl = false } = {}) {
+export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '', hasUrl = false, mvVid = '' } = {}) {
   const isVip = Boolean(song.payplay) || payplay
   const payInfo = isVip ? '🔒 会员' : (song.pay?.pay_down ? '💰 付费' : '🆓 免费')
-  const urlStatus = hasUrl ? '✅ 有播放链接' : '⚠️ 仅免费链接'
+  const urlStatus = (hasUrl ? '✅ 有播放链接' : '⚠️ 仅免费链接') + (mvVid ? ' · 🎬 有MV' : '')
 
   let title = song.songName || '未知'
   if (isVip) title += ' [会员]'
@@ -310,6 +314,12 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
   let sourceText = source || '未知来源'
   if (source === '链接') sourceText = '🔗 链接解析'
   else if (source === '卡片') sourceText = '📋 卡片解析'
+
+  const baseTip = hasUrl
+    ? `正在下载并发送语音（${qualityLabel || '默认音质'}）...`
+    : '未获取到播放链接'
+  // 模板 .tips 无 white-space:pre，\n 会被折叠，故用 · 分隔；#qqmMV 播放/下载 不带参数 = 操作本曲 MV
+  const mvHint = mvVid ? ` · 🎬 该曲有 MV：#qqmMV 播放/下载 直接操作` : ''
 
   return {
     title: title,
@@ -324,7 +334,39 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
     payInfo,
     urlStatus,
     source: sourceText,
-    tip: hasUrl ? `正在下载并发送语音（${qualityLabel || '默认音质'}）...` : '未获取到播放链接',
+    tip: baseTip + mvHint,
+    mvVid: mvVid || '',
+  }
+}
+
+/** MV 详情卡片 - 复用 qqmusic-detail 模板（字段映射 + 播放量/日期放进 tip） */
+export function buildMvCardData(mv) {
+  const title = mv.mvtitle || mv.name || mv.songName || 'MV'
+  const singer = mv.singerName || mv.singer_name || '未知歌手'
+  const play = Number(mv.listennum || mv.listenNum || 0)
+  const pubdate = mv.pubdate || mv.pub_date || mv.publish_date || ''
+  const tipParts = [
+    '🎬 MV',
+    play ? `累计播放 ${play >= 10000 ? `${(play / 10000).toFixed(1)}万` : play}` : '',
+    pubdate ? `发布 ${pubdate}` : '',
+    '发 #qqmMV 播放/下载 序号',
+  ].filter(Boolean)
+  return {
+    title: `${title} [MV]`,
+    songName: title,
+    singerName: singer,
+    albumName: pubdate ? `发行日期 ${pubdate}` : '',
+    cover: mv.cover || mv.picurl || '',
+    songmid: mv.vid || '',
+    duration: '',
+    qualityLabel: 'MV',
+    payplay: false,
+    payInfo: '🎬 MV',
+    urlStatus: '✅ 有播放源',
+    source: 'MV',
+    tip: tipParts.join(' · '),
+    vid: mv.vid || '',
+    listennum: play,
   }
 }
 

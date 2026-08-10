@@ -501,7 +501,7 @@
               </div>
               <div class="song-right">
                 {{if song.duration}}<div class="song-duration">{{song.duration}}</div>{{else}}<div class="song-duration"></div>{{/if}}
-                <div class="song-tag {{song.payplay ? '' : 'free'}}">{{song.payplay ? '付费' : '免费'}}</div>
+                <div class="song-tag {{song.payplay ? '' : 'free'}}">{{song.payplay ? '付费' : '免费'}}{{song.hasMv ? ' · 🎬' : ''}}</div>
               </div>
             </div>
             {{/each}}

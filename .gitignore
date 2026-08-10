@@ -4,3 +4,5 @@ config/config/*
 !config/config/.gitkeep
 *.log
 .DS_Store
+# Playwright MCP 浏览器测试产物
+.playwright-mcp/

@@ -13,7 +13,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase()
 
-import { searchSongs, songUrlBest, lyric, hotKeys } from '../utils/api.js'
+import { searchSongs, songUrlBest, lyric, hotKeys, songInfoBatch } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong, sendNativeMusicCard, QUALITY_LABEL } from '../utils/send.js'
 import { buildHelpCardData } from '../utils/help-card.js'
@@ -30,9 +30,10 @@ const RE_LYRIC = /^#?(?:qq|QQ)m\s*歌词\s*(.+)$/
 function formatListText(list) {
   const lines = list.map((s, i) => {
     const pay = s.payplay ? ' [付费]' : ''
-    return `${i + 1}. ${s.songName} - ${s.singerName}${pay}${s.duration ? ` (${s.duration})` : ''}`
+    const mv = s.mvVid ? ' 🎬' : ''
+    return `${i + 1}. ${s.songName} - ${s.singerName}${pay}${mv}${s.duration ? ` (${s.duration})` : ''}`
   })
-  return `♫ QQ音乐点歌结果（#qqm听序号 或 #听序号）\n${lines.join('\n')}`
+  return `♫ QQ音乐点歌结果（#qqm听序号 或 #听序号；🎬=有MV，可 #qqmMV 播放 序号）\n${lines.join('\n')}`
 }
 
 async function resolvePlay(song, cfg, userKey = '') {
@@ -125,6 +126,21 @@ export class qqmusicSong extends (await loadPluginBase()) {
       }
 
       const scope = e.group_id || e.user_id
+
+      // 批量查各曲是否带 MV（一次 /song/info），列表打 🎬 徽标 + 支持 #qqmMV 播放 序号
+      try {
+        const mids = list.map((s) => s.songmid).filter(Boolean)
+        const infos = await songInfoBatch(mids, { userKey: String(e.user_id || '') })
+        const mvMap = new Map(
+          infos.map((n) => [n.songmid, n.mvVid]).filter(([, v]) => v)
+        )
+        for (const s of list) {
+          if (s.songmid && mvMap.has(s.songmid)) s.mvVid = mvMap.get(s.songmid)
+        }
+      } catch {
+        /* MV 徽标失败不影响点歌 */
+      }
+
       await setSession(scope, {
         keyword,
         data: list,
@@ -159,8 +175,8 @@ export class qqmusicSong extends (await loadPluginBase()) {
     const n = Number(m?.[1] || m?.[2] || 0)
     const scope = e.group_id || e.user_id
     const session = await getSession(scope)
-    if (!session?.data?.length) {
-      // 无本插件会话时不抢其它插件的 #听 / #qqm听
+    if (!session?.data?.length || session.type === 'mvList') {
+      // 无本插件会话时不抢其它插件的 #听 / #qqm听；mvList 是 MV 列表，音频播放流程不适用
       return false
     }
     if (n < 1 || n > session.data.length) {
@@ -171,8 +187,14 @@ export class qqmusicSong extends (await loadPluginBase()) {
     const song = session.data[n - 1]
     const userKey = String(e.user_id || '')
 
-    // 先获取播放链接信息
+    // 先获取播放链接信息（songUrlBest 已带出歌曲 MV vid，无需额外请求）
     const play = await resolvePlay(song, cfg, userKey)
+    const mvVid = play.mvVid || ''
+
+    // 记住本曲 MV，支持「#qqmMV 播放/下载」（不带参数）直接操作该曲 MV
+    if (mvVid && session?.data?.length) {
+      await setSession(scope, { ...session, lastMvVid: mvVid, user_id: e.user_id })
+    }
 
     // 渲染详情卡片（与解析功能统一风格）
     try {
@@ -183,6 +205,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         payplay: Boolean(song.payplay),
         source: '点歌',
         hasUrl: Boolean(play.url),
+        mvVid,
       })
       cardData.tip = play.url
         ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
@@ -250,10 +273,13 @@ export class qqmusicSong extends (await loadPluginBase()) {
           payplay: Boolean(song.payplay),
           source: '播放',
           hasUrl: Boolean(play.url),
+          mvVid: play.mvVid || '',
         })
-        cardData.tip = play.url
-          ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
-          : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`
+        cardData.tip =
+          (play.url
+            ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
+            : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`) +
+          (play.mvVid ? ` · 🎬 该曲有 MV：#qqmMV 播放/下载 直接操作` : '')
         const img = await renderDetailCard(e, cardData)
         if (img) {
           await e.reply(img)

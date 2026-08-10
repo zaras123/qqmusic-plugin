@@ -13,7 +13,7 @@ export function buildHelpCardData() {
 
   return {
     version: `v${getLocalVersion()}`,
-    statCommands: '25+',
+    statCommands: '27+',
     statQuality: quality,
     statMode: songOn && resolveOn ? '全开' : songOn ? '点歌' : resolveOn ? '解析' : '待机',
     apiHint: apiHintFor(),
@@ -44,6 +44,8 @@ export function buildHelpCardData() {
           { name: '专辑搜索', desc: '搜索专辑并展示曲目列表', example: '#qqm专辑 叶惠美' },
           { name: '歌单搜索', desc: '搜索歌单并展示歌曲', example: '#qqm歌单 华语流行' },
           { name: '歌曲评论', desc: '查看歌曲热门评论', example: '#qqm评论 晴天' },
+          { name: '新歌速递', desc: '最新热门歌曲（#qqm新歌 序号 选地区）', example: '#qqm新歌' },
+          { name: 'MV 搜索/播放/下载', desc: '点歌后 #qqmMV 播放/下载 直接播；#qqmMV 搜索 词 搜 MV', example: '#qqmMV' },
         ],
       },
       {
