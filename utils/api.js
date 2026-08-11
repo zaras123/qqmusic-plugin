@@ -824,6 +824,7 @@ function normalizeMvItem(item, idx = 0) {
     cover: item.mv_pic_url || item.pic || item.picurl || item.cover || '',
     pubdate: item.publish_date || item.pubdate || item.pub_date || item.publictime || '',
     listennum: Number(item.play_count || item.listennum || item.listenNum || item.playcnt || item.cnt || 0),
+    duration: Number(item.duration || item.durationSec || item.mv_duration || 0), // 秒
     raw: item,
   }
 }

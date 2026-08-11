@@ -331,6 +331,7 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
     duration: song.duration || '',
     qualityLabel: qualityLabel || '',
     payplay: isVip,
+    showPay: true,
     payInfo,
     urlStatus,
     source: sourceText,
@@ -339,32 +340,44 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
   }
 }
 
-/** MV 详情卡片 - 复用 qqmusic-detail 模板（字段映射 + 播放量/日期放进 tip） */
+/** 播放量友好格式化：1.2亿 / 12018万 / 9999 */
+function fmtCount(n) {
+  if (!n) return ''
+  if (n >= 100000000) return `${(n / 100000000).toFixed(1).replace(/\.0$/, '')}亿`
+  if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/\.0$/, '')}万`
+  return String(n)
+}
+
+/** MV 详情卡片 - 复用 qqmusic-detail 模板；按 MV 语义映射（无专辑/无音质/显示时长） */
 export function buildMvCardData(mv) {
   const title = mv.mvtitle || mv.name || mv.songName || 'MV'
-  const singer = mv.singerName || mv.singer_name || '未知歌手'
+  const singer = mv.singerName || mv.singer_name || ''
   const play = Number(mv.listennum || mv.listenNum || 0)
   const pubdate = mv.pubdate || mv.pub_date || mv.publish_date || ''
+  // 时长：秒 → m:ss
+  let duration = ''
+  const sec = Number(mv.duration || mv.durationSec || 0)
+  if (sec > 0) {
+    duration = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`
+  }
   const tipParts = [
-    '🎬 MV',
-    play ? `累计播放 ${play >= 10000 ? `${(play / 10000).toFixed(1)}万` : play}` : '',
-    pubdate ? `发布 ${pubdate}` : '',
+    play ? `累计播放 ${fmtCount(play)}` : '',
+    pubdate ? `发行 ${pubdate}` : '',
     '发 #qqmMV 播放/下载 序号',
   ].filter(Boolean)
   return {
-    title: `${title} [MV]`,
+    title,
     songName: title,
-    singerName: singer,
-    albumName: pubdate ? `发行日期 ${pubdate}` : '',
+    singerName: singer || '未知歌手',
+    albumName: '', // MV 无专辑概念，发行日期进 tip
     cover: mv.cover || mv.picurl || '',
-    songmid: mv.vid || '',
-    duration: '',
-    qualityLabel: 'MV',
+    songmid: '', // songmid 语义是歌曲 mid，MV 用 vid
+    duration,
+    qualityLabel: '', // 音质概念不适用于 MV
     payplay: false,
-    payInfo: '🎬 MV',
-    urlStatus: '✅ 有播放源',
+    showPay: false, // 不显示 付费/免费 徽章
     source: 'MV',
-    tip: tipParts.join(' · '),
+    tip: tipParts.join(' · ') || '发 #qqmMV 播放/下载 序号',
     vid: mv.vid || '',
     listennum: play,
   }
