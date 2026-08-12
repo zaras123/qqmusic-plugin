@@ -30,7 +30,12 @@ const samples = {
     total: 5,
     quality: 'FLAC',
     apiHint: 'API · 127.0.0.1:3300',
-    tip: '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效',
+    commands: [
+      { name: '#qqm听序号', desc: '播放当前列表中的指定歌曲（会话内也可 #听序号）', example: '#qqm听1' },
+      { name: '#qqm歌词 序号', desc: '查看指定歌曲的纯文本歌词', example: '#qqm歌词1' },
+      { name: '#qqmMV 播放 序号', desc: '播放 / 下载该曲 MV（列表带 🎬 即是有 MV 的歌曲）', example: '#qqmMV 播放 1' },
+      { name: '列表有效期', desc: '本列表约 10 分钟内有效，过期请重新搜索', example: '#qqm点歌 关键词' },
+    ],
     songs: [
       {
         index: 1,

@@ -9,6 +9,32 @@ import { maskApiBase, apiHintFor } from './privacy.js'
 /** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
 export function buildListCardData(keyword, songs, options = {}) {
   const cfg = Config.getConfig('qqmusic') || {}
+  const hasMv = songs.some((s) => s.mvVid)
+  // 常用指令：原卡片底部「小提示」的内容并入此列表
+  const commands = [
+    {
+      name: '#qqm听序号',
+      desc: options.tip || '播放当前列表中的指定歌曲（会话内也可 #听序号）',
+      example: '#qqm听1',
+    },
+    {
+      name: '#qqm歌词 序号',
+      desc: '查看指定歌曲的纯文本歌词',
+      example: '#qqm歌词1',
+    },
+  ]
+  if (hasMv) {
+    commands.push({
+      name: '#qqmMV 播放 序号',
+      desc: '播放 / 下载该曲 MV（列表带 🎬 即是有 MV 的歌曲）',
+      example: '#qqmMV 播放 1',
+    })
+  }
+  commands.push({
+    name: '列表有效期',
+    desc: '本列表约 10 分钟内有效，过期请重新搜索',
+    example: '#qqm点歌 关键词',
+  })
   return {
     keyword: keyword || '歌曲列表',
     total: songs.length,
@@ -26,10 +52,8 @@ export function buildListCardData(keyword, songs, options = {}) {
       payplay: Boolean(s.payplay),
       hasMv: Boolean(s.mvVid),
     })),
-    tip:
-      options.tip ||
-      '发送 #qqm听序号 播放（会话内也可 #听序号）；列表约 10 分钟内有效' +
-        (songs.some((s) => s.mvVid) ? '；🎬有MV可 #qqmMV 播放 序号' : ''),
+    hasMv,
+    commands,
   }
 }
 
