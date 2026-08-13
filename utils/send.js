@@ -100,13 +100,37 @@ function isMusicCardUnsupported(err) {
  *  - 同一适配器累计失败 3 次后，本会话内自动跳过原生卡，避免每次点歌都刷错误日志
  *  - 首次失败打印完整原因，之后静默；交给调用方降级（自定义卡 / 语音 / 文件）
  * @param {boolean} [force] 忽略失败记忆强制尝试一次
+ * @param {object} [cardData] 提供真实播放链后，NTQQ 系 OneBot 用 custom 卡渲染（type:qq 需协议端服务端拉歌单，普遍不支持）
  * @returns {Promise<{ok:boolean, reason?:'unsupported'|'disabled'|'failed', error?:Error}>}
  */
-export async function sendNativeMusicCard(e, platformType, musicId, { force = false } = {}) {
+export async function sendNativeMusicCard(
+  e,
+  platformType,
+  musicId,
+  { force = false, url = '', audio = '', title = '', image = '', content = '', singer = '' } = {}
+) {
   const adapter = detectAdapter(e)
   // 官方 QQBot 无 go-cq 风格 music 段
   if (adapter.kind === 'qqbot') {
     return { ok: false, reason: 'unsupported' }
+  }
+
+  // NTQQ 系 OneBot（LLOneBot / NapCat / Lagrange）不支持 `type:qq`（需服务端拉歌曲信息），
+  // 调用方提供了真实播放链时改用 custom 卡——带直链才能渲染成 QQ 音乐卡片（与小飞插件一致）。
+  if (adapter.kind === 'onebot' && (audio || url)) {
+    const sent = await sendCustomMusicCard(e, {
+      url: url || audio,
+      audio: audio || url,
+      title,
+      image,
+      content,
+      singer,
+      musicType: 'custom',
+    })
+    if (sent) {
+      nativeCardState.delete(`${adapter.kind}:${adapter.id || adapter.name || 'unknown'}`)
+    }
+    return sent ? { ok: true } : { ok: false, reason: 'failed' }
   }
 
   const key = `${adapter.kind}:${adapter.id || adapter.name || 'unknown'}`
@@ -190,7 +214,7 @@ async function tryFallbackCard(e, platformType, id) {
 
 export async function sendCustomMusicCard(
   e,
-  { url, audio, title, image, content = '', musicType = 'custom' }
+  { url, audio, title, image, content = '', singer = '', musicType = 'custom' }
 ) {
   const adapter = detectAdapter(e)
   if (adapter.kind === 'qqbot') return false
@@ -203,6 +227,7 @@ export async function sendCustomMusicCard(
     image: image || '',
   }
   if (content) data.content = content
+  if (singer) data.singer = singer
 
   if (adapter.kind === 'onebot' && e.bot?.sendApi) {
     try {
@@ -242,6 +267,8 @@ export async function sendCustomMusicCard(
 const VOCAL_MAX_BYTES = 5 * 1024 * 1024 // 5MB
 /** OneBot / ICQQ 语音直传白名单（体积不大时直接发，避免无谓转码） */
 const VOCAL_DIRECT_EXT = new Set(['mp3', 'silk', 'wav', 'amr', 'm4a', 'ogg', 'flac'])
+/** OneBot(NTQQ) 群文件上传体积上限：超过则直接改传压缩语音版（大 FLAC 走 upload_group_file 易触发 Highway 限制） */
+const GROUP_FILE_MAX_BYTES = 20 * 1024 * 1024 // 20MB
 
 export async function prepareVocalFile(filePath, { directExt = VOCAL_DIRECT_EXT, maxBytes = VOCAL_MAX_BYTES } = {}) {
   if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
@@ -676,7 +703,7 @@ export async function uploadGroupFile(e, filePath, displayName) {
 
   const errors = []
 
-  // —— OneBot：先 upload_group_file（大文件专用），再 group.sendFile ——
+  // —— OneBot：先 upload_group_file（大文件专用），失败再走 send_group_msg 文件段 ——
   if (adapter.kind === 'onebot' && e.bot?.sendApi) {
     for (const name of namesToTry) {
       try {
@@ -689,7 +716,20 @@ export async function uploadGroupFile(e, filePath, displayName) {
         return true
       } catch (err) {
         errors.push(`upload_group_file(${name}): ${err.message}`)
-        logWarn(`upload_group_file 失败: ${err.message}`)
+        logWarn(`upload_group_file 失败(${name}): ${err.message}`)
+      }
+    }
+    // LLOneBot / NapCat 等：upload_group_file 偶发失败（Highway/风控/超时），改走 send_group_msg 文件段通常可成功
+    for (const name of namesToTry) {
+      try {
+        await botSendApi(e, 'send_group_msg', {
+          group_id: e.group_id,
+          message: [{ type: 'file', data: { file: abs, name } }],
+        })
+        logInfo(`群文件 send_group_msg 文件段成功: ${name}`)
+        return true
+      } catch (err) {
+        errors.push(`send_msg file(${name}): ${err.message}`)
       }
     }
   }
@@ -744,8 +784,8 @@ export async function uploadGroupFile(e, filePath, displayName) {
     }
   }
 
-  // —— 非 OneBot 才兜底 segment.file（OneBot 大文件走 send_msg 易 Highway 炸）——
-  if (adapter.kind !== 'onebot' && global.segment?.file) {
+  // —— 最后兜底 segment.file（sendApi 路径全失败后；OneBot 大文件走 send_msg 易 Highway 炸，但小文件通常没问题）——
+  if (global.segment?.file) {
     for (const name of namesToTry) {
       try {
         await e.reply(segment.file(abs, name))
@@ -805,10 +845,17 @@ export async function deliverSong(e, song, play, options = {}) {
     await e.reply(lines.join('\n'))
   }
 
-  // 原生音乐卡（go-cq 风格 music 段）。NTQQ 系协议端普遍不支持，失败时自动降级：
-  // 若开启了自定义卡且有直链则改发自定义卡，否则交由下方语音 / 群文件兜底。
+  // 原生音乐卡。NTQQ 系 OneBot 用 custom 卡（带直链才能渲染成 QQ 音乐卡片）；ICQQ 走原生 type:qq。
+  // 失败时若开启了自定义卡且有直链则再降级一次，否则交由下方语音 / 群文件兜底。
   if (allowNative && song.songid) {
-    const nativeRes = await sendNativeMusicCard(e, 'qq', song.songid)
+    const nativeRes = await sendNativeMusicCard(e, 'qq', song.songid, {
+      url: pageUrl,
+      audio: play?.url,
+      title,
+      image: cover,
+      content: singer,
+      singer,
+    })
     if (!nativeRes.ok && allowCustom && play?.url) {
       await sendCustomMusicCard(e, {
         url: pageUrl,
@@ -816,6 +863,7 @@ export async function deliverSong(e, song, play, options = {}) {
         title,
         image: cover,
         content: singer,
+        singer,
         musicType: 'custom',
       })
     }
@@ -826,6 +874,7 @@ export async function deliverSong(e, song, play, options = {}) {
       title,
       image: cover,
       content: singer,
+      singer,
       musicType: 'custom',
     })
   }
@@ -942,49 +991,71 @@ export async function deliverSong(e, song, play, options = {}) {
 
   if (cfg.uploadFile) {
     // 群：上传群文件；私聊：发好友文件 / segment.file
-    let up = false
-    try {
-      up = await withRetry(() => uploadGroupFile(e, localPath, displayName || undefined), {
-        times: adapter.kind === 'qqbot' || adapter.kind === 'onebot' ? 3 : 1,
-        baseMs: adapter.kind === 'onebot' ? 2500 : 1500,
-        retryIf: (_e, msg) =>
-          (adapter.kind === 'qqbot' && QQ_RETRYABLE.test(msg)) ||
-          (adapter.kind === 'onebot' &&
-            /210005|Highway|httpUpload|系统繁忙|timeout|ECONNRESET/i.test(msg)),
-        tag: `${adapter.kind} 群文件 `,
-      })
-    } catch (err) {
-      logWarn(`群文件最终失败: ${err.message}`)
-    }
+    const hasCompressed = Boolean(vocalPath && vocalPath !== localPath && fs.existsSync(vocalPath))
+    const compressedName = displayName
+      ? displayName.replace(/\.[^.]+$/, '_压缩版.mp3')
+      : 'QQ音乐_压缩版.mp3'
+    const retryOpts = (tag) => ({
+      times: adapter.kind === 'qqbot' || adapter.kind === 'onebot' ? 3 : 1,
+      baseMs: adapter.kind === 'onebot' ? 2500 : 1500,
+      retryIf: (_e, msg) =>
+        (adapter.kind === 'qqbot' && QQ_RETRYABLE.test(msg)) ||
+        (adapter.kind === 'onebot' &&
+          /210005|Highway|httpUpload|系统繁忙|timeout|ECONNRESET/i.test(msg)),
+      tag,
+    })
 
-    // 原始高音质文件过大（大 FLAC 触发 Highway 限制）→ 改传压缩语音版，保证用户能拿到文件
-    if (!up && e.group_id && vocalPath && vocalPath !== localPath && fs.existsSync(vocalPath)) {
+    let up = false
+
+    // OneBot(NTQQ) 大文件上传受限（Highway/210005）：超过阈值直接改传压缩语音版，
+    // 避免必然失败的大文件上传 + 重试拖时间
+    const tooBigForOneBot = adapter.kind === 'onebot' && size > GROUP_FILE_MAX_BYTES
+
+    if (tooBigForOneBot && hasCompressed) {
       try {
-        const compressedName = displayName
-          ? displayName.replace(/\.[^.]+$/, '_压缩版.mp3')
-          : 'QQ音乐_压缩版.mp3'
-        const ok2 = await withRetry(() => uploadGroupFile(e, vocalPath, compressedName), {
-          times: adapter.kind === 'qqbot' || adapter.kind === 'onebot' ? 3 : 1,
-          baseMs: 1500,
-          retryIf: (_e, msg) =>
-            adapter.kind === 'onebot' &&
-            /210005|Highway|httpUpload|系统繁忙|timeout|ECONNRESET/i.test(msg),
-          tag: '群文件(压缩版) ',
-        })
-        if (ok2) {
+        up = await withRetry(
+          () => uploadGroupFile(e, vocalPath, compressedName),
+          retryOpts('群文件(压缩版) ')
+        )
+        if (up) {
           await e.reply(
             `原始高音质文件过大（${formatSize(size)}），已改传压缩版（${formatSize(fs.statSync(vocalPath).size)}）。需要无损文件请在 QQ 音乐客户端获取`
           )
-          up = true
         }
       } catch (err) {
         logWarn(`压缩版群文件失败: ${err.message}`)
+      }
+    } else {
+      try {
+        up = await withRetry(
+          () => uploadGroupFile(e, localPath, displayName || undefined),
+          retryOpts(`${adapter.kind} 群文件 `)
+        )
+      } catch (err) {
+        logWarn(`群文件最终失败: ${err.message}`)
+      }
+
+      // 原始上传失败 → 改传压缩语音版，保证用户能拿到文件
+      if (!up && hasCompressed) {
+        try {
+          up = await withRetry(
+            () => uploadGroupFile(e, vocalPath, compressedName),
+            retryOpts('群文件(压缩版) ')
+          )
+          if (up) {
+            await e.reply(
+              `原始高音质文件上传失败，已改传压缩版（${formatSize(fs.statSync(vocalPath).size)}）。需要无损文件请在 QQ 音乐客户端获取`
+            )
+          }
+        } catch (err) {
+          logWarn(`压缩版群文件失败: ${err.message}`)
+        }
       }
     }
 
     if (!up && e.group_id) {
       await e.reply(
-        `群文件上传失败（${adapter.name || adapter.kind}；大 FLAC 可能触发 Highway 限制）。语音已尝试发送，可稍后再试或改用较低音质`
+        `群文件上传失败（${adapter.name || adapter.kind}；大文件可能触发 Highway 限制）。语音已尝试发送，可稍后再试或改用较低音质`
       )
     }
   }

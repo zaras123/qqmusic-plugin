@@ -166,10 +166,11 @@ cd qqmusic-plugin && pnpm install
 | 群文件 | ✅ | ✅ | ✅ |
 | 原生音乐卡 | 视协议 | 视协议 | — |
 
-> 📌 **关于原生音乐卡**：NTQQ 系协议端（NapCat / Lagrange / LLOneBot 等）普遍不支持 go-cq 风格的原生 music 卡片，会以 `retcode 1200` 直接拒绝。
-> 插件已做「能力记忆 + 静默降级」：同一适配器连续失败 3 次后本会话内自动跳过原生卡，不再刷错误日志，并自动降级为自定义音乐卡 / 语音 / 群文件（点歌功能不受影响）。彻底关闭可在锅巴中关掉「发送原生 QQ 音乐卡」。
+> 📌 **关于原生音乐卡**：NTQQ 系协议端（NapCat / Lagrange / LLOneBot 等）不支持 go-cq 风格的 `type:qq` 音乐卡（该类型需协议端服务端拉歌单，会以 `retcode 1200` 拒绝）。插件在 OneBot 上**直接用 custom 卡**（带真实播放链 + 封面 + 歌手，效果与官方客户端分享一致，参考小飞插件做法）；ICQQ 仍走原生 `type:qq`。同一适配器连续失败 3 次后本会话内自动跳过并静默降级为语音 / 群文件（点歌功能不受影响）。彻底关闭可在锅巴中关掉「发送原生 QQ 音乐卡」。
 >
-> 📌 **关于高音质语音**：FLAC 等高音质文件体积大，直接作为语音（record）发送会被协议端以体积/格式限制拒绝。插件发送语音前会自动用 ffmpeg 压成紧凑 mp3（保证能发出去），**群文件仍保留原始高音质文件**；若原始大文件触发 Highway 上传限制，则自动改传压缩版并提示。需系统安装 `ffmpeg`（`ffmpeg -version` 可验证）。
+> 📌 **关于高音质语音**：FLAC 等高音质文件体积大，直接作为语音（record）发送会被协议端以体积/格式限制拒绝。插件发送语音前会自动用 ffmpeg 压成紧凑 mp3（保证能发出去），**群文件仍保留原始高音质文件**。需系统安装 `ffmpeg`（`ffmpeg -version` 可验证）。
+>
+> 📌 **关于群文件上传（OneBot/NTQQ）**：LLOneBot / NapCat / Lagrange 的 `upload_group_file` 对大 FLAC 常触发 Highway 限制（210005）而失败。插件做了三层保障：① OneBot 上 `upload_group_file` 失败自动改走 `send_group_msg` 文件段；② 超过 20MB 的大文件直接改传压缩版；③ 原始上传失败且存在压缩语音版时自动改传并提示。ICQQ 走 `fs.upload`/`sendFile`，不受影响。
 
 ---
 

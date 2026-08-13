@@ -222,7 +222,7 @@ export async function buildSettingsCardData(e = null) {
 
   const q = c.quality || 'auto'
   const qualityLabel = QUALITY_LABEL[q] || String(q).toUpperCase()
-  const apiBaseView = maskApiBase(c.apiBase, e)
+  const apiBaseView = maskApiBase(c.apiBase)
   const apiHint = c.apiBase ? `API · ${apiBaseView.replace(/^https?:\/\//, '')}` : 'API 未配置'
 
   const onOff = (v) => (v === false ? '关' : '开')
@@ -279,7 +279,7 @@ export async function buildSettingsCardData(e = null) {
       { name: '开关点歌', desc: '开启 / 关闭点歌功能', example: '#qqm 开启点歌' },
       { name: '连通测试', desc: '测试 API 是否正常响应', example: '#qqm 测试' },
     ],
-    tip: '详细开关可在锅巴面板修改；API 地址默认对群成员隐藏，可在配置 hideApiBase:false 关闭',
+    tip: '详细开关可在锅巴面板修改；API 地址对所有人打码显示',
   }
 }
 

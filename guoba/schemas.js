@@ -220,7 +220,6 @@ export async function setConfigData(data, { Result } = {}) {
       'resolveCards',
       'lastLoginUin',
       'lastLoginNick',
-      'hideApiBase',
     ]
 
     for (const k of keys) {

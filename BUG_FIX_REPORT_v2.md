@@ -354,6 +354,16 @@ NTQQ 协议的第三方实现已移除 / 禁用 go-cq 风格的 `music` 消息�
 3. **结构化返回值 + 降级链**：`sendNativeMusicCard` 返回 `{ ok, reason, error }`；`deliverSong` 在原生卡失败且开启自定义卡时有直链时，自动改发自定义音乐卡，否则交由语音 / 群文件兜底。
 4. 识别 `retcode 1200 / sequence=0 / 不支持 / unsupported` 等特征，归为 `unsupported` 类错误处理。
 
+### 补充（LLOneBot / NapCat / Lagrange 真卡片）
+
+NTQQ 系 OneBot 实现连 `type:qq` 的服务端拉歌单都不支持，`{"type":"music","data":{"type":"qq","id":"xxx"}}` 必然被拒。参考小飞插件（`xiaofei-plugin/apps/点歌.js`）：OneBot v11 下用 **`type:"custom"`** 直接带上真实播放链 + 封面 + 歌手：
+
+```json
+{"type":"music","data":{"type":"custom","url":"<y.qq.com 页>","audio":"<真实直链>","title":"...","image":"<封面>","singer":"...","content":"..."}}
+```
+
+插件已改为：OneBot 适配器提供真实播放链时，`sendNativeMusicCard` 直接发 custom 卡（效果与官方分享一致），ICQQ 仍走原生 `type:qq`。
+
 ### 获取修复
 
 ```bash
@@ -404,3 +414,11 @@ git pull origin main
 ```
 
 > 需系统安装 `ffmpeg`（`ffmpeg -version` 验证）。若追求无损群文件，请在 QQ 音乐客户端获取；机器人侧高音质仅保证「语音可听 + 尽力传文件」。
+
+### 补充（TRSS + LLOneBot 群文件仍失败）
+
+`upload_group_file` 动作在 LLOneBot/NapCat 上对大 FLAC 必失败（210005/Highway），且原实现 OneBot **没有兜底路径**（`segment.file` 兜底被 `adapter.kind !== 'onebot'` 排除），导致压缩兜底也走同一条必败路径。已修复：
+
+1. `uploadGroupFile`：OneBot 上 `upload_group_file` 失败 → 自动改走 `send_group_msg` 文件段 → 最后 `segment.file`（三层兜底）。
+2. `deliverSong`：OneBot 且原始文件 > 20MB 时，**直接改传压缩语音版**（跳过必败的大文件上传）；非大文件或其它适配器仍先传原始，失败再降级。
+3. ICQQ 走 `fs.upload`/`sendFile`，不受 Highway 影响。

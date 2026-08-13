@@ -22,7 +22,7 @@ import {
 import { deliverSong } from '../utils/send.js'
 import { QUALITY_LABEL } from '../utils/quality.js'
 import { setSession } from '../utils/session.js'
-import { getCfg, isPluginCommandMsg, replyCardOrText } from '../utils/common.js'
+import { getCfg, isPluginCommandMsg } from '../utils/common.js'
 import { logError, logInfo, logWarn } from '../utils/log.js'
 
 function collectMessageText(e) {

@@ -37,16 +37,5 @@ export async function loadPluginBase() {
   }
 }
 
-/**
- * 同步获取已加载的插件基类
- * 注意：必须在所有 import 完成后使用
- */
-export function getPluginBase() {
-  if (!cached) {
-    throw new Error('Plugin base not loaded yet')
-  }
-  return cached
-}
-
 // 立即开始异步加载
 loadPluginBase().catch(() => {})
