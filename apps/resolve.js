@@ -19,7 +19,8 @@ import {
   songlistDetail,
   singerSongs,
 } from '../utils/api.js'
-import { deliverSong, QUALITY_LABEL } from '../utils/send.js'
+import { deliverSong } from '../utils/send.js'
+import { QUALITY_LABEL } from '../utils/quality.js'
 import { setSession } from '../utils/session.js'
 import { getCfg, isPluginCommandMsg, replyCardOrText } from '../utils/common.js'
 import { logError, logInfo, logWarn } from '../utils/log.js'
@@ -221,17 +222,8 @@ export class qqmusicResolve extends (await loadPluginBase()) {
         if (extIds.disstid) {
           try {
             const detail = await songlistDetail(extIds.disstid, userKey)
-            const raw = detail.songlist || []
-            const songs = raw.map((item, idx) => ({
-              songmid: item.songmid || item.mid || '',
-              songid: item.songid || item.id || 0,
-              media_mid: item.media_mid || item.songmid || '',
-              songName: item.songname || item.title || item.name || '',
-              singerName: Array.isArray(item.singer) ? item.singer.map(s => s.name).join(' / ') : item.singername || '',
-              albumName: item.albumname || item.album?.name || '',
-              albummid: item.albummid || item.album?.mid || '',
-              cover: item.albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${item.albummid}.jpg` : '',
-            }))
+            // songlistDetail 已用 normalizeSearchItem 归一化，无需再手动映射
+            const songs = detail.songlist || []
             if (songs.length) {
               const scope = e.group_id || e.user_id
               const title = detail.dissname || detail.title || '歌单'
@@ -330,7 +322,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
         hasUrl: Boolean(play.url),
       })
       cardData.tip = play.url
-        ? `正在下载并发送语音（${qLabel || '默认音质'}）...`
+        ? `正在下载并发送语音（${qLabel || '默认音质'}）...${play.degradeNote ? ` · ${play.degradeNote}` : ''}`
         : (failHint || '未获取到播放链接')
       const img = await renderDetailCard(e, cardData)
       if (img) {
@@ -342,6 +334,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
           [
             `${prefix}QQ音乐 · 解析下载中`,
             formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
+            play.degradeNote ? `音质说明：${play.degradeNote}` : '',
             failHint,
           ].filter(Boolean).join('\n')
         )
@@ -353,6 +346,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
         [
           `${prefix}QQ音乐 · 解析下载中`,
           formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
+          play.degradeNote ? `音质说明：${play.degradeNote}` : '',
           failHint,
         ].filter(Boolean).join('\n')
       )

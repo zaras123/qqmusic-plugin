@@ -15,7 +15,8 @@ await loadPluginBase()
 
 import { searchSongs, songUrlBest, lyric, hotKeys, songInfoBatch } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
-import { deliverSong, sendNativeMusicCard, QUALITY_LABEL } from '../utils/send.js'
+import { deliverSong, sendNativeMusicCard } from '../utils/send.js'
+import { QUALITY_LABEL } from '../utils/quality.js'
 import { buildHelpCardData } from '../utils/help-card.js'
 import { renderHelpCard } from '../utils/render.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
@@ -50,6 +51,8 @@ async function resolvePlay(song, cfg, userKey = '') {
       url: play.url || '',
       quality: play.quality,
       qualityLabel: play.qualityLabel || QUALITY_LABEL[play.quality] || play.quality,
+      degradeNote: play.degradeNote || '',
+      mvVid: play.mvVid || '',
       raw: play,
     }
   } catch (e) {
@@ -208,7 +211,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         mvVid,
       })
       cardData.tip = play.url
-        ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
+        ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...${play.degradeNote ? ` · ${play.degradeNote}` : ''}`
         : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`
 
       const img = await renderDetailCard(e, cardData)
@@ -264,6 +267,11 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const userKey = String(e.user_id || '')
       const play = await resolvePlay(song, cfg, userKey)
 
+      // 记住本曲 MV，支持「#qqmMV 播放/下载」（不带参数）直接操作
+      if (play.mvVid) {
+        await setSession(e.group_id || e.user_id, { lastMvVid: play.mvVid, user_id: e.user_id })
+      }
+
       // 渲染详情卡片（与解析功能统一风格）
       try {
         const { buildDetailCardData } = await import('../utils/card-data.js')
@@ -279,6 +287,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
           (play.url
             ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
             : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`) +
+          (play.degradeNote ? ` · ${play.degradeNote}` : '') +
           (play.mvVid ? ` · 🎬 该曲有 MV：#qqmMV 播放/下载 直接操作` : '')
         const img = await renderDetailCard(e, cardData)
         if (img) {

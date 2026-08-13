@@ -6,6 +6,7 @@ import Config from '../components/Config.js'
 import {
   qualityCandidates,
   QUALITY_LABEL,
+  QUALITY_LADDER,
   isQualitySizeOk,
   pickBestAvailableQuality,
   summarizeFileSizes,
@@ -140,7 +141,8 @@ export async function searchSongs(keyword, { pageNo = 1, pageSize = 10 } = {}) {
   return (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
 }
 
-function normalizeSearchItem(item, idx = 0) {
+/** 统一歌曲对象归一化：兼容 /data 包裹、/track_info 包裹、扁平结构 */
+export function normalizeSearchItem(item, idx = 0) {
   // 兼容多种 API 返回结构：/data 包裹、/track_info 包裹、扁平结构
   const raw = item?.data || item?.track_info || item
   if (!raw) return null
@@ -281,6 +283,21 @@ async function probeUrlAlive(url, timeout = 6000) {
   }
 }
 
+/** 生成降级说明：显式请求的高音质没拿到时，向用户解释原因（多为需绿钻会员） */
+function buildDegradeNote(preferred, achieved, tried) {
+  const req = String(preferred || '')
+  if (!req || req === 'auto' || !achieved || req === achieved) return ''
+  const hi = QUALITY_LADDER.indexOf(req)
+  const lo = QUALITY_LADDER.indexOf(achieved)
+  if (hi < 0 || lo < 0 || lo <= hi) return '' // 未降级（auto / 相同 / 更高）不提示
+  const entry = tried.find((t) => t.startsWith(`${req}:`)) || ''
+  let reason = '获取失败（该音质通常需绿钻会员）'
+  if (entry.endsWith(':skip-size')) reason = '该歌曲未提供此音质'
+  else if (entry.endsWith(':cdn-dead')) reason = '播放链接不可用'
+  else if (entry.endsWith(':no-url')) reason = 'API 未返回链接（通常需绿钻会员）'
+  return `已请求${QUALITY_LABEL[req] || req}，实际${QUALITY_LABEL[achieved] || achieved}（${reason}）`
+}
+
 /**
  * 最高音质 + 自适配降级
  */
@@ -360,6 +377,7 @@ export async function songUrlBest(
         tried,
         playChannel: r.playChannel,
         mvVid,
+        degradeNote: buildDegradeNote(preferred, type, tried),
       }
     } catch (e) {
       lastErr = e
@@ -562,22 +580,12 @@ export async function singerSongs(singermid, { pageNo = 1, pageSize = 50, order 
   }
 }
 
-export async function singerAlbum(singermid, { pageNo = 1, pageSize = 50, userKey = '' } = {}) {
-  const body = await request('/singer/album', { singermid, pageNo, pageSize }, 'get', userKey)
-  return body?.data || { list: [], total: 0 }
-}
-
 export async function singerDesc(singermid, userKey = '') {
   const body = await request('/singer/desc', { singermid }, 'get', userKey)
   return body?.data || body
 }
 
 // ──────────── 专辑 ────────────
-
-export async function albumDetail(albummid, userKey = '') {
-  const body = await request('/album', { albummid }, 'get', userKey)
-  return body?.data || body
-}
 
 export async function albumSongs(albummid, { begin = 0, num = 999, userKey = '' } = {}) {
   const body = await request('/album/songs', { albummid, begin, num }, 'get', userKey)
@@ -596,24 +604,10 @@ export async function songlistDetail(disstid, userKey = '') {
   const body = await request('/songlist', { id: disstid }, 'get', userKey)
   const d = body?.data || body || {}
   const raw = d.songlist || d.songs || d.list || []
-  const songs = (Array.isArray(raw) ? raw : []).map((item, idx) => {
-    const singer = Array.isArray(item.singer)
-      ? item.singer.map(s => s.name).filter(Boolean).join(' / ')
-      : item.singername || item.singer || ''
-    const albummid = item.albummid || item.album?.mid || ''
-    return {
-      index: idx + 1,
-      songmid: item.songmid || item.mid || '',
-      songid: item.songid || item.id || 0,
-      media_mid: item.media_mid || item.songmid || '',
-      songName: item.songname || item.title || item.name || '',
-      singerName: singer,
-      albumName: item.albumname || item.album?.name || '',
-      albummid,
-      cover: albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg` : '',
-      payplay: item.pay?.pay_play ?? item.payplay,
-    }
-  }).filter(s => s.songmid)
+  const songs = (Array.isArray(raw) ? raw : [])
+    .map((item, idx) => normalizeSearchItem(item, idx))
+    .filter(Boolean)
+    .filter((s) => s.songmid)
   return {
     dissname: d.dissname || d.title || d.name || '',
     songCount: d.song_count || d.songCount || songs.length,
@@ -630,13 +624,6 @@ export async function songlistDetail(disstid, userKey = '') {
 export async function comment(id, { pageNo = 1, pageSize = 20, biztype = 1, userKey = '' } = {}) {
   const body = await request('/comment', { id, pageNo, pageSize, biztype }, 'get', userKey)
   return body?.data || body
-}
-
-// ──────────── 相似歌曲 ────────────
-
-export async function similarSongs(songid, userKey = '') {
-  const body = await request('/song/similar', { id: songid }, 'get', userKey)
-  return body?.data?.list || body?.data || []
 }
 
 // ──────────── 链接 ID 提取（扩展专辑/歌单/歌手） ────────────
@@ -664,13 +651,6 @@ export function parseQQMusicExtendedIds(text = '') {
   if (singerMid) out.singermid = singerMid[1]
 
   return out
-}
-
-// ──────────── CGI 代理（调用 QQ 音乐内部模块） ────────────
-
-export async function cgiProxy(module, method, param = {}, userKey = '') {
-  const body = await request('/cgi', { module, method, param: JSON.stringify(param) }, 'get', userKey)
-  return body?.data || body
 }
 
 // ──────────── 推荐歌曲（随机一首） ────────────
@@ -778,31 +758,6 @@ export async function userFavorites({ songBegin = 0, songNum = 30, userKey = '' 
   return dissPayload(body)
 }
 
-/** 兼容旧：仍走 /cgi（不推荐，保留给其它调用方） */
-export async function userDissList(dirid = 202, { songBegin = 0, songNum = 30, userKey = '' } = {}) {
-  const body = await request('/cgi', {
-    module: 'srf_diss_info.DissInfoServer',
-    method: 'CgiGetDiss',
-    param: JSON.stringify({ disstid: 0, dirid, onlysonglist: 0, song_begin: songBegin, song_num: songNum, userinfo: 1, pic_dpi: 800, orderlist: 1 }),
-  }, 'get', userKey)
-  const d = body?.data?.data || body?.data || {}
-  const songs = (d.songlist || d.song_list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
-  const dirinfo = d.dirinfo || {}
-  return { songs, title: dirinfo.title || '', desc: dirinfo.desc || '' }
-}
-
-// ──────────── 用户歌单列表 ────────────
-
-export async function userSonglists(qqId, userKey = '') {
-  const body = await request('/user/songlist', { id: qqId }, 'get', userKey)
-  return body?.data?.list || []
-}
-
-export async function userCollectSonglists(qqId, { pageNo = 1, pageSize = 20, userKey = '' } = {}) {
-  const body = await request('/user/collect/songlist', { id: qqId, pageNo, pageSize }, 'get', userKey)
-  return body?.data || { list: [] }
-}
-
 // ──────────── MV 浏览 / 搜索（API 新增端点） ────────────
 
 /** 规范化 MV 对象：兼容 /mv/tag（vid/mvtitle/singer_name/picurl）与 /search t=12（v_id/mv_name/mv_pic_url/play_count）两组字段 */
@@ -841,27 +796,10 @@ export async function mvByTag(tagId, { pageNo = 1, pageSize = 20, userKey = '' }
   return { list: raw.map(normalizeMvItem).filter(Boolean), total: body?.data?.total || 0 }
 }
 
-export async function mvRelated(songid, { num = 10, userKey = '' } = {}) {
-  const body = await request('/mv/related', { songid, num }, 'get', userKey)
-  return (body?.data?.list || []).map(normalizeMvItem).filter(Boolean)
-}
-
 /** 搜索 MV（/search t=12） */
 export async function searchMv(keyword, { pageNo = 1, pageSize = 10, userKey = '' } = {}) {
   const body = await request('/search', { key: keyword, t: 12, pageNo, pageSize }, 'get', userKey)
   return (body?.data?.list || []).map(normalizeMvItem).filter(Boolean)
-}
-
-/** 取歌曲自带 MV 的 vid（track_info.mv.vid），无则空串 */
-export async function songMvVid(songmid, userKey = '') {
-  if (!songmid) return ''
-  try {
-    const d = await songDetail(songmid, userKey)
-    const mv = d?.track_info?.mv || d?.mv || {}
-    return mv.vid || ''
-  } catch {
-    return ''
-  }
 }
 
 /** 取 MV 视频流 URL（/mv/url 返回 mp4 变体数组），失败返回空串 */
@@ -889,7 +827,7 @@ export async function mvUrl(vid, userKey = '') {
   return url ? url.replace(/^http:\/\//, 'https://') : ''
 }
 
-// ──────────── 新歌速递 / 私人FM / 电台列表 ────────────
+// ──────────── 新歌速递 ────────────
 
 export async function newSongs(type = 5, { num = 20, userKey = '' } = {}) {
   const body = await request('/song/new', { type, num }, 'get', userKey)
@@ -897,45 +835,7 @@ export async function newSongs(type = 5, { num = 20, userKey = '' } = {}) {
   return list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
 }
 
-export async function privateFM(num = 20, userKey = '') {
-  const body = await request('/song/fm', { num }, 'get', userKey)
-  const list = body?.data?.list || []
-  return list.map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
-}
-
-export async function radioLists(userKey = '') {
-  const body = await request('/radio/lists', {}, 'get', userKey)
-  return body?.data || {}
-}
-
-// ──────────── 相似歌手 / 相关歌单 / 个人推荐 / 批量详情 ────────────
-
-export async function singerSimilar(singermid, { num = 5, userKey = '' } = {}) {
-  const body = await request('/singer/similar', { singermid, num }, 'get', userKey)
-  const list = body?.data?.list || []
-  return list
-    .map((item) => {
-      const mid = item.singerMID || item.singermid || item.mid || ''
-      return {
-        singermid: mid,
-        singerName: item.singerName || item.name || item.singer || '',
-        cover: mid ? `https://y.gtimg.cn/music/photo_new/T001R300x300M000${mid}.jpg` : '',
-        raw: item,
-      }
-    })
-    .filter((s) => s.singermid)
-}
-
-export async function relatedPlaylists(songid, { userKey = '' } = {}) {
-  const body = await request('/songlist/related', { songid }, 'get', userKey)
-  return body?.data?.list || []
-}
-
-export async function personalRecommend(type = 1, { userKey = '' } = {}) {
-  const body = await request('/recommend/personal', { type }, 'get', userKey)
-  const d = body?.data || {}
-  return { type: Number(type), list: d.list || [] }
-}
+// ──────────── 批量详情 ────────────
 
 export async function songInfoBatch(ids = [], { userKey = '' } = {}) {
   if (!ids.length) return []
@@ -947,17 +847,6 @@ export async function songInfoBatch(ids = [], { userKey = '' } = {}) {
       return n
     })
     .filter(Boolean)
-}
-
-// 歌词结构化解析（API /lyric?format=parsed）
-export async function lyricParsed(songmid, userKey = '') {
-  const body = await request('/lyric', { songmid, format: 'parsed' }, 'get', userKey)
-  return (
-    body?.data?.parsed || {
-      lyric: { lines: [], tags: {} },
-      trans: { lines: [], tags: {} },
-    }
-  )
 }
 
 export default {
@@ -980,34 +869,20 @@ export default {
   searchAlbums,
   searchSonglists,
   singerSongs,
-  singerAlbum,
   singerDesc,
-  albumDetail,
   albumSongs,
   songlistDetail,
   comment,
-  similarSongs,
   parseQQMusicExtendedIds,
-  cgiProxy,
   recommendFeed,
   personalRadio,
   dailyRecommend,
   userFavorites,
-  userSonglists,
-  userCollectSonglists,
   // 新增端点 wrapper
   mvCategory,
   mvByTag,
-  mvRelated,
   mvUrl,
   searchMv,
-  songMvVid,
   newSongs,
-  privateFM,
-  radioLists,
-  singerSimilar,
-  relatedPlaylists,
-  personalRecommend,
   songInfoBatch,
-  lyricParsed,
 }

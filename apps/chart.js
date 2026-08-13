@@ -7,38 +7,12 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase()
 
-import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest, newSongs as newSongsApi, mvCategory, mvByTag, mvUrl, searchMv } from '../utils/api.js'
+import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest, newSongs as newSongsApi, mvCategory, mvByTag, mvUrl, searchMv, normalizeSearchItem } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong } from '../utils/send.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 import { formatSongList } from '../utils/format.js'
-
-function normalizeSong(item, idx = 0) {
-  const singer = Array.isArray(item.singer)
-    ? item.singer.map(s => s.name || s.title).filter(Boolean).join(' / ')
-    : item.singername || item.singerName || item.singer || ''
-  const albummid = item.albummid || item.album?.mid || ''
-  const interval = Number(item.interval || item.songTime || 0)
-  const duration = interval > 0
-    ? `${String(Math.floor(interval / 60)).padStart(2, '0')}:${String(interval % 60).padStart(2, '0')}`
-    : ''
-  return {
-    index: idx + 1,
-    songmid: item.songmid || item.mid || '',
-    songid: item.songid || item.id || 0,
-    media_mid: item.media_mid || item.strMediaMid || item.songmid || '',
-    songName: item.songname || item.songname_hilight?.replace(/<[^>]+>/g, '') || item.title || item.name || '',
-    singerName: singer,
-    albumName: item.albumname || item.album?.name || '',
-    albummid,
-    cover: albummid ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg` : '',
-    duration,
-    interval,
-    payplay: item.pay?.payplay ?? item.pay?.pay_play ?? item.payplay,
-    raw: item,
-  }
-}
 
 export class qqmusicChart extends (await loadPluginBase()) {
   constructor() {
@@ -104,7 +78,7 @@ export class qqmusicChart extends (await loadPluginBase()) {
 
       await e.reply(`正在获取 ${match.label}...`)
       const detail = await topDetail(match.topId, { userKey })
-      const songs = (detail.list || detail.data?.list || []).map((item, idx) => normalizeSong(item, idx)).filter(Boolean)
+      const songs = (detail.list || detail.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
       if (!songs.length) { await e.reply('该榜单暂无数据'); return true }
 
       await setSession(scope, { type: 'top', data: songs, user_id: e.user_id, title: match.label })

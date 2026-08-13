@@ -34,16 +34,7 @@ export const QUALITY_LABEL = Object.freeze({
   ),
 })
 
-/** size_new 下标 → 逻辑音质（仅映射有把握的） */
-export const SIZE_NEW_INDEX = Object.freeze({
-  0: 'master',
-  2: 'hires',
-  10: 'atmos',
-})
-
-/**
- * 读取 size_new[idx]；数组不能用 Number() 转（会得到 NaN）
- */
+/** 读取 size_new[idx]；数组不能用 Number() 转（会得到 NaN） */
 export function sizeNewAt(file = {}, idx = 0) {
   const arr = file?.size_new
   if (!Array.isArray(arr)) return 0
@@ -51,15 +42,6 @@ export function sizeNewAt(file = {}, idx = 0) {
   if (!Number.isFinite(i) || i < 0 || i >= arr.length) return 0
   const v = Number(arr[i] || 0)
   return Number.isFinite(v) && v > 0 ? v : 0
-}
-
-/** 某逻辑音质在 size_new 中的体积（0 表示没有） */
-export function sizeNewForQuality(file = {}, type = '') {
-  const t = String(type || '').toLowerCase()
-  if (t === 'master' || t === 'atmos_master') return sizeNewAt(file, 0)
-  if (t === 'hires') return sizeNewAt(file, 2)
-  if (t === 'atmos' || t === 'dolby') return sizeNewAt(file, 10)
-  return 0
 }
 
 /**

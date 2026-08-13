@@ -35,13 +35,3 @@ export async function setSession(groupId, session, ttlSec = 600) {
   }
   return data
 }
-
-export async function clearSession(groupId) {
-  const redis = global.redis
-  mem.delete(String(groupId))
-  if (redis) {
-    try {
-      await redis.del(key(groupId))
-    } catch {}
-  }
-}

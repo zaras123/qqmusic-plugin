@@ -122,7 +122,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         '主人命令：',
         '#qqm登录          扫码绑定',
         '#qqm状态 / #qms   状态图片卡片',
-        '#qqm绑定 deeplink',
+        '#qqm绑定 qqmusic://...  （DeepLink 导入）',
         '#qqm api <地址>   （设置 API 地址）',
         '#qqm 开启点歌 / #qqm 关闭解析',
         '#qqm 音质 flac',

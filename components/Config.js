@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
-import { pluginName, pluginPath } from '../utils/path.js'
+import { pluginPath } from '../utils/path.js'
 
 const defDir = path.join(pluginPath, 'config/default_config')
 const cfgDir = path.join(pluginPath, 'config/config')
@@ -114,9 +114,5 @@ export default class Config {
     const next = { ...cur, ...patch }
     this.setConfig(name, next)
     return next
-  }
-
-  static get pluginName() {
-    return pluginName
   }
 }

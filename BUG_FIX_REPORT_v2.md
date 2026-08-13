@@ -322,3 +322,85 @@ git pull origin main
 ```
 
 或下载最新 release 包覆盖。
+
+---
+
+## 问题 6：QQ 原生音乐卡片发送失败（retcode 1200 / sequence=0）✅ 已修复
+
+### 表现
+
+NTQQ 系协议端（NapCat / Lagrange / LLOneBot 等 OneBot v11 实现）下，点歌 / 解析时插件尝试发送 go-cq 风格的原生 `music` 卡片，被协议端以 `retcode 1200 / 发送消息失败 (sequence=0)` 拒绝，**每次点歌都刷一条红色错误堆栈**：
+
+```
+[WARN] [qqmusic-plugin] sendApi 原生卡失败: 发送消息失败 (sequence=0)
+Error: 发送消息失败 (sequence=0)
+...
+retcode: 1200,
+message: '发送消息失败 (sequence=0)',
+```
+
+音乐卡片虽然发不出去，但插件已自动降级为语音（record）/ 群文件，点歌核心功能正常——问题只在于**错误日志刷屏**和**每次点歌都无意义重试**。
+
+### 原因分析
+
+NTQQ 协议的第三方实现已移除 / 禁用 go-cq 风格的 `music` 消息段（或对非官方调用拦截返回 1200）。插件原本对「不支持」类错误没有记忆，每首歌都重试一次原生卡并抛错。
+
+### 修复方案
+
+`utils/send.js`：
+
+1. **能力记忆 + 静默降级**：模块级 `nativeCardState` 按 `adapter.kind:id` 记录失败次数，同一适配器连续失败 3 次后本会话内自动跳过原生卡，不再浪费请求、不再刷错误。
+2. **只打印一次完整原因**：首次失败打一条干净的 WARN（含降级说明），之后静默；第 3 次失败提示可去锅巴关闭原生卡。
+3. **结构化返回值 + 降级链**：`sendNativeMusicCard` 返回 `{ ok, reason, error }`；`deliverSong` 在原生卡失败且开启自定义卡时有直链时，自动改发自定义音乐卡，否则交由语音 / 群文件兜底。
+4. 识别 `retcode 1200 / sequence=0 / 不支持 / unsupported` 等特征，归为 `unsupported` 类错误处理。
+
+### 获取修复
+
+```bash
+cd D:\Yunzai\plugins\qqmusic-plugin
+git pull origin main
+# 然后重启 Yunzai
+```
+
+> 若不希望发任何卡片：锅巴中关闭「发送原生 QQ 音乐卡」即可，点歌仍会发语音 / 群文件。
+
+---
+
+## 问题 7：高音质（FLAC）下语音发不出来 + 大文件群文件上传失败（Highway 限制）✅ 已修复
+
+### 表现
+
+音质设为 `flac` / `hires` 等高档位后：
+
+```
+群文件上传失败（OneBotv11；大 FLAC 可能触发 Highway 限制）。语音已尝试发送，可稍后再试或改用较低音质
+```
+
+并且**语音也发不出来**（record 发送失败），等于歌发不出去。
+
+### 原因分析
+
+两个独立问题叠加：
+
+1. **语音发不出来**：`deliverSong` 把下载的**原始 FLAC 文件**直接作为 `record` 发送。QQ 语音对体积 / 格式敏感（FLAC 一首 20~100MB），协议端直接拒绝，而之前只有 QQBot 适配器有「先转 mp3」的预处理，OneBot 路径完全没有。
+2. **群文件传不上去**：大 FLAC 走 OneBot `upload_group_file` 触发 Highway 上传限制（210005），且没有降级方案，用户拿不到任何文件。
+
+### 修复方案
+
+`utils/send.js`：
+
+1. **语音统一先压缩再发**：原 `prepareQqbotRecordFile` 泛化为 `prepareVocalFile`——文件不是「小体积白名单格式」（mp3/silk/wav/amr/m4a/ogg/flac 且 ≤ 5MB）就先用 ffmpeg 压成紧凑 mp3（码率按源体积 64k/96k/128k 分级），保证语音一定能发出去。**群文件仍保留原始高音质文件。**
+2. **群文件降级链**：原始文件上传失败且存在压缩语音版时，自动改传压缩版（展示名「…_压缩版.mp3」）并提示体积对比；只有两个都失败才提示改用较低音质。
+3. **ffmpeg 缺失检测**：压缩失败且原因是 ffmpeg 不存在时，明确提示安装 ffmpeg 或调低音质，而不是静默失败。
+
+实测：22.3MB FLAC → 1.4MB mp3（64k），语音可正常发送。
+
+### 获取修复
+
+```bash
+cd D:\Yunzai\plugins\qqmusic-plugin
+git pull origin main
+# 然后重启 Yunzai
+```
+
+> 需系统安装 `ffmpeg`（`ffmpeg -version` 验证）。若追求无损群文件，请在 QQ 音乐客户端获取；机器人侧高音质仅保证「语音可听 + 尽力传文件」。
