@@ -417,8 +417,8 @@ git pull origin main
 
 ### 补充（TRSS + LLOneBot 群文件仍失败）
 
-`upload_group_file` 动作在 LLOneBot/NapCat 上对大 FLAC 必失败（210005/Highway），且原实现 OneBot **没有兜底路径**（`segment.file` 兜底被 `adapter.kind !== 'onebot'` 排除），导致压缩兜底也走同一条必败路径。已修复：
+`upload_group_file` 动作在 LLOneBot/NapCat 上对 **`.flac` 报「未知文件类型或路径不存在」**（文件类型校验失败，非仅大文件问题），且原实现 OneBot **没有兜底路径**（`segment.file` 兜底被 `adapter.kind !== 'onebot'` 排除）。已修复：
 
-1. `uploadGroupFile`：OneBot 上 `upload_group_file` 失败 → 自动改走 `send_group_msg` 文件段 → 最后 `segment.file`（三层兜底）。
-2. `deliverSong`：OneBot 且原始文件 > 20MB 时，**直接改传压缩语音版**（跳过必败的大文件上传）；非大文件或其它适配器仍先传原始，失败再降级。
-3. ICQQ 走 `fs.upload`/`sendFile`，不受 Highway 影响。
+1. **OneBot 直接改传压缩 mp3**：`deliverSong` 里 OneBot 只要有压缩语音版就跳过 `.flac` 原文件，直接上传 mp3（可靠）；ICQQ 才保留原始高音质文件。
+2. `uploadGroupFile`：OneBot 上 `upload_group_file` 失败 → 自动改走 `send_group_msg` 文件段 → 最后 `segment.file`（三层兜底）。
+3. ICQQ 走 `fs.upload`/`sendFile`，不受影响。

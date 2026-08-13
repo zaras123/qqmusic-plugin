@@ -267,8 +267,6 @@ export async function sendCustomMusicCard(
 const VOCAL_MAX_BYTES = 5 * 1024 * 1024 // 5MB
 /** OneBot / ICQQ 语音直传白名单（体积不大时直接发，避免无谓转码） */
 const VOCAL_DIRECT_EXT = new Set(['mp3', 'silk', 'wav', 'amr', 'm4a', 'ogg', 'flac'])
-/** OneBot(NTQQ) 群文件上传体积上限：超过则直接改传压缩语音版（大 FLAC 走 upload_group_file 易触发 Highway 限制） */
-const GROUP_FILE_MAX_BYTES = 20 * 1024 * 1024 // 20MB
 
 export async function prepareVocalFile(filePath, { directExt = VOCAL_DIRECT_EXT, maxBytes = VOCAL_MAX_BYTES } = {}) {
   if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
@@ -961,10 +959,12 @@ export async function deliverSong(e, song, play, options = {}) {
   const cleanupPaths = new Set()
   if (localPath) cleanupPaths.add(localPath)
 
-  // 语音统一先做「紧凑 mp3」预处理：FLAC 等高音质文件直接发语音会被协议端以体积/格式拒绝。
-  // 群文件仍用原始高音质文件（见下方降级逻辑）。
+  // 语音 / OneBot 群文件都需要「紧凑 mp3」：FLAC 直接发语音会被协议端拒；OneBot 群文件也不接受 .flac。
+  // ICQQ 群文件保留原始高音质文件（走 fs.upload / sendFile），无需压缩。
   let vocalPath = ''
-  if (cfg.sendVocal && localPath) {
+  const needCompress =
+    localPath && (cfg.sendVocal || (cfg.uploadFile && adapter.kind === 'onebot'))
+  if (needCompress) {
     try {
       vocalPath = await prepareVocalFile(localPath, {
         directExt: adapter.kind === 'qqbot' ? QQBOT_DIRECT_AUDIO_EXT : VOCAL_DIRECT_EXT,
@@ -973,10 +973,13 @@ export async function deliverSong(e, song, play, options = {}) {
       vocalPath = localPath
     }
     if (vocalPath && vocalPath !== localPath) cleanupPaths.add(vocalPath)
+  }
 
+  if (cfg.sendVocal && localPath) {
+    const vocalSend = vocalPath || localPath
     let ok = false
     try {
-      ok = await withRetry(() => sendVocal(e, vocalPath, play.url), {
+      ok = await withRetry(() => sendVocal(e, vocalSend, play.url), {
         times: adapter.kind === 'qqbot' ? 3 : 1,
         retryIf: (_e, msg) => adapter.kind === 'qqbot' && QQ_RETRYABLE.test(msg),
         tag: '语音 ',
@@ -1007,11 +1010,11 @@ export async function deliverSong(e, song, play, options = {}) {
 
     let up = false
 
-    // OneBot(NTQQ) 大文件上传受限（Highway/210005）：超过阈值直接改传压缩语音版，
-    // 避免必然失败的大文件上传 + 重试拖时间
-    const tooBigForOneBot = adapter.kind === 'onebot' && size > GROUP_FILE_MAX_BYTES
+    // OneBot(NTQQ)：`upload_group_file` 对 .flac 常报「未知文件类型或路径不存在」/ Highway 限制，
+    // 因此只要有压缩语音版就直接传 mp3（可靠）；ICQQ 才保留原始高音质文件。
+    const preferCompressed = adapter.kind === 'onebot' && hasCompressed
 
-    if (tooBigForOneBot && hasCompressed) {
+    if (preferCompressed) {
       try {
         up = await withRetry(
           () => uploadGroupFile(e, vocalPath, compressedName),
@@ -1019,7 +1022,7 @@ export async function deliverSong(e, song, play, options = {}) {
         )
         if (up) {
           await e.reply(
-            `原始高音质文件过大（${formatSize(size)}），已改传压缩版（${formatSize(fs.statSync(vocalPath).size)}）。需要无损文件请在 QQ 音乐客户端获取`
+            `OneBot 群文件不支持 .flac，已改传压缩版（${formatSize(fs.statSync(vocalPath).size)}）。需要无损文件请在 QQ 音乐客户端获取`
           )
         }
       } catch (err) {
