@@ -170,7 +170,7 @@ cd qqmusic-plugin && pnpm install
 >
 > 📌 **关于高音质语音**：FLAC 等高音质文件体积大，直接作为语音（record）发送会被协议端以体积/格式限制拒绝。插件发送语音前会自动用 ffmpeg 压成紧凑 mp3（保证能发出去），**群文件仍保留原始高音质文件**。需系统安装 `ffmpeg`（`ffmpeg -version` 可验证）。
 >
-> 📌 **关于群文件上传（OneBot/NTQQ）**：LLOneBot / NapCat / Lagrange 的 `upload_group_file` 对 `.flac` 常报「未知文件类型或路径不存在」/ Highway 限制而失败。插件在 OneBot 上**直接改传压缩 mp3**（可靠）；若 `upload_group_file` 仍失败，自动改走 `send_group_msg` 文件段兜底。ICQQ 走 `fs.upload`/`sendFile`，保留原始高音质文件，不受影响。
+> 📌 **关于群文件上传（OneBot/NTQQ）**：LLOneBot / NapCat / Lagrange 的 `upload_group_file` **动作**对 `.flac` 常报「未知文件类型或路径不存在」。插件 OneBot 上传优先用适配器原生 **`e.group.sendFile`**（与 rconsole-plugin 一致，能正常传无损 flac），失败才依次落到 `upload_group_file` → `send_group_msg` 文件段 → 压缩 mp3 兜底。ICQQ 走 `fs.upload`/`sendFile`。
 
 ---
 

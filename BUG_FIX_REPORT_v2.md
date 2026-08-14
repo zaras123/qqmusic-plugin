@@ -417,8 +417,8 @@ git pull origin main
 
 ### 补充（TRSS + LLOneBot 群文件仍失败）
 
-`upload_group_file` 动作在 LLOneBot/NapCat 上对 **`.flac` 报「未知文件类型或路径不存在」**（文件类型校验失败，非仅大文件问题），且原实现 OneBot **没有兜底路径**（`segment.file` 兜底被 `adapter.kind !== 'onebot'` 排除）。已修复：
+`upload_group_file` **动作**在 LLOneBot/NapCat 上对 `.flac` 报「未知文件类型或路径不存在」（动作侧类型校验），但 TRSS 适配器原生 `e.group.sendFile` 能正常传 flac（rconsole-plugin 正是用这个方法）。已修复：
 
-1. **OneBot 直接改传压缩 mp3**：`deliverSong` 里 OneBot 只要有压缩语音版就跳过 `.flac` 原文件，直接上传 mp3（可靠）；ICQQ 才保留原始高音质文件。
-2. `uploadGroupFile`：OneBot 上 `upload_group_file` 失败 → 自动改走 `send_group_msg` 文件段 → 最后 `segment.file`（三层兜底）。
-3. ICQQ 走 `fs.upload`/`sendFile`，不受影响。
+1. `uploadGroupFile`：OneBot 上传**优先用 `e.group.sendFile`**（兼容 1/2 参签名，与 rconsole-plugin 一致，能传无损 flac）；失败再依次落 `upload_group_file` → `send_group_msg` 文件段 → `segment.file`。
+2. `deliverSong`：先传原始文件（无损），`e.group.sendFile` 或动作失败才降级压缩 mp3（不再强制 OneBot 传压缩版）。
+3. 压缩版仍在需要时生成（语音 / 兜底），ICQQ 不受影响。

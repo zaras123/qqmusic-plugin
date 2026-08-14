@@ -701,7 +701,23 @@ export async function uploadGroupFile(e, filePath, displayName) {
 
   const errors = []
 
-  // —— OneBot：先 upload_group_file（大文件专用），失败再走 send_group_msg 文件段 ——
+  // —— OneBot：优先用适配器原生 sendFile（TRSS 适配器内部处理正确协议，参考 rconsole-plugin）——
+  if (adapter.kind === 'onebot' && e.group?.sendFile) {
+    for (const name of namesToTry) {
+      // 兼容 (path, name) 与 (path) 两种签名（rconsole 用单参）
+      for (const [fp, fn] of [[abs, name], [abs, undefined]]) {
+        try {
+          await e.group.sendFile(fp, fn)
+          logInfo(`群文件 group.sendFile 成功: ${fn || path.basename(fp)}`)
+          return true
+        } catch (err) {
+          errors.push(`group.sendFile(${fn || path.basename(fp)}): ${err.message}`)
+        }
+      }
+    }
+  }
+
+  // —— OneBot：再试 upload_group_file（大文件专用），失败走 send_group_msg 文件段 ——
   if (adapter.kind === 'onebot' && e.bot?.sendApi) {
     for (const name of namesToTry) {
       try {
@@ -770,8 +786,8 @@ export async function uploadGroupFile(e, filePath, displayName) {
     }
   }
 
-  // —— 通用 sendFile（OneBot 两参）——
-  if (e.group?.sendFile && adapter.kind !== 'icqq') {
+  // —— 通用 sendFile（ICQQ/其它适配器；OneBot 已在上面早试过）——
+  if (e.group?.sendFile && adapter.kind !== 'icqq' && adapter.kind !== 'onebot') {
     for (const name of namesToTry) {
       try {
         await e.group.sendFile(abs, name)
@@ -1010,11 +1026,19 @@ export async function deliverSong(e, song, play, options = {}) {
 
     let up = false
 
-    // OneBot(NTQQ)：`upload_group_file` 对 .flac 常报「未知文件类型或路径不存在」/ Highway 限制，
-    // 因此只要有压缩语音版就直接传 mp3（可靠）；ICQQ 才保留原始高音质文件。
-    const preferCompressed = adapter.kind === 'onebot' && hasCompressed
+    // 先传原始文件。uploadGroupFile 内 OneBot 已优先用适配器原生 e.group.sendFile
+    // （参考 rconsole-plugin，能正常传 flac），失败才落到 upload_group_file 等动作。
+    try {
+      up = await withRetry(
+        () => uploadGroupFile(e, localPath, displayName || undefined),
+        retryOpts(`${adapter.kind} 群文件 `)
+      )
+    } catch (err) {
+      logWarn(`群文件最终失败: ${err.message}`)
+    }
 
-    if (preferCompressed) {
+    // 原始上传失败（如 OneBot 的 upload_group_file 拒 flac）→ 改传压缩语音版，保证能拿到文件
+    if (!up && hasCompressed) {
       try {
         up = await withRetry(
           () => uploadGroupFile(e, vocalPath, compressedName),
@@ -1022,37 +1046,11 @@ export async function deliverSong(e, song, play, options = {}) {
         )
         if (up) {
           await e.reply(
-            `OneBot 群文件不支持 .flac，已改传压缩版（${formatSize(fs.statSync(vocalPath).size)}）。需要无损文件请在 QQ 音乐客户端获取`
+            `原始高音质文件上传失败，已改传压缩版（${formatSize(fs.statSync(vocalPath).size)}）。需要无损文件请在 QQ 音乐客户端获取`
           )
         }
       } catch (err) {
         logWarn(`压缩版群文件失败: ${err.message}`)
-      }
-    } else {
-      try {
-        up = await withRetry(
-          () => uploadGroupFile(e, localPath, displayName || undefined),
-          retryOpts(`${adapter.kind} 群文件 `)
-        )
-      } catch (err) {
-        logWarn(`群文件最终失败: ${err.message}`)
-      }
-
-      // 原始上传失败 → 改传压缩语音版，保证用户能拿到文件
-      if (!up && hasCompressed) {
-        try {
-          up = await withRetry(
-            () => uploadGroupFile(e, vocalPath, compressedName),
-            retryOpts('群文件(压缩版) ')
-          )
-          if (up) {
-            await e.reply(
-              `原始高音质文件上传失败，已改传压缩版（${formatSize(fs.statSync(vocalPath).size)}）。需要无损文件请在 QQ 音乐客户端获取`
-            )
-          }
-        } catch (err) {
-          logWarn(`压缩版群文件失败: ${err.message}`)
-        }
       }
     }
 

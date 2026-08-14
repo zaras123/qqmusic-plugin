@@ -4,6 +4,7 @@
  */
 
 import { loadPluginBase } from '../utils/plugin-base.js'
+import https from 'node:https'
 
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase()
@@ -24,6 +25,73 @@ import { QUALITY_LABEL } from '../utils/quality.js'
 import { setSession } from '../utils/session.js'
 import { getCfg, isPluginCommandMsg } from '../utils/common.js'
 import { logError, logInfo, logWarn } from '../utils/log.js'
+
+const QM_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+/** QQ 音乐相关域名白名单（短链重定向仅允许这些 host，防 SSRF） */
+const QQ_HOST_SUFFIXES = ['y.qq.com', 'qq.com', 'gtimg.cn', 'url.cn', 'qpic.cn']
+
+function isQqHost(hostname = '') {
+  const host = String(hostname).trim().toLowerCase()
+  if (!host) return false
+  return QQ_HOST_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
+}
+
+/** 跟随 c6.y.qq.com 短链重定向（SSRF 白名单内），拿最终 songDetail 链接；失败回退原链接 */
+function followQqRedirect(url, maxRedirects = 5) {
+  return new Promise((resolve, reject) => {
+    const tryGet = (target, redirects) => {
+      let current
+      try {
+        current = new URL(target)
+      } catch (err) {
+        reject(new Error(`重定向目标 URL 非法: ${err.message}`))
+        return
+      }
+      if (!isQqHost(current.hostname)) {
+        reject(new Error(`重定向目标不在 QQ 音乐白名单内: ${current.hostname}`))
+        return
+      }
+      const req = https.request(
+        current,
+        { method: 'GET', headers: { 'User-Agent': QM_UA } },
+        (res) => {
+          if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
+            const location = res.headers.location
+            res.resume()
+            if (!location) {
+              resolve(target)
+              return
+            }
+            const nextUrl = new URL(location, current).toString()
+            if (redirects >= maxRedirects) {
+              // 最后一跳也校验 host，避免把非白名单 URL 交回上层解析
+              try {
+                if (!isQqHost(new URL(nextUrl).hostname)) {
+                  reject(new Error('重定向目标不在 QQ 音乐白名单内'))
+                  return
+                }
+              } catch (err) {
+                reject(new Error(`重定向目标 URL 非法: ${err.message}`))
+                return
+              }
+              resolve(nextUrl)
+              return
+            }
+            tryGet(nextUrl, redirects + 1)
+            return
+          }
+          res.resume()
+          resolve(target)
+        }
+      )
+      req.setTimeout(10000, () => req.destroy(new Error('重定向请求超时')))
+      req.on('error', reject)
+      req.end()
+    }
+    tryGet(url, 0)
+  })
+}
 
 function collectMessageText(e) {
   const parts = []
@@ -187,12 +255,26 @@ export class qqmusicResolve extends (await loadPluginBase()) {
     }
 
     if (!song && cfg.resolveLinks !== false) {
+      // 排除中文标点，避免把链接后的「，很好听」之类吞入（rconsole 同款）
       const urlMatch = text.match(
-        /https?:\/\/(?:[a-z0-9-]+\.)?(?:y\.qq\.com|c6\.y\.qq\.com)[^\s一-龥]*/i
+        /https?:\/\/(?:[a-z0-9-]+\.)?(?:y\.qq\.com|c6\.y\.qq\.com)[^\s，。；：！？、（）【】《》»"“”'`一-龥]*/i
       )
       if (urlMatch) {
-        const url = urlMatch[0]
+        let url = urlMatch[0]
         logInfo(`识别链接: ${url}`)
+
+        // c6.y.qq.com 短链（移动端分享形态）跟随重定向，拿最终 songDetail 链接
+        if (/c6\.y\.qq\.com\/base\/fcgi-bin\/u\?/i.test(url) || /[?&]__=/.test(url)) {
+          try {
+            const finalUrl = await followQqRedirect(url)
+            if (finalUrl && finalUrl !== url) {
+              url = finalUrl
+              logInfo(`短链跟随: ${url}`)
+            }
+          } catch (err) {
+            logWarn(`短链跟随失败: ${err.message}`)
+          }
+        }
 
         // 优先识别专辑/歌单/歌手链接
         const extIds = parseQQMusicExtendedIds(url)

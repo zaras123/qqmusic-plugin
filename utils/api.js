@@ -422,9 +422,10 @@ export function parseQQMusicIds(text = '') {
   const s = String(text)
   const out = { songmid: '', songid: '', albummid: '', media_mid: '' }
 
+  // songmid / song_mid / songMid / mid 参数变体，或 /songDetail|/song|/playsong.html 路径
   const mid =
-    s.match(/[?&]songmid=([A-Za-z0-9]+)/i) ||
-    s.match(/\/songDetail\/([A-Za-z0-9]+)/i) ||
+    s.match(/[?&](?:songmid|song_mid|songMid|mid)=([A-Za-z0-9]{5,})/i) ||
+    s.match(/\/(?:songDetail|song|playsong\.html)\/?[?#]*([A-Za-z0-9]{10,})/i) ||
     s.match(/\/song\/([A-Za-z0-9]{14})/i)
   if (mid) out.songmid = mid[1]
 
@@ -434,7 +435,8 @@ export function parseQQMusicIds(text = '') {
   const album = s.match(/[?&]albummid=([A-Za-z0-9]+)/i)
   if (album) out.albummid = album[1]
 
-  const media = s.match(/[?&]media_mid=([A-Za-z0-9]+)/i)
+  // media_mid / mediaMid / mediaid 参数变体
+  const media = s.match(/[?&](?:media_mid|mediaMid|mediaid)=([A-Za-z0-9]+)/i)
   if (media) out.media_mid = media[1]
 
   return out
