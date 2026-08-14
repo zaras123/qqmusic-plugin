@@ -18,6 +18,7 @@ qualityFallback: true
 sendNativeCard: false
 sendCustomCard: false
 sendVocal: true
+disableHighQualityVocal: false   # 禁用高清语音：PC QQ 播放不了高清语音时开启（改发 mono16k 低音质语音）
 uploadFile: true
 sendTextInfo: true
 tempDir: temp/qqmusic-plugin

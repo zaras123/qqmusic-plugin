@@ -268,7 +268,7 @@ export async function buildSettingsCardData(e = null) {
       { k: '列表数', v: String(Number(c.maxList) || 10) },
       {
         k: '发送',
-        v: `语音 ${onOff(c.sendVocal)} / 文件 ${onOff(c.uploadFile)} / 原生卡 ${onOff(c.sendNativeCard)} / 自定义卡 ${onOff(c.sendCustomCard)}`,
+        v: `语音 ${onOff(c.sendVocal)} / 文件 ${onOff(c.uploadFile)} / 原生卡 ${onOff(c.sendNativeCard)} / 自定义卡 ${onOff(c.sendCustomCard)}${c.disableHighQualityVocal ? ' / 禁高清语音' : ''}`,
       },
     ],
     commands: [

@@ -268,39 +268,40 @@ const VOCAL_MAX_BYTES = 5 * 1024 * 1024 // 5MB
 /** OneBot / ICQQ 语音直传白名单（体积不大时直接发，避免无谓转码） */
 const VOCAL_DIRECT_EXT = new Set(['mp3', 'silk', 'wav', 'amr', 'm4a', 'ogg', 'flac'])
 
-export async function prepareVocalFile(filePath, { directExt = VOCAL_DIRECT_EXT, maxBytes = VOCAL_MAX_BYTES } = {}) {
+export async function prepareVocalFile(
+  filePath,
+  { directExt = VOCAL_DIRECT_EXT, maxBytes = VOCAL_MAX_BYTES, lowQuality } = {}
+) {
   if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
     return filePath
   }
+  // 禁用高清语音（disableHighQualityVocal）：PC QQ 播放不了 44.1k 立体声语音，
+  // 改编码成 mono 16k 低码率（PC 可正常播放）。未显式传参时读配置。
+  const isLow = lowQuality ?? (getCfg().disableHighQualityVocal === true)
   const abs = path.resolve(filePath)
   const size = fs.statSync(abs).size
   const ext = path.extname(abs).slice(1).toLowerCase()
-  if (directExt.has(ext) && size <= maxBytes) return abs
+  // 低音质模式强制重编码（即使源是小 mp3，也要转成 PC 兼容格式）
+  if (!isLow && directExt.has(ext) && size <= maxBytes) return abs
 
   const out = path.join(
     path.dirname(abs),
-    `${path.basename(abs, path.extname(abs))}_vocal.mp3`
+    `${path.basename(abs, path.extname(abs))}_${isLow ? 'vocal_low' : 'vocal'}.mp3`
   )
   if (fs.existsSync(out) && fs.statSync(out).size > 256) return out
 
   const bitrate = size > 16 * 1024 * 1024 ? '64k' : size > 8 * 1024 * 1024 ? '96k' : '128k'
+  const args = isLow
+    ? ['-y', '-i', abs, '-vn', '-acodec', 'libmp3lame', '-ar', '16000', '-ac', '1', '-b:a', '32k', out]
+    : ['-y', '-i', abs, '-vn', '-acodec', 'libmp3lame', '-ar', '44100', '-ac', '2', '-b:a', bitrate, out]
   try {
-    await execFileAsync(
-      'ffmpeg',
-      [
-        '-y',
-        '-i', abs,
-        '-vn',
-        '-acodec', 'libmp3lame',
-        '-ar', '44100',
-        '-ac', '2',
-        '-b:a', bitrate,
-        out,
-      ],
-      { windowsHide: true, timeout: 180000, maxBuffer: 8 * 1024 * 1024 }
-    )
+    await execFileAsync('ffmpeg', args, {
+      windowsHide: true,
+      timeout: 180000,
+      maxBuffer: 8 * 1024 * 1024,
+    })
     if (fs.existsSync(out) && fs.statSync(out).size > 256) {
-      logInfo(`语音压缩: ${path.basename(abs)} → ${path.basename(out)} (${bitrate})`)
+      logInfo(`语音压缩: ${path.basename(abs)} → ${path.basename(out)} (${isLow ? 'mono16k低音质' : bitrate})`)
       return out
     }
   } catch (err) {
@@ -984,6 +985,8 @@ export async function deliverSong(e, song, play, options = {}) {
     try {
       vocalPath = await prepareVocalFile(localPath, {
         directExt: adapter.kind === 'qqbot' ? QQBOT_DIRECT_AUDIO_EXT : VOCAL_DIRECT_EXT,
+        // 低音质只用于语音（禁用高清语音时 PC 可播）；仅作 OneBot 群文件兜底时仍保高音质
+        lowQuality: cfg.sendVocal && cfg.disableHighQualityVocal === true,
       })
     } catch {
       vocalPath = localPath

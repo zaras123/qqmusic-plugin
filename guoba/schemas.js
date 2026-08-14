@@ -118,6 +118,12 @@ export const schemas = [
     component: 'Switch',
   },
   {
+    field: 'disableHighQualityVocal',
+    label: '禁用高清语音',
+    bottomHelpMessage: 'PC QQ 无法播放高清语音时开启：语音改发 mono16k 低音质，PC 可正常播放',
+    component: 'Switch',
+  },
+  {
     field: 'uploadFile',
     label: '上传群文件',
     component: 'Switch',
@@ -206,6 +212,7 @@ export async function setConfigData(data, { Result } = {}) {
       'quality',
       'qualityFallback',
       'sendVocal',
+      'disableHighQualityVocal',
       'uploadFile',
       'sendNativeCard',
       'sendCustomCard',
