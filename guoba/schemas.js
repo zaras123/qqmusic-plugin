@@ -2,7 +2,7 @@
  * 锅巴配置 Schema
  */
 import Config from '../components/Config.js'
-import { pullLoginMeta } from '../utils/api.js'
+import { pullLoginMeta, normalizeApiBase } from '../utils/api.js'
 import { QQMUSIC_QUALITY_LIST } from '../utils/quality.js'
 
 export const schemas = [
@@ -251,7 +251,7 @@ export async function setConfigData(data, { Result } = {}) {
       next.maxList = next.songRequestMaxList
     }
     if (next.maxList != null) next.maxList = Number(next.maxList) || 10
-    if (next.apiBase) next.apiBase = String(next.apiBase).replace(/\/$/, '')
+    if (next.apiBase) next.apiBase = normalizeApiBase(next.apiBase)
 
     const wantPull =
       data.pullLoginMeta === true ||

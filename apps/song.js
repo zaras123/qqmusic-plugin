@@ -118,10 +118,12 @@ export class qqmusicSong extends (await loadPluginBase()) {
       return true
     }
 
+    const userKey = String(e.user_id || '')
     try {
       await e.reply(`正在搜索：${keyword}`)
       const list = await searchSongs(keyword, {
         pageSize: Math.min(Number(cfg.maxList) || 10, 20),
+        userKey,
       })
       if (!list.length) {
         await e.reply('没有搜到相关歌曲')
@@ -181,6 +183,15 @@ export class qqmusicSong extends (await loadPluginBase()) {
     if (!session?.data?.length || session.type === 'mvList') {
       // 无本插件会话时不抢其它插件的 #听 / #qqm听；mvList 是 MV 列表，音频播放流程不适用
       return false
+    }
+    // 榜单分类 / 推荐歌单列表的 data 不是歌曲，直接播放会报无意义错误，给出正确引导
+    if (session.type === 'topCategory') {
+      await e.reply('当前是榜单分类列表，请先 #qqm排行 榜单名 列出歌曲，再 #qqm听序号')
+      return true
+    }
+    if (session.type === 'recommend') {
+      await e.reply('当前是推荐歌单列表，请先 #qqm推荐听序号 查看歌单歌曲，再 #qqm听序号')
+      return true
     }
     if (n < 1 || n > session.data.length) {
       await e.reply(`请选择 1-${session.data.length}`)
@@ -257,14 +268,14 @@ export class qqmusicSong extends (await loadPluginBase()) {
       await e.reply('用法：#qqm播放 关键词')
       return true
     }
+    const userKey = String(e.user_id || '')
     try {
-      const list = await searchSongs(keyword, { pageSize: 1 })
+      const list = await searchSongs(keyword, { pageSize: 1, userKey })
       if (!list.length) {
         await e.reply('没有搜到相关歌曲')
         return true
       }
       const song = list[0]
-      const userKey = String(e.user_id || '')
       const play = await resolvePlay(song, cfg, userKey)
 
       // 记住本曲 MV，支持「#qqmMV 播放/下载」（不带参数）直接操作
@@ -330,15 +341,56 @@ export class qqmusicSong extends (await loadPluginBase()) {
     const m = String(e.msg || '').trim().match(RE_LYRIC)
     const key = m?.[1]?.trim()
     if (!key) {
-      await e.reply('用法：#qqm歌词 关键词')
+      await e.reply('用法：#qqm歌词 关键词 / 歌曲链接 / 序号')
       return true
     }
 
-    try {
-      let songmid = key
-      let songMeta = { songName: key, singerName: '', cover: '', albumName: '' }
-      if (!/^[0-9A-Za-z]{10,}$/.test(key) || /[一-龥]/.test(key)) {
-        const list = await searchSongs(key, { pageSize: 1 })
+    let songmid = key
+    let songMeta = { songName: key, singerName: '', cover: '', albumName: '' }
+
+    // #qqm歌词1~99：取点歌/解析列表第 N 首（与 #qqm听N 同源），避免把序号当关键词搜索
+    if (/^\d{1,2}$/.test(key)) {
+      const scope = e.group_id || e.user_id
+      const session = await getSession(scope)
+      const n = Number(key)
+      // 非歌曲列表会话：数字序号无意义，给出正确引导（关键词查词不受影响）
+      if (session?.type === 'topCategory' || session?.type === 'recommend') {
+        await e.reply(
+          session.type === 'topCategory'
+            ? '当前是榜单分类列表，请先 #qqm排行 榜单名 列出歌曲'
+            : '当前是推荐歌单列表，请先 #qqm推荐听序号 列出歌曲'
+        )
+        return true
+      }
+      if (session?.type === 'mvList') {
+        await e.reply('当前列表是 MV，请用 #qqmMV 播放 序号；查歌词请先 #qqm点歌')
+        return true
+      }
+      if (session?.data?.length && n >= 1 && n <= session.data.length) {
+        const song = session.data[n - 1]
+        if (!song.songmid) {
+          await e.reply('该歌曲缺少 songmid，无法查询歌词，请用 #qqm歌词 关键词')
+          return true
+        }
+        songmid = song.songmid
+        songMeta = {
+          songName: song.songName || key,
+          singerName: song.singerName || '',
+          cover: song.cover || '',
+          albumName: song.albumName || '',
+        }
+      } else {
+        await e.reply(
+          session?.data?.length
+            ? `请选择 1-${session.data.length}`
+            : '暂无点歌列表，请先 #qqm点歌，或用 #qqm歌词 关键词'
+        )
+        return true
+      }
+    } else if (!/^[0-9A-Za-z]{10,}$/.test(key) || /[一-龥]/.test(key)) {
+      // 关键词搜索分支也需捕获 API 异常，避免静默无响应
+      try {
+        const list = await searchSongs(key, { pageSize: 1, userKey: String(e.user_id || '') })
         if (!list.length) {
           await e.reply('未找到歌曲')
           return true
@@ -350,7 +402,12 @@ export class qqmusicSong extends (await loadPluginBase()) {
           cover: list[0].cover || '',
           albumName: list[0].albumName || '',
         }
+      } catch (err) {
+        await e.reply(`歌词失败：${err.message}`)
+        return true
       }
+    }
+    try {
       const data = await lyric(songmid, String(e.user_id || ''))
       const text = data?.lyric || ''
       const lines = text
@@ -442,7 +499,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         '— 点歌（均需 #qqm 前缀）—',
         '#qqm点歌 七里香  →  #qqm听1（会话内也可 #听1）',
         '#qqm播放 晴天',
-        '#qqm歌词 七里香  /  #qqm热搜',
+        '#qqm歌词 关键词 / 序号  /  #qqm热搜',
         '— 状态 —',
         '#qqm登录  /  #qqm状态  /  #qms  /  #qqm登出',
         '— 管理（主人）—',

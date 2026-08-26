@@ -7,7 +7,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase()
 
-import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest, newSongs as newSongsApi, mvCategory, mvByTag, mvUrl, searchMv, normalizeSearchItem } from '../utils/api.js'
+import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest, newSongs as newSongsApi, mvCategory, mvByTag, mvUrl, searchMv, normalizeSearchItem, songlistDetail } from '../utils/api.js'
 import { getSession, setSession } from '../utils/session.js'
 import { deliverSong } from '../utils/send.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
@@ -24,6 +24,7 @@ export class qqmusicChart extends (await loadPluginBase()) {
       rule: [
         { reg: /^#?(qq|QQ)m\s*排行\s*(.*)$/, fnc: 'chart' },
         { reg: /^#?(qq|QQ)m\s*推荐$/, fnc: 'recommend' },
+        { reg: /^#?(qq|QQ)m\s*推荐听\s*([1-9][0-9]?)$/, fnc: 'recommendListen' },
         { reg: /^#?(qq|QQ)m\s*(来首歌|随机|放一首|来一首)$/, fnc: 'randomSong' },
         { reg: /^#?(qq|QQ)m\s*电台$/, fnc: 'radio' },
         { reg: /^#?(qq|QQ)m\s*(日推|每日推荐)$/, fnc: 'daily' },
@@ -145,6 +146,50 @@ export class qqmusicChart extends (await loadPluginBase()) {
     } catch (err) {
       logError(`推荐失败: ${err.message}`)
       await e.reply('推荐失败，请稍后重试')
+    }
+    return true
+  }
+
+  // ──────────── #qqm推荐听N：打开推荐列表中第 N 个歌单 ────────────
+
+  async recommendListen(e) {
+    const cfg = this.cfg()
+    if (!cfg.enable) return false
+    const scope = e.group_id || e.user_id
+    const userKey = String(e.user_id || '')
+    const m = String(e.msg || '').trim().match(/^#?(qq|QQ)m\s*推荐听\s*([1-9][0-9]?)$/)
+    const n = Number(m?.[1] || 0)
+
+    const session = await getSession(scope)
+    if (session?.type !== 'recommend' || !session?.data?.length) {
+      await e.reply('请先 #qqm推荐 获取推荐歌单列表')
+      return true
+    }
+    const pl = session.data[n - 1]
+    if (!pl) {
+      await e.reply(`请选择 1-${session.data.length}`)
+      return true
+    }
+    const disstid = pl.disstid || pl.dissid || pl.id
+    if (!disstid) {
+      await e.reply('该歌单缺少 id，无法查看')
+      return true
+    }
+
+    try {
+      await e.reply(`正在获取歌单「${pl.title || pl.dissname || disstid}」...`)
+      const detail = await songlistDetail(disstid, userKey)
+      const songs = detail.songlist || []
+      if (!songs.length) {
+        await e.reply('该歌单暂无歌曲')
+        return true
+      }
+      const title = detail.dissname || pl.title || pl.dissname || '推荐歌单'
+      await setSession(scope, { type: 'playlist', data: songs, user_id: e.user_id, title })
+      await e.reply(formatSongList(songs, title))
+    } catch (err) {
+      logError(`推荐歌单打开失败: ${err.message}`)
+      await e.reply('歌单获取失败，请稍后重试')
     }
     return true
   }
@@ -368,6 +413,14 @@ export class qqmusicChart extends (await loadPluginBase()) {
             // MV 列表会话：直接取 MV 对象
             mv = session.data[n - 1]
             if (!mv) { await e.reply(`请选择 1-${session.data.length}`); return true }
+          } else if (session.type === 'topCategory' || session.type === 'recommend') {
+            // 非歌曲列表会话：data 是榜单/歌单对象，无 MV 概念，给出正确引导
+            await e.reply(
+              session.type === 'topCategory'
+                ? '当前是榜单分类列表，请先 #qqm排行 榜单名 列出歌曲'
+                : '当前是推荐歌单列表，请先 #qqm推荐听序号 列出歌曲'
+            )
+            return true
           } else {
             // 点歌歌单会话：取对应歌曲的 MV（点歌列表 🎬 徽标的数据来源）
             const song = session.data[n - 1]

@@ -16,9 +16,29 @@ import { logInfo, logWarn } from './log.js'
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
+/**
+ * 归一化 apiBase：兼容用户手改配置文件时的常见写法问题，
+ * 不再因格式问题抛裸的 Invalid URL：
+ *  - 漏写 http:// / https:// 协议头（如 127.0.0.1:3300）→ 自动补 http://
+ *  - 中文输入法的全角冒号（http：//）→ 转半角
+ *  - 复制粘贴带入的首尾引号、空格、零宽字符 / BOM → 清除
+ */
+export function normalizeApiBase(raw) {
+  let s = String(raw ?? '')
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '') // 零宽字符 / BOM
+    .replace(/^["'`]+|["'`]+$/g, '')            // 首尾引号
+    .replace(/：/g, ':')                         // 全角冒号 → 半角
+    .trim()
+  if (!s) return ''
+  if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '')
+  // 已带其它协议（ws:// 等）原样保留；否则视为漏写协议头，自动补 http://
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = `http://${s}`
+  return s.replace(/\/+$/, '')
+}
+
 function getBase() {
   const cfg = Config.getConfig('qqmusic') || {}
-  return String(cfg.apiBase || 'http://127.0.0.1:3300').replace(/\/$/, '')
+  return normalizeApiBase(cfg.apiBase) || 'http://127.0.0.1:3300'
 }
 
 function getApiToken() {
@@ -108,6 +128,12 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
     if (e.code === 'ECONNREFUSED' || e?.cause?.code === 'ECONNREFUSED') {
       throw new Error(`无法连接 QQ 音乐 API（${base}），请先启动 qqmusic-api-enhanced`)
     }
+    if (e.code === 'ERR_INVALID_URL' || e?.cause?.code === 'ERR_INVALID_URL' ||
+        /invalid url/i.test(e.message || '')) {
+      throw new Error(
+        `API 地址无效，请检查配置里的 apiBase（需形如 http://IP:端口）`
+      )
+    }
     throw e
   }
 }
@@ -136,8 +162,8 @@ export async function listAccounts() {
   return body?.data?.accounts || []
 }
 
-export async function searchSongs(keyword, { pageNo = 1, pageSize = 10 } = {}) {
-  const body = await request('/search', { key: keyword, t: 0, pageNo, pageSize })
+export async function searchSongs(keyword, { pageNo = 1, pageSize = 10, userKey = '' } = {}) {
+  const body = await request('/search', { key: keyword, t: 0, pageNo, pageSize }, 'get', userKey)
   return (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
 }
 

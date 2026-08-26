@@ -351,8 +351,8 @@ export class qqmusicResolve extends (await loadPluginBase()) {
     }
     if (song.songmid) {
       try {
-        // 详情补 media_mid（部分曲 songmid != media_mid）
-        if (!song.media_mid || song.media_mid === song.songmid) {
+        // 详情补 media_mid（仅当来自卡片/链接且没查过详情时；idsToSong 已填充则不重复请求）
+        if (!song._detailFetched && (!song.media_mid || song.media_mid === song.songmid)) {
           try {
             const detail = await songDetail(song.songmid, userKey)
             const file = detail?.track_info?.file || {}
@@ -375,6 +375,8 @@ export class qqmusicResolve extends (await loadPluginBase()) {
         logWarn(`播放链: ${err.message}`)
         play.error = err.message
       }
+    } else {
+      play.error = '未能从分享中提取歌曲 songmid，无法取播放链'
     }
 
     // 尝试渲染详情卡片，失败则纯文本
@@ -450,7 +452,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
     }
     if (card.keyword || card.title) {
       const kw = (card.keyword || `${card.title} ${card.desc}`).trim()
-      const list = await searchSongs(kw, { pageSize: 5 })
+      const list = await searchSongs(kw, { pageSize: 5, userKey })
       if (list.length) {
         const hit =
           list.find(
@@ -502,6 +504,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
           cover: albummid
             ? `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albummid}.jpg`
             : '',
+          _detailFetched: true, // 详情已查过，handle 不再重复请求 songDetail
         }
       } catch (err) {
         logWarn(`详情失败: ${err.message}`)
@@ -514,7 +517,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       .replace(/[《》]/g, ' ')
       .trim()
     if (prefix) {
-      const list = await searchSongs(prefix, { pageSize: 3 })
+      const list = await searchSongs(prefix, { pageSize: 3, userKey })
       if (list.length) return list[0]
     }
 

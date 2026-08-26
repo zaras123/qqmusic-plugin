@@ -7,7 +7,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 await loadPluginBase()
 
 import Config from '../components/Config.js'
-import { request, listAccounts } from '../utils/api.js'
+import { request, listAccounts, normalizeApiBase } from '../utils/api.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
@@ -26,7 +26,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
           fnc: 'showConfig',
         },
         {
-          reg: '^#?(qq|QQ)m\\s*api\\s*(https?://\\S+)$',
+          reg: '^#?(qq|QQ)m\\s*api\\s*(\\S+)$',
           fnc: 'setApi',
           permission: 'master',
         },
@@ -136,14 +136,14 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
   }
 
   async setApi(e) {
-    const m = e.msg.match(/api\s*(https?:\/\/\S+)/i)
-    const url = m?.[1]?.replace(/\/$/, '')
-    if (!url) {
+    const m = e.msg.match(/api\s*(\S+)/i)
+    const url = normalizeApiBase(m?.[1] || '')
+    if (!url || !/^https?:\/\//i.test(url)) {
       await e.reply('用法：#qqm api http://你的API地址:端口')
       return true
     }
     Config.mergeConfig('qqmusic', { apiBase: url })
-    await e.reply('API 地址已更新')
+    await e.reply(`API 地址已更新：${maskApiBase(url)}`)
     return true
   }
 

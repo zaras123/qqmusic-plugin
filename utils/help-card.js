@@ -26,7 +26,7 @@ export function buildHelpCardData() {
           { name: '搜索点歌', desc: '按关键词搜索并展示列表', example: '#qqm点歌 七里香' },
           { name: '选择曲目', desc: '播放当前列表第 N 首', example: '#qqm听1' },
           { name: '直接播放', desc: '搜索并立即播放第一条', example: '#qqm播放 晴天' },
-          { name: '查看歌词', desc: '按歌名或 mid 取歌词', example: '#qqm歌词 七里香' },
+          { name: '查看歌词', desc: '按歌名/mid 取歌词；点歌后 #qqm歌词1 取列表第 1 首歌词', example: '#qqm歌词 七里香' },
           { name: '热搜榜', desc: '查看 QQ 音乐热搜', example: '#qqm热搜' },
         ],
       },
@@ -36,6 +36,7 @@ export function buildHelpCardData() {
         items: [
           { name: '排行榜', desc: '查看各大榜单歌曲', example: '#qqm排行 飙升' },
           { name: '推荐歌单', desc: '热门推荐歌单列表', example: '#qqm推荐' },
+          { name: '打开推荐歌单', desc: '查看第 N 个推荐歌单的歌曲', example: '#qqm推荐听1' },
           { name: '随机推荐', desc: '随机推荐一首歌并播放', example: '#qqm来首歌' },
           { name: '个性电台', desc: '根据口味推荐 5 首', example: '#qqm电台' },
           { name: '每日推荐', desc: '每日推荐歌曲（需登录）', example: '#qqm日推' },
