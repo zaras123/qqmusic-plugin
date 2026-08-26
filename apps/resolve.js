@@ -404,10 +404,11 @@ export class qqmusicResolve extends (await loadPluginBase()) {
         payplay: Boolean(song.payplay),
         source: fromCard ? '卡片' : '链接',
         hasUrl: Boolean(play.url),
+        degradeNote: play.degradeNote || '',
+        error: play.error || '',
+        cfg,
       })
-      cardData.tip = play.url
-        ? `正在下载并发送语音（${qLabel || '默认音质'}）...${play.degradeNote ? ` · ${play.degradeNote}` : ''}`
-        : (failHint || '未获取到播放链接')
+      if (!play.url && failHint) cardData.tip = failHint
       const img = await renderDetailCard(e, cardData)
       if (img) {
         await e.reply(img)
@@ -416,7 +417,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
         const { formatDetailText } = await import('../utils/card-data.js')
         await e.reply(
           [
-            `${prefix}QQ音乐 · 解析下载中`,
+            `${prefix}QQ音乐 · 解析完成`,
             formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
             play.degradeNote ? `音质说明：${play.degradeNote}` : '',
             failHint,
@@ -428,7 +429,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       const { formatDetailText } = await import('../utils/card-data.js')
       await e.reply(
         [
-          `${prefix}QQ音乐 · 解析下载中`,
+          `${prefix}QQ音乐 · 解析完成`,
           formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
           play.degradeNote ? `音质说明：${play.degradeNote}` : '',
           failHint,
@@ -436,11 +437,10 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       )
     }
 
-    // 跳过 deliverSong 内的文本/原生卡，只下语音+群文件
+    // 根据用户配置递送音乐（语音 / 群文件 / 原生卡 / 自定义卡）
+    // 文本已由详情卡展示，跳过 deliverSong 内的纯文本；卡片/语音/文件按 cfg.sendNativeCard 等正常生效
     await deliverSong(e, song, play, {
       skipTextInfo: true,
-      skipNativeCard: true,
-      skipCustomCard: true,
     })
 
     return true

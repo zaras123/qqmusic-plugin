@@ -220,11 +220,10 @@ export class qqmusicSong extends (await loadPluginBase()) {
         source: '点歌',
         hasUrl: Boolean(play.url),
         mvVid,
+        degradeNote: play.degradeNote || '',
+        error: play.error || '',
+        cfg,
       })
-      cardData.tip = play.url
-        ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...${play.degradeNote ? ` · ${play.degradeNote}` : ''}`
-        : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`
-
       const img = await renderDetailCard(e, cardData)
       if (img) {
         await e.reply(img)
@@ -293,13 +292,10 @@ export class qqmusicSong extends (await loadPluginBase()) {
           source: '播放',
           hasUrl: Boolean(play.url),
           mvVid: play.mvVid || '',
+          degradeNote: play.degradeNote || '',
+          error: play.error || '',
+          cfg,
         })
-        cardData.tip =
-          (play.url
-            ? `正在下载并发送语音（${play.qualityLabel || play.quality || '默认音质'}）...`
-            : `获取播放链接失败${play.error ? `：${play.error}` : ''}\n请 #qqm登录`) +
-          (play.degradeNote ? ` · ${play.degradeNote}` : '') +
-          (play.mvVid ? ` · 🎬 该曲有 MV：#qqmMV 播放/下载 直接操作` : '')
         const img = await renderDetailCard(e, cardData)
         if (img) {
           await e.reply(img)

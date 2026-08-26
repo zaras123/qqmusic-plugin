@@ -325,8 +325,34 @@ export function formatSettingsText(data) {
   ].join('\n')
 }
 
+/** 生成基于当前配置的动态提示文案：精准反映当前会发送什么（语音 / 群文件 / 原生卡 / 自定义卡） */
+export function buildDeliveryTip(cfg = {}, { qualityLabel = '', hasUrl = false, degradeNote = '', error = '' } = {}) {
+  if (!hasUrl) {
+    if (error) return `获取播放链接失败：${error}`
+    return '未获取到播放链接，请 #qqm登录'
+  }
+
+  const q = qualityLabel || '默认音质'
+  const sendVocal = cfg.sendVocal !== false
+  const uploadFile = cfg.uploadFile !== false
+  const sendNative = Boolean(cfg.sendNativeCard)
+  const sendCustom = Boolean(cfg.sendCustomCard)
+
+  const actions = []
+  if (sendVocal) actions.push('语音')
+  if (uploadFile) actions.push('群文件')
+  if (sendNative || sendCustom) actions.push('音乐卡片')
+
+  let main = actions.length
+    ? `正在发送${actions.join(' + ')}（${q}）...`
+    : `已获取播放链接（${q}）`
+
+  if (degradeNote) main += ` · ${degradeNote}`
+  return main
+}
+
 /** 歌曲详情卡片（解析后展示） */
-export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '', hasUrl = false, mvVid = '' } = {}) {
+export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '', hasUrl = false, mvVid = '', tip = '', degradeNote = '', error = '', cfg = null } = {}) {
   const isVip = Boolean(song.payplay) || payplay
   const payInfo = isVip ? '🔒 会员' : (song.pay?.pay_down ? '💰 付费' : '🆓 免费')
   const urlStatus = (hasUrl ? '✅ 有播放链接' : '⚠️ 仅免费链接') + (mvVid ? ' · 🎬 有MV' : '')
@@ -339,9 +365,9 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
   if (source === '链接') sourceText = '🔗 链接解析'
   else if (source === '卡片') sourceText = '📋 卡片解析'
 
-  const baseTip = hasUrl
-    ? `正在下载并发送语音（${qualityLabel || '默认音质'}）...`
-    : '未获取到播放链接'
+  // 动态 tip：调用方若传了自定义 tip 优先用；否则读 cfg 动态生成（精准反映 语音/群文件/音乐卡片）
+  const activeCfg = cfg || Config.getConfig('qqmusic') || {}
+  const baseTip = tip || buildDeliveryTip(activeCfg, { qualityLabel, hasUrl, degradeNote, error })
   // 模板 .tips 无 white-space:pre，\n 会被折叠，故用 · 分隔；#qqmMV 播放/下载 不带参数 = 操作本曲 MV
   const mvHint = mvVid ? ` · 🎬 该曲有 MV：#qqmMV 播放/下载 直接操作` : ''
 
