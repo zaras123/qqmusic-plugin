@@ -54,6 +54,8 @@ export function buildHelpCardData() {
         tag: '登录',
         items: [
           { name: '扫码登录', desc: '主人扫码登录（付费音质）', example: '#qqm登录' },
+          { name: '微信登录', desc: '微信扫码登录（一张微信码）', example: '#qqm登录微信' },
+          { name: 'App 扫码', desc: 'QQ 音乐 App 扫码（备用通道）', example: '#qqm登录qq' },
           { name: '状态卡片', desc: '账号 / 会员 / 音质 可视化', example: '#qqm状态' },
           { name: '快捷状态', desc: '状态卡短指令', example: '#qms' },
           { name: '登出解绑', desc: '清除登录态', example: '#qqm登出' },

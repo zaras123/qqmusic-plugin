@@ -327,7 +327,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       if (Date.now() - started > maxMs) {
         task.stopped = true
         activeLogins.delete(userId)
-        await e.reply('二维码已过期，请重新 #qqm登录；微信/QQ 请用 #qqm扫码')
+        await e.reply('二维码已过期，请重新 #qqm登录；微信登录请用 #qqm登录微信')
         return
       }
 
@@ -429,7 +429,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
   }
 
   /**
-   * 浏览器无感扫码（#qqm扫码 / #qqmweb）
+   * 浏览器无感扫码（#qqm登录 / #qqm登录微信）
    * 一个二维码，微信 / QQ / QQ音乐 App 均可扫；api 侧浏览器内自动完成 OAuth
    */
 
