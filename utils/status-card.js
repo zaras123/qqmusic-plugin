@@ -36,32 +36,74 @@ function maskKey(key = '') {
   return `${s.slice(0, 6)}…${s.slice(-4)}`
 }
 
+/** 会员字段值 → 一句人话（字段名由 API 探测返回，命名不固定，故做宽容解释） */
+function summarizeVip(vip = {}) {
+  const entries = Object.entries(vip || {})
+  if (!entries.length) return { known: false, isVip: null, summary: '' }
+
+  const flagKey = entries.find(([k]) =>
+    /vip_?type|is_?vip|vip_?flag|member_?level|green|svip/i.test(k)
+  )
+  let isVip = null
+  if (flagKey) {
+    const v = flagKey[1]
+    if (typeof v === 'boolean') isVip = v
+    else if (typeof v === 'number') isVip = v > 0
+    else if (typeof v === 'string') isVip = !/^(0|false|none|null|-)$/i.test(v.trim())
+  }
+
+  const summary = entries
+    .slice(0, 3)
+    .map(([k, v]) => `${String(k).split('.').pop()}=${String(v).slice(0, 24)}`)
+    .join(' · ')
+  return { known: true, isVip, summary }
+}
+
 async function enrichProfile(uin, userKey = '') {
   let nickname = ''
   let avatarUrl = ''
+  let vip = null
   if (!uin || uin === '0') {
-    return { nickname: '未登录', avatarUrl: DEFAULT_AVATAR }
+    return { nickname: '未登录', avatarUrl: DEFAULT_AVATAR, vip: null }
   }
+
+  // 优先走 /user/profile：微信账号的 uin 是 musicid，/user/detail（QQ 号接口）查不到它，
+  // 这个接口同时带回登录留档的身份/会员字段
   try {
-    const body = await request('/user/detail', { id: uin }, 'get', userKey)
+    const body = await request('/user/profile', {}, 'get', userKey)
     const d = body?.data || body
-    const creator = d?.creator || d?.base || d
-    nickname =
-      creator?.nick ||
-      creator?.nickname ||
-      creator?.name ||
-      d?.nickname ||
-      d?.nick ||
-      ''
-    avatarUrl =
-      creator?.headurl ||
-      creator?.avatarUrl ||
-      creator?.avatar ||
-      d?.headurl ||
-      d?.avatarUrl ||
-      ''
+    nickname = d?.nick || ''
+    avatarUrl = d?.logo || ''
+    if (d?.vipKnown) vip = d.vip || null
   } catch {
-    /* ignore */
+    /* 老版 API 没有该接口时静默回落 */
+  }
+
+  // 补空：/user/detail 只对 QQ 号账号有效（微信 musicid 固定返回未登录），别覆盖已有值
+  if (!nickname || !avatarUrl) {
+    try {
+      const body = await request('/user/detail', { id: uin }, 'get', userKey)
+      const d = body?.data || body
+      const creator = d?.creator || d?.base || d
+      nickname =
+        nickname ||
+        creator?.nick ||
+        creator?.nickname ||
+        creator?.name ||
+        d?.nickname ||
+        d?.nick ||
+        ''
+      avatarUrl =
+        avatarUrl ||
+        creator?.headurl ||
+        creator?.avatarUrl ||
+        creator?.avatar ||
+        d?.headurl ||
+        d?.avatarUrl ||
+        ''
+    } catch {
+      /* ignore */
+    }
   }
   if (!avatarUrl) {
     if (/^\d{5,}$/.test(String(uin))) {
@@ -71,7 +113,7 @@ async function enrichProfile(uin, userKey = '') {
     }
   }
   if (!nickname) nickname = `用户 ${maskUin(uin)}`
-  return { nickname, avatarUrl }
+  return { nickname, avatarUrl, vip }
 }
 
 export async function buildQQMusicStatusData(userKey = '') {
@@ -120,6 +162,20 @@ export async function buildQQMusicStatusData(userKey = '') {
     vipExpireText = cookie.keyExpiresIn
       ? `Key 相关时效字段: ${cookie.keyExpiresIn}`
       : '建议定期 #qqm登录 保持高音质可用'
+  }
+
+  // API 能读到会员字段就优先显示它 —— 微信扫码登的是独立账号时，这一步直接暴露"没会员"
+  const vipInfo = summarizeVip(profile.vip || {})
+  if (apiOk && loggedIn && vipInfo.known) {
+    vipTitle =
+      vipInfo.isVip === true ? '会员账号' : vipInfo.isVip === false ? '非会员账号' : '账号权益'
+    vipStateText =
+      vipInfo.isVip === true
+        ? '付费曲可解析'
+        : vipInfo.isVip === false
+          ? '付费曲无权限（需绿钻/SVIP）'
+          : '已读取会员字段'
+    vipExpireText = vipInfo.summary
   }
 
   const avatarUrl = profile.avatarUrl || DEFAULT_AVATAR
