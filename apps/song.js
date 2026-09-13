@@ -478,7 +478,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
   async help(e) {
     const cfg = this.cfg()
     try {
-      const data = buildHelpCardData()
+      const data = buildHelpCardData(e)
       const img = await renderHelpCard(e, data)
       if (img) {
         await e.reply(img)
@@ -488,7 +488,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
       logWarn(`帮助图渲染失败: ${err.message}`)
     }
 
-    // 降级纯文本
+    // 降级纯文本（与卡片一致：主人相关条目仅主人可见）
     await e.reply(
       [
         '【QQ音乐插件帮助】',
@@ -497,9 +497,12 @@ export class qqmusicSong extends (await loadPluginBase()) {
         '#qqm播放 晴天',
         '#qqm歌词 关键词 / 序号  /  #qqm热搜',
         '— 状态 —',
-        '#qqm登录  /  #qqm状态  /  #qms  /  #qqm登出',
-        '— 管理（主人）—',
-        '#qqm设置  /  #qqm 音质 flac  /  #qqm 测试',
+        e.isMaster
+          ? '#qqm登录  /  #qqm登录微信  /  #qqm状态  /  #qms  /  #qqm登出'
+          : '#qqm状态  /  #qms',
+        ...(e.isMaster
+          ? ['— 管理（主人）—', '#qqm设置  /  #qqm 音质 flac  /  #qqm 测试']
+          : []),
         '— 解析 —',
         '分享 QQ 音乐卡片或 y.qq.com 链接自动解析',
         `API: ${cfg.apiBase ? '已配置' : '未配置'}`,
