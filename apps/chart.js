@@ -8,7 +8,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 await loadPluginBase()
 
 import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest, newSongs as newSongsApi, mvCategory, mvByTag, mvUrl, searchMv, normalizeSearchItem, songlistDetail } from '../utils/api.js'
-import { getSession, setSession } from '../utils/session.js'
+import { pickSession, setSession } from '../utils/session.js'
 import { deliverSong } from '../utils/send.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
@@ -160,8 +160,9 @@ export class qqmusicChart extends (await loadPluginBase()) {
     const m = String(e.msg || '').trim().match(/^#?(qq|QQ)m\s*推荐听\s*([1-9][0-9]?)$/)
     const n = Number(m?.[1] || 0)
 
-    const session = await getSession(scope)
-    if (session?.type !== 'recommend' || !session?.data?.length) {
+    // 自己的推荐列表优先（千人群里不被别人的操作顶掉）
+    const { session } = await pickSession(scope, userKey, (s) => s?.type === 'recommend' && s.data?.length)
+    if (!session?.data?.length) {
       await e.reply('请先 #qqm推荐 获取推荐歌单列表')
       return true
     }
@@ -393,7 +394,7 @@ export class qqmusicChart extends (await loadPluginBase()) {
       if (isPlay || isDl) {
         if (!argText) {
           // 无目标：试试点歌后记住的「本曲 MV」（点歌卡显示的 #qqmMV 播放/下载）
-          const session = await getSession(scope)
+          const { session } = await pickSession(scope, userKey, (s) => s?.lastMvVid)
           if (session?.lastMvVid) {
             argText = session.lastMvVid
           } else {
@@ -403,7 +404,7 @@ export class qqmusicChart extends (await loadPluginBase()) {
         }
         let mv = null
         if (/^\d+$/.test(argText)) {
-          const session = await getSession(scope)
+          const { session } = await pickSession(scope, userKey)
           if (!session?.data?.length) {
             await e.reply('请先 #qqm点歌 / #qqmMV 搜索 出列表')
             return true

@@ -14,7 +14,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 await loadPluginBase()
 
 import { searchSongs, songUrlBest, lyric, hotKeys, songInfoBatch } from '../utils/api.js'
-import { getSession, setSession } from '../utils/session.js'
+import { pickSession, getUserSession, setSession } from '../utils/session.js'
 import { deliverSong, sendNativeMusicCard } from '../utils/send.js'
 import { QUALITY_LABEL } from '../utils/quality.js'
 import { buildHelpCardData } from '../utils/help-card.js'
@@ -179,7 +179,9 @@ export class qqmusicSong extends (await loadPluginBase()) {
     const m = String(e.msg || '').trim().match(RE_LISTEN)
     const n = Number(m?.[1] || m?.[2] || 0)
     const scope = e.group_id || e.user_id
-    const session = await getSession(scope)
+    const userKey = String(e.user_id || '')
+    // 千人群里多人同时点歌：先取自己的列表，自己没点过才退回群里最近一份
+    const { session, fallback } = await pickSession(scope, userKey)
     if (!session?.data?.length || session.type === 'mvList') {
       // 无本插件会话时不抢其它插件的 #听 / #qqm听；mvList 是 MV 列表，音频播放流程不适用
       return false
@@ -199,7 +201,6 @@ export class qqmusicSong extends (await loadPluginBase()) {
     }
 
     const song = session.data[n - 1]
-    const userKey = String(e.user_id || '')
 
     // 先获取播放链接信息（songUrlBest 已带出歌曲 MV vid，无需额外请求）
     const play = await resolvePlay(song, cfg, userKey)
@@ -217,7 +218,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const cardData = buildDetailCardData(song, {
         qualityLabel: play.qualityLabel || play.quality || '',
         payplay: Boolean(song.payplay),
-        source: '点歌',
+        source: fallback ? '群内最近歌单' : '点歌',
         hasUrl: Boolean(play.url),
         mvVid,
         degradeNote: play.degradeNote || '',
@@ -278,8 +279,11 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const play = await resolvePlay(song, cfg, userKey)
 
       // 记住本曲 MV，支持「#qqmMV 播放/下载」（不带参数）直接操作
+      // 与已有会话合并写入，避免把刚点出来的列表顶掉
       if (play.mvVid) {
-        await setSession(e.group_id || e.user_id, { lastMvVid: play.mvVid, user_id: e.user_id })
+        const scope = e.group_id || e.user_id
+        const own = await getUserSession(scope, userKey)
+        await setSession(scope, { ...(own || {}), lastMvVid: play.mvVid, user_id: e.user_id })
       }
 
       // 渲染详情卡片（与解析功能统一风格）
@@ -347,7 +351,8 @@ export class qqmusicSong extends (await loadPluginBase()) {
     // #qqm歌词1~99：取点歌/解析列表第 N 首（与 #qqm听N 同源），避免把序号当关键词搜索
     if (/^\d{1,2}$/.test(key)) {
       const scope = e.group_id || e.user_id
-      const session = await getSession(scope)
+      // 与 #qqm听N 同源：先取自己的列表，没有再退回群里最近一份
+      const { session } = await pickSession(scope, String(e.user_id || ''))
       const n = Number(key)
       // 非歌曲列表会话：数字序号无意义，给出正确引导（关键词查词不受影响）
       if (session?.type === 'topCategory' || session?.type === 'recommend') {
