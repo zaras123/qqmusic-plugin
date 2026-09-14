@@ -176,8 +176,46 @@ export async function searchSongs(
   return (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
 }
 
-/** 外部平台来源 → 展示名 */
-export const SOURCE_LABEL = { netease: '网易云', kuwo: '酷我', bilibili: 'B站' }
+/**
+ * 外部平台来源 → 展示名 + app 图标
+ * 图标用 QQ互联 的官方应用图标（与卡片里封面图一样走远程加载）
+ */
+export const SOURCE_META = {
+  netease: {
+    label: '网易云',
+    icon: 'https://i.gtimg.cn/open/app_icon/00/49/50/85/100495085_100_m.png',
+    color: '#c62f2f',
+  },
+  kuwo: {
+    label: '酷我',
+    icon: 'https://p.qpic.cn/qqconnect/0/app_100243533_1636374695/100',
+    color: '#ffb500',
+  },
+  kugou: {
+    label: '酷狗',
+    icon: 'https://open.gtimg.cn/open/app_icon/00/20/51/41/205141_100_m.png',
+    color: '#0ea0e8',
+  },
+  bilibili: {
+    label: 'B站',
+    icon: 'https://i.gtimg.cn/open/app_icon/00/95/17/76/100951776_100_m.png',
+    color: '#fb7299',
+  },
+  qq: {
+    label: 'QQ音乐',
+    icon: 'https://p.qpic.cn/qqconnect/0/app_100497308_1626060999/100',
+    color: '#31c27c',
+  },
+}
+
+export const SOURCE_LABEL = Object.fromEntries(
+  Object.entries(SOURCE_META).map(([k, v]) => [k, v.label])
+)
+
+/** 取来源图标 URL（未知来源返回空串） */
+export function sourceIconOf(source) {
+  return SOURCE_META[source]?.icon || ''
+}
 
 /** 统一歌曲对象归一化：兼容 /data 包裹、/track_info 包裹、扁平结构 */
 export function normalizeSearchItem(item, idx = 0) {

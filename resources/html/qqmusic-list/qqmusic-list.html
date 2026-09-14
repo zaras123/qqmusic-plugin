@@ -326,6 +326,28 @@
       font-weight: 800;
     }
 
+    /* 外部平台补充曲且无封面时：占位图里放该平台的 app 图标 */
+    .song-cover.ph.src {
+      background: #f2f5fa;
+    }
+
+    .song-cover.ph.src img {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      object-fit: contain;
+    }
+
+    /* 来源标签里的小 app 图标 */
+    .song-tag .src-icon {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      object-fit: contain;
+      vertical-align: -2px;
+      margin-right: 3px;
+    }
+
     .song-main { min-width: 0; }
 
     .song-name {
@@ -366,6 +388,8 @@
     }
 
     .song-tag {
+      display: inline-flex;
+      align-items: center;
       font-size: 10px;
       font-weight: 800;
       padding: 3px 8px;
@@ -499,6 +523,8 @@
               <div class="song-idx">{{song.index}}</div>
               {{if song.cover}}
               <img class="song-cover" src="{{song.cover}}" referrerpolicy="no-referrer" />
+              {{else if song.sourceIcon}}
+              <div class="song-cover ph src"><img src="{{song.sourceIcon}}" referrerpolicy="no-referrer" /></div>
               {{else}}
               <div class="song-cover ph">♪</div>
               {{/if}}
@@ -508,7 +534,7 @@
               </div>
               <div class="song-right">
                 {{if song.duration}}<div class="song-duration">{{song.duration}}</div>{{else}}<div class="song-duration"></div>{{/if}}
-                <div class="song-tag {{song.external ? 'ext' : (song.payplay ? '' : 'free')}}">{{song.sourceTag || (song.payplay ? '付费' : '免费')}}{{song.hasMv ? ' · 🎬' : ''}}</div>
+                <div class="song-tag {{song.external ? 'ext' : (song.payplay ? '' : 'free')}}">{{if song.sourceIcon}}<img class="src-icon" src="{{song.sourceIcon}}" referrerpolicy="no-referrer" />{{/if}}{{song.sourceTag || (song.payplay ? '付费' : '免费')}}{{song.hasMv ? ' · 🎬' : ''}}</div>
               </div>
             </div>
             {{/each}}
