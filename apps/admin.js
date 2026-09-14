@@ -22,8 +22,10 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       priority: 500,
       rule: [
         {
+          // 输出里含主人命令列表与配置状态，限主人（与帮助卡的可见性保持一致）
           reg: '^#?(qq|QQ)m(设置|配置)$|^#qq音乐设置$',
           fnc: 'showConfig',
+          permission: 'master',
         },
         {
           reg: '^#?(qq|QQ)m\\s*api\\s*(\\S+)$',
