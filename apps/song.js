@@ -33,14 +33,14 @@ const RE_LYRIC = /^#?(?:qq|QQ)m\s*歌词\s*(.+)$/
 function formatListText(list) {
   const lines = list.map((s, i) => {
     const pay = s.payplay ? ' [付费]' : ''
-    const src = s.source ? ` [${SOURCE_LABEL[s.source] || s.source}·128k]` : ''
+    const src = s.source ? ` [${SOURCE_LABEL[s.source] || s.source}·${s.quality || '128k'}]` : ''
     const mv = s.mvVid ? ' 🎬' : ''
     return `${i + 1}. ${s.songName} - ${s.singerName}${pay}${src}${mv}${s.duration ? ` (${s.duration})` : ''}`
   })
   const hasExt = list.some((s) => s.source)
   return (
     `♫ QQ音乐点歌结果（#qqm听序号 或 #听序号；🎬=有MV，可 #qqmMV 播放 序号）` +
-    `${hasExt ? '\n（[网易云]/[酷我] 等标记为其它平台的免费补充曲，128k）' : ''}\n${lines.join('\n')}`
+    `${hasExt ? '\n（[网易云]/[酷我]/[B站] 等标记为其它平台的免费补充曲，档位见标签）' : ''}\n${lines.join('\n')}`
   )
 }
 
@@ -155,7 +155,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const scope = e.group_id || e.user_id
 
       // 批量查各曲是否带 MV（一次 /song/info），列表打 🎬 徽标 + 支持 #qqmMV 播放 序号
-      // 补充曲（ne_/kw_ 前缀）是别家的 id，QQ 的详情接口查不到，别浪费槽位
+      // 补充曲（ne_/kw_/bi_ 前缀）是别家的 id，QQ 的详情接口查不到，别浪费槽位
       try {
         const mids = list
           .filter((s) => !s.external)
@@ -245,7 +245,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         qualityLabel: play.qualityLabel || play.quality || '',
         payplay: Boolean(song.payplay),
         source: song.source
-          ? `${SOURCE_LABEL[song.source] || song.source} 128k`
+          ? `${SOURCE_LABEL[song.source] || song.source} ${song.quality || '128k'}`
           : fallback
             ? '群内最近歌单'
             : '点歌',
@@ -323,7 +323,9 @@ export class qqmusicSong extends (await loadPluginBase()) {
         const cardData = buildDetailCardData(song, {
           qualityLabel: play.qualityLabel || play.quality || '',
           payplay: Boolean(song.payplay),
-          source: song.source ? `${SOURCE_LABEL[song.source] || song.source} 128k` : '播放',
+          source: song.source
+            ? `${SOURCE_LABEL[song.source] || song.source} ${song.quality || '128k'}`
+            : '播放',
           hasUrl: Boolean(play.url),
           mvVid: play.mvVid || '',
           degradeNote: play.degradeNote || '',

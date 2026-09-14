@@ -246,6 +246,8 @@ export function normalizeSearchItem(item, idx = 0) {
     songid: raw.songid || raw.id || 0,
     // 外部平台补充曲：带 source 前缀的 songmid 交给 API 自动路由，播放链路无需特殊处理
     source: raw.source || '',
+    // 档位由 API 按平台给出（B站 192k 比网易云/酷我 128k 好），缺失时按 128k 兜底
+    quality: raw.quality || '',
     external: Boolean(raw.external),
     media_mid: raw.media_mid || raw.strMediaMid || raw.songmid || '',
     songName:
@@ -285,7 +287,7 @@ function mapSongUrlBody(body, type, realMedia) {
       domain: body.domain || d.domain,
       purl: body.purl || d.purl,
       quality: d.quality || type,
-      // 外部平台补充曲带回来的标记：音质只有 128k，来源要能显示出来
+      // 外部平台补充曲带回来的标记：来源与档位要能显示出来（别谎报 FLAC）
       qualityLabel: d.qualityLabel || '',
       source: d.source || '',
       external: Boolean(d.external),
@@ -345,6 +347,7 @@ export async function refreshLogin(userKey = '') {
 async function probeUrlAlive(url, timeout = 6000) {
   if (!url) return false
   const headers = { 'User-Agent': UA, Referer: 'https://y.qq.com/', Origin: 'https://y.qq.com' }
+  let headOk = false
   try {
     const head = await axios.head(url, {
       timeout,
@@ -352,11 +355,13 @@ async function probeUrlAlive(url, timeout = 6000) {
       headers,
       validateStatus: () => true,
     })
-    if (head.status > 0 && head.status < 400) return true
-    if (head.status === 404 || head.status === 401 || head.status === 403) return false
+    if (head.status > 0 && head.status < 400) headOk = true
+    // 注意：HEAD 失败不能直接判死 —— 有些 CDN（如 B站 bilivideo）根本不支持 HEAD，
+    // 一律回 404，但 Range GET 是好的。所以这里继续往下试 GET。
   } catch {
-    /* range */
+    /* HEAD 不支持/被拒 → 试 GET */
   }
+  if (headOk) return true
   try {
     const g = await axios.get(url, {
       timeout,
@@ -461,7 +466,7 @@ export async function songUrlBest(
       }
 
       tried.push(`${type}:ok`)
-      // 外部平台补充曲：链是固定的 128k，音质标签用 API 返回的（别谎报 FLAC）
+      // 外部平台补充曲：档位由 API 给出（网易云/酷我 128k、B站 192k），别谎报 FLAC
       const isExt = Boolean(r.external)
       logInfo(
         `音质选定: ${isExt ? r.qualityLabel || r.source : type} ch=${r.playChannel || 'auto'} [${tried.join(', ')}]`

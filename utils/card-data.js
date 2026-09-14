@@ -52,7 +52,7 @@ export function buildListCardData(keyword, songs, options = {}) {
       payplay: Boolean(s.payplay),
       hasMv: Boolean(s.mvVid),
       // 外部平台补充曲：卡片上标来源与音质，避免误以为是自己账号的问题
-      sourceTag: s.source ? `${SOURCE_LABEL[s.source] || s.source} · 128k` : '',
+      sourceTag: s.source ? `${SOURCE_LABEL[s.source] || s.source} · ${s.quality || '128k'}` : '',
       sourceIcon: sourceIconOf(s.source),
       external: Boolean(s.external),
     })),
