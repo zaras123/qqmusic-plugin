@@ -447,7 +447,8 @@ export async function songUrlBest(
   // 音质阶梯已挪到 API：一次请求内部就从请求档位逐级下探到可用档。
   // 插件只按「客户端探活」结果继续下探 —— 下载发生在机器人主机，
   // 那条链能不能下只有这里知道（API 那边看不到机器人的网络）。
-  for (let round = 0; round < 3; round++) {
+  // 最多 5 轮：与阶梯长度对齐，避免探活连续失败时够不到 m4a/128 这两档
+  for (let round = 0; round < 5; round++) {
     let r = null
     try {
       r = await songUrl(songmid, {
@@ -475,12 +476,13 @@ export async function songUrlBest(
     }
 
     const isExt = Boolean(r.external)
-    if (!isExt && probe !== false) {
+    if (probe !== false) {
       const ok = await probeUrlAlive(r.url)
       if (!ok) {
         tried.push(`${r.quality}:cdn-dead`)
-        logWarn(`${r.quality} 链接不可用，继续下探…`)
-        const next = nextQualityBelow(r.quality)
+        logWarn(`${r.quality} 链接不可用${isExt ? '' : '，继续下探…'}`)
+        // 外部平台补充曲没有音质阶梯：探活失败即失败，不再下探
+        const next = isExt ? '' : nextQualityBelow(r.quality)
         if (!next || fallback === false) {
           lastErr = new Error(`${r.quality} CDN 不可用`)
           lastErr.payload = r.raw || r
