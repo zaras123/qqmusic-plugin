@@ -164,9 +164,10 @@ export async function listAccounts() {
 
 export async function searchSongs(
   keyword,
-  { pageNo = 1, pageSize = 10, userKey = '', fill = true, fillLimit = 5 } = {}
+  { pageNo = 1, pageSize = 10, userKey = '', fill = false, fillLimit = 5 } = {}
 ) {
-  // fill：让 API 在 QQ 结果尾部追加其它平台的免费可播曲（拿不到链的不会返回）
+  // fill：让 API 在 QQ 结果尾部追加其它平台的免费可播曲（拿不到链的不会返回）。
+  // 默认关 —— 只有点歌列表需要它；直接播放/歌词/链接解析只取首条，带了只是白等一轮
   const params = { key: keyword, t: 0, pageNo, pageSize }
   if (fill) {
     params.fill = 1
