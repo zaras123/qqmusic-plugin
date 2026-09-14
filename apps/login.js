@@ -272,7 +272,11 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       await e.reply(
         [
           wantWx
-            ? '请用【微信】扫一扫这张码（QQ音乐 App 码，微信可直接扫；这样登的会话才能播付费曲）'
+            ? [
+                '请用「QQ音乐 App」扫码 —— App 里用你的微信账号登录即可',
+                '⚠️ 别用微信/QQ 的扫一扫直接扫这个码，会提示 scanned by another APP',
+                '（这张码绑定 tmeAppID=qqmusic，只有 QQ音乐 App 能扫，且只有它给的会话能播付费曲）',
+              ].join('\n')
             : tips || '请使用 QQ / 微信 / QQ音乐 App 扫码',
           `二维码 ${Math.round((expiresIn || 900) / 60)} 分钟内有效`,
           imgSent ? '' : '（图片发送失败可重新发命令）',

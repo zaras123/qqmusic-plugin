@@ -46,7 +46,7 @@ const SECTIONS = [
     tag: '登录',
     items: [
       { name: '扫码登录', desc: '主人扫码登录（付费音质）', example: '#qqm登录', master: true },
-      { name: '微信登录', desc: '用微信扫 App 码（付费曲可播）', example: '#qqm登录微信', master: true },
+      { name: '微信账号登录', desc: '用 QQ音乐 App 扫码（App 内用微信账号）', example: '#qqm登录微信', master: true },
       { name: 'App 扫码', desc: 'QQ 音乐 App 扫码（付费曲首选）', example: '#qqm登录qq', master: true },
       { name: '状态卡片', desc: '账号 / 会员 / 音质 可视化', example: '#qqm状态' },
       { name: '快捷状态', desc: '状态卡短指令', example: '#qms' },
