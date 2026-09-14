@@ -121,6 +121,10 @@ async function onLoginSuccess(e, info = {}) {
       nick ? `昵称: ${nick}` : '',
       hasKey === false ? '⚠️ 未拿到 key，付费曲可能仍无法播放' : '',
       meta?.hasRefresh ? '含 refresh 材料，过期可自动续期' : '⚠️ 无 refresh，过期后需重新扫码',
+      // 微信扫一扫走的是网页级会话；若后续刷新升不上去，付费曲会没权限 —— 直接把备选路径说清楚
+      channel === 'webqr-wx'
+        ? '提示：微信扫一扫为网页级会话，付费曲若提示无权限，请改用 #qqm登录qq（用 QQ音乐 App 扫码）'
+        : '',
       '正在生成状态卡片…',
     ]
       .filter(Boolean)
@@ -457,8 +461,16 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const userKey = String(e.user_id || '')
 
     try {
+      // 微信登录走「PC 客户端流程」：PC 端能播付费曲，且与网页端同一个 appid，
+      // 差别只在换码参数形状（API 侧 mode=pc，失败会自动回落到常规网页扫码）
+      const wantWxMsg = /微信|wx/i.test(String(e.msg || ''))
       await e.reply('正在生成登录二维码…')
-      const body = await request('/login/webqr', {}, 'post', userKey)
+      const body = await request(
+        '/login/webqr',
+        wantWxMsg ? { mode: 'pc' } : {},
+        'post',
+        userKey
+      )
       const data = body?.data || body
       if (!data?.sessionId || (!data?.qrcodeWx && !data?.qrcodeQq)) {
         await e.reply(`获取二维码失败：${body?.errMsg || '未知错误'}`)
@@ -469,7 +481,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       // 平台取巧：机器人跑在 QQ 平台，命令发起者必是 QQ 用户 → 只发 QQ 码
       // （QQ 用户扫 QQ 码 = 登录自己的 QQ 音乐账号，同时覆盖 QQ音乐 App 用户）
       // 微信场景极少，用 #qqm登录微信 显式请求微信码
-      const wantWx = /微信|wx/i.test(String(e.msg || ''))
+      const wantWx = wantWxMsg
       let codes = []
       if (wantWx && qrcodeWx) codes = [['微信', qrcodeWx]]
       else if (qrcodeQq) codes = [['QQ', qrcodeQq]]
@@ -508,7 +520,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           .join('\n')
       )
 
-      this.startWebQrPoll(e, sessionId, Number(expiresIn || 180))
+      this.startWebQrPoll(e, sessionId, Number(expiresIn || 180), wantWx)
     } catch (err) {
       await e.reply(`扫码登录失败：${err.message}`)
     }
@@ -516,7 +528,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
   }
 
   /** webqr 会话轮询 */
-  startWebQrPoll(e, sessionId, expiresIn) {
+  startWebQrPoll(e, sessionId, expiresIn, isWx = false) {
     const userId = e.user_id
     const userKey = String(userId || '')
     const started = Date.now()
@@ -553,7 +565,12 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         const status = data.status || 'wait'
 
         if (status === 'success' && data.hasKey) {
-          await finishOk({ uin: data.uin, nick: data.nick, hasKey: true, channel: 'webqr' })
+          await finishOk({
+            uin: data.uin,
+            nick: data.nick,
+            hasKey: true,
+            channel: isWx ? 'webqr-wx' : 'webqr',
+          })
           return
         }
         if (status === 'expired' || status === 'error') {
