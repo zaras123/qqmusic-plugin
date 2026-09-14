@@ -209,6 +209,10 @@ export function getConfigData() {
   const c = Config.getConfig('qqmusic')
   return {
     ...c,
+    // 带默认值的开关：配置里没有该键时也给界面一个明确布尔值，
+    // 否则锅巴显示"关"、实际却是"开"，对不上
+    extraSources: c.extraSources !== false,
+    defaultPickSong: c.defaultPickSong === true,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
     pullLoginMeta: false,
   }
@@ -219,32 +223,22 @@ export async function setConfigData(data, { Result } = {}) {
     const cur = Config.getConfig('qqmusic')
     const next = { ...cur }
 
-    const keys = [
-      'apiBase',
-      'apiToken',
-      'enable',
-      'enableSongRequest',
-      'enableResolve',
-      'renderListCard',
-      'qrLoginEnable',
-      'quality',
-      'qualityFallback',
-      'sendVocal',
-      'disableHighQualityVocal',
-      'uploadFile',
-      'sendNativeCard',
-      'sendCustomCard',
-      'sendTextInfo',
-      'maxList',
+    // 白名单直接由 schema 推导 —— 以前是手写数组，加了新开关忘了同步这里，
+    // 锅巴保存时会被静默丢弃（表现：开关一打开就弹回原状）
+    const UI_ONLY_FIELDS = new Set(['pullLoginMeta']) // 仅界面用，不落盘
+    const EXTRA_KEYS = [
+      // 未暴露在界面上但需要保留可写的历史字段
       'songRequestMaxList',
-      'identifyPrefix',
-      'tempDir',
-      'downloadTimeout',
-      'keepFileSec',
       'resolveLinks',
       'resolveCards',
       'lastLoginUin',
       'lastLoginNick',
+    ]
+    const keys = [
+      ...new Set([
+        ...schemas.map((s) => s.field).filter((f) => f && !UI_ONLY_FIELDS.has(f)),
+        ...EXTRA_KEYS,
+      ]),
     ]
 
     for (const k of keys) {

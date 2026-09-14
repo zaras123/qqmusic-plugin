@@ -144,8 +144,8 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const list = await searchSongs(keyword, {
         pageSize: Math.min(Number(cfg.maxList) || 10, 20),
         userKey,
-        // 补充曲：默认关闭，锅巴开启后才去其它平台补免费曲
-        fill: cfg.extraSources === true,
+        // 补充曲：默认开启，锅巴里显式关掉才不补（老配置没有该键 → 视为开）
+        fill: cfg.extraSources !== false,
       })
       if (!list.length) {
         await e.reply('没有搜到相关歌曲')

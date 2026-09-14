@@ -125,7 +125,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         `语音: ${c.sendVocal}  群文件: ${c.uploadFile}`,
         `原生卡: ${c.sendNativeCard}  自定义卡: ${c.sendCustomCard}`,
         `默认点歌: ${c.defaultPickSong === true ? '开' : '关'}（接管无前缀 #点歌）  补充曲: ${
-          c.extraSources === true ? '开' : '关'
+          c.extraSources !== false ? '开' : '关'
         }（其它平台免费曲）`,
         '',
         '主人命令：',

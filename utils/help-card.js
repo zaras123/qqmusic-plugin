@@ -63,7 +63,7 @@ const SECTIONS = [
       { name: '切换音质', desc: '128 / 320 / flac / hires …', example: '#qqm 音质 flac' },
       { name: '功能开关', desc: '开启或关闭点歌、解析', example: '#qqm 开启点歌' },
       { name: '默认点歌', desc: '接管不加前缀的「#点歌」（默认关）', example: '#qqm 默认点歌 开' },
-      { name: '补充曲', desc: '其它平台免费曲补进列表（默认关）', example: '#qqm 补充曲 开' },
+      { name: '补充曲', desc: '其它平台免费曲补进列表（默认开）', example: '#qqm 补充曲 关' },
       { name: '连通测试', desc: '探测 API 是否可用', example: '#qqm 测试' },
       { name: '插件更新', desc: 'git 拉取最新代码', example: '#qqm更新' },
       { name: '强制更新', desc: '丢弃本地改动同步远程', example: '#qqm强制更新' },

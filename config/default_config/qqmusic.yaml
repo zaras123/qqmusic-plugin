@@ -32,8 +32,8 @@ resolveCards: true
 # 点歌结果渲染为图片卡片
 renderListCard: true
 
-# 其它平台补充曲（默认关）：QQ 音乐没版权的歌，从网易云/酷我补几条免费曲（128k）追加在列表尾部
-extraSources: false
+# 其它平台补充曲（默认开）：QQ 音乐没版权的歌，从网易云/酷我补几条免费曲（128k）追加在列表尾部
+extraSources: true
 
 # 接管无前缀「#点歌」（默认关）：开启后本插件响应不加 #qqm 前缀的点歌命令
 defaultPickSong: false
