@@ -404,19 +404,23 @@ export async function songUrlBest(
   let predicted = ''
   let mvVid = ''
 
-  try {
-    const detail = await songDetail(songmid, userKey)
-    const file = detail?.track_info?.file || detail?.file || {}
-    realMedia = mediaId || file.media_mid || file.master_tape_media_mid || songmid
-    sizeInfo = file
-    predicted = pickBestAvailableQuality(file, preferred)
-    mvVid = detail?.track_info?.mv?.vid || ''
-    const sz = summarizeFileSizes(file)
-    logInfo(
-      `音质自适配: 上限=${preferred} 预判=${predicted || 'unknown'} 候选=${list.join('→')} sizes(flac=${sz.flac},hires=${sz.hires},dolby=${sz.dolby},new0=${sz.new0},new2=${sz.new2},new10=${sz.new10})`
-    )
-  } catch {
-    logInfo(`音质自适配: 上限=${preferred}（无详情 size，将逐级探测）`)
+  // 补充曲（ne_/kw_ 前缀）是别家平台的 id，QQ 的详情接口查不到，跳过这一步省一次请求
+  const isExternalMid = /^(ne|kw|bi)_/.test(String(songmid))
+  if (!isExternalMid) {
+    try {
+      const detail = await songDetail(songmid, userKey)
+      const file = detail?.track_info?.file || detail?.file || {}
+      realMedia = mediaId || file.media_mid || file.master_tape_media_mid || songmid
+      sizeInfo = file
+      predicted = pickBestAvailableQuality(file, preferred)
+      mvVid = detail?.track_info?.mv?.vid || ''
+      const sz = summarizeFileSizes(file)
+      logInfo(
+        `音质自适配: 上限=${preferred} 预判=${predicted || 'unknown'} 候选=${list.join('→')} sizes(flac=${sz.flac},hires=${sz.hires},dolby=${sz.dolby},new0=${sz.new0},new2=${sz.new2},new10=${sz.new10})`
+      )
+    } catch {
+      logInfo(`音质自适配: 上限=${preferred}（无详情 size，将逐级探测）`)
+    }
   }
 
   let lastErr = null

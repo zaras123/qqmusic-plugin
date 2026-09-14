@@ -155,8 +155,12 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const scope = e.group_id || e.user_id
 
       // 批量查各曲是否带 MV（一次 /song/info），列表打 🎬 徽标 + 支持 #qqmMV 播放 序号
+      // 补充曲（ne_/kw_ 前缀）是别家的 id，QQ 的详情接口查不到，别浪费槽位
       try {
-        const mids = list.map((s) => s.songmid).filter(Boolean)
+        const mids = list
+          .filter((s) => !s.external)
+          .map((s) => s.songmid)
+          .filter(Boolean)
         const infos = await songInfoBatch(mids, { userKey: String(e.user_id || '') })
         const mvMap = new Map(
           infos.map((n) => [n.songmid, n.mvVid]).filter(([, v]) => v)
