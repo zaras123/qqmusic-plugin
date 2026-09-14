@@ -4,7 +4,6 @@
 import axios from 'axios'
 import Config from '../components/Config.js'
 import {
-  qualityCandidates,
   QUALITY_LABEL,
   QUALITY_LADDER,
   isQualitySizeOk,
