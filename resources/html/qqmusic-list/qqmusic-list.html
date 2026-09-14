@@ -382,6 +382,13 @@
       color: var(--qm-deep);
     }
 
+    /* 外部平台补充曲（网易云/酷我等）：蓝色系，与 QQ 免费/付费区分开 */
+    .song-tag.ext {
+      background: #eef4ff;
+      border: 1px solid rgba(80, 130, 220, 0.3);
+      color: #3568c4;
+    }
+
     .tips {
       margin-top: 12px;
       padding: 12px 14px;
@@ -501,7 +508,7 @@
               </div>
               <div class="song-right">
                 {{if song.duration}}<div class="song-duration">{{song.duration}}</div>{{else}}<div class="song-duration"></div>{{/if}}
-                <div class="song-tag {{song.payplay ? '' : 'free'}}">{{song.payplay ? '付费' : '免费'}}{{song.hasMv ? ' · 🎬' : ''}}</div>
+                <div class="song-tag {{song.external ? 'ext' : (song.payplay ? '' : 'free')}}">{{song.sourceTag || (song.payplay ? '付费' : '免费')}}{{song.hasMv ? ' · 🎬' : ''}}</div>
               </div>
             </div>
             {{/each}}

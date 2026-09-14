@@ -3,7 +3,7 @@
  */
 import Config from '../components/Config.js'
 import { QUALITY_LABEL } from './quality.js'
-import { request } from './api.js'
+import { request, SOURCE_LABEL } from './api.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 
 /** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
@@ -51,6 +51,9 @@ export function buildListCardData(keyword, songs, options = {}) {
       duration: s.duration || '',
       payplay: Boolean(s.payplay),
       hasMv: Boolean(s.mvVid),
+      // 外部平台补充曲：卡片上标来源与音质，避免误以为是自己账号的问题
+      sourceTag: s.source ? `${SOURCE_LABEL[s.source] || s.source} · 128k` : '',
+      external: Boolean(s.external),
     })),
     hasMv,
     commands,

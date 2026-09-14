@@ -162,10 +162,22 @@ export async function listAccounts() {
   return body?.data?.accounts || []
 }
 
-export async function searchSongs(keyword, { pageNo = 1, pageSize = 10, userKey = '' } = {}) {
-  const body = await request('/search', { key: keyword, t: 0, pageNo, pageSize }, 'get', userKey)
+export async function searchSongs(
+  keyword,
+  { pageNo = 1, pageSize = 10, userKey = '', fill = true, fillLimit = 5 } = {}
+) {
+  // fill：让 API 在 QQ 结果尾部追加其它平台的免费可播曲（拿不到链的不会返回）
+  const params = { key: keyword, t: 0, pageNo, pageSize }
+  if (fill) {
+    params.fill = 1
+    params.fillLimit = fillLimit
+  }
+  const body = await request('/search', params, 'get', userKey)
   return (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
 }
+
+/** 外部平台来源 → 展示名 */
+export const SOURCE_LABEL = { netease: '网易云', kuwo: '酷我', bilibili: 'B站' }
 
 /** 统一歌曲对象归一化：兼容 /data 包裹、/track_info 包裹、扁平结构 */
 export function normalizeSearchItem(item, idx = 0) {
@@ -179,8 +191,11 @@ export function normalizeSearchItem(item, idx = 0) {
   const albummid = raw.albummid || raw.album?.mid || raw.albumMID || ''
   const cover = albummid
     ? coverUrl(albummid)
-    : raw.album?.pic || raw.album?.cover || ''
-  const interval = Number(raw.interval || raw.songTime || 0)
+    : raw.cover || raw.album?.pic || raw.album?.cover || ''
+  // 时长：QQ 给秒（interval），外部 provider 统一给毫秒（duration）
+  const interval = Number(
+    raw.interval || raw.songTime || (raw.duration ? Math.round(Number(raw.duration) / 1000) : 0)
+  )
   const duration =
     interval > 0
       ? `${String(Math.floor(interval / 60)).padStart(2, '0')}:${String(interval % 60).padStart(2, '0')}`
@@ -190,11 +205,19 @@ export function normalizeSearchItem(item, idx = 0) {
     index: idx + 1,
     songmid: raw.songmid || raw.mid || '',
     songid: raw.songid || raw.id || 0,
+    // 外部平台补充曲：带 source 前缀的 songmid 交给 API 自动路由，播放链路无需特殊处理
+    source: raw.source || '',
+    external: Boolean(raw.external),
     media_mid: raw.media_mid || raw.strMediaMid || raw.songmid || '',
     songName:
-      raw.songname || raw.songname_hilight?.replace(/<[^>]+>/g, '') || raw.name || raw.title || '',
+      raw.songname ||
+      raw.songName ||
+      raw.songname_hilight?.replace(/<[^>]+>/g, '') ||
+      raw.name ||
+      raw.title ||
+      '',
     singerName: singer,
-    albumName: raw.albumname || raw.album?.name || '',
+    albumName: raw.albumname || raw.albumName || raw.album?.name || '',
     albummid,
     cover,
     duration,
@@ -216,16 +239,21 @@ function mapSongUrlBody(body, type, realMedia) {
   else if (body?.data?.url) url = body.data.url
 
   if (url) {
+    const d = body?.data || {}
     return {
       url,
-      file: body.file || body?.data?.file,
-      domain: body.domain || body?.data?.domain,
-      purl: body.purl || body?.data?.purl,
-      quality: type,
-      mediaId: body.mediaId || realMedia,
-      pay: body.pay || body?.data?.pay,
+      file: body.file || d.file,
+      domain: body.domain || d.domain,
+      purl: body.purl || d.purl,
+      quality: d.quality || type,
+      // 外部平台补充曲带回来的标记：音质只有 128k，来源要能显示出来
+      qualityLabel: d.qualityLabel || '',
+      source: d.source || '',
+      external: Boolean(d.external),
+      mediaId: body.mediaId || d.mediaId || realMedia,
+      pay: body.pay || d.pay,
       refreshed: body.refreshed,
-      playChannel: body.playChannel,
+      playChannel: body.playChannel || d.playChannel,
     }
   }
   return emptyUrlResult(type, body?.mediaId || realMedia, {
@@ -390,20 +418,22 @@ export async function songUrlBest(
       }
 
       tried.push(`${type}:ok`)
+      // 外部平台补充曲：链是固定的 128k，音质标签用 API 返回的（别谎报 FLAC）
+      const isExt = Boolean(r.external)
       logInfo(
-        `音质选定: ${type} (${QUALITY_LABEL[type] || type}) ch=${r.playChannel || 'auto'} [${tried.join(', ')}]`
+        `音质选定: ${isExt ? r.qualityLabel || r.source : type} ch=${r.playChannel || 'auto'} [${tried.join(', ')}]`
       )
       return {
         ...r,
-        quality: type,
-        qualityLabel: QUALITY_LABEL[type] || type,
+        quality: isExt ? r.quality || '128' : type,
+        qualityLabel: isExt ? r.qualityLabel || r.quality || '128k' : QUALITY_LABEL[type] || type,
         mediaId: realMedia,
         adaptedFrom: preferred,
         predicted,
         tried,
         playChannel: r.playChannel,
         mvVid,
-        degradeNote: buildDegradeNote(preferred, type, tried),
+        degradeNote: isExt ? '' : buildDegradeNote(preferred, type, tried),
       }
     } catch (e) {
       lastErr = e

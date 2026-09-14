@@ -13,7 +13,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase()
 
-import { searchSongs, songUrlBest, lyric, hotKeys, songInfoBatch } from '../utils/api.js'
+import { searchSongs, songUrlBest, lyric, hotKeys, songInfoBatch, SOURCE_LABEL } from '../utils/api.js'
 import { pickSession, getUserSession, setSession } from '../utils/session.js'
 import { deliverSong, sendNativeMusicCard } from '../utils/send.js'
 import { QUALITY_LABEL } from '../utils/quality.js'
@@ -31,10 +31,15 @@ const RE_LYRIC = /^#?(?:qq|QQ)m\s*歌词\s*(.+)$/
 function formatListText(list) {
   const lines = list.map((s, i) => {
     const pay = s.payplay ? ' [付费]' : ''
+    const src = s.source ? ` [${SOURCE_LABEL[s.source] || s.source}·128k]` : ''
     const mv = s.mvVid ? ' 🎬' : ''
-    return `${i + 1}. ${s.songName} - ${s.singerName}${pay}${mv}${s.duration ? ` (${s.duration})` : ''}`
+    return `${i + 1}. ${s.songName} - ${s.singerName}${pay}${src}${mv}${s.duration ? ` (${s.duration})` : ''}`
   })
-  return `♫ QQ音乐点歌结果（#qqm听序号 或 #听序号；🎬=有MV，可 #qqmMV 播放 序号）\n${lines.join('\n')}`
+  const hasExt = list.some((s) => s.source)
+  return (
+    `♫ QQ音乐点歌结果（#qqm听序号 或 #听序号；🎬=有MV，可 #qqmMV 播放 序号）` +
+    `${hasExt ? '\n（[网易云]/[酷我] 等标记为其它平台的免费补充曲，128k）' : ''}\n${lines.join('\n')}`
+  )
 }
 
 async function resolvePlay(song, cfg, userKey = '') {
@@ -218,7 +223,11 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const cardData = buildDetailCardData(song, {
         qualityLabel: play.qualityLabel || play.quality || '',
         payplay: Boolean(song.payplay),
-        source: fallback ? '群内最近歌单' : '点歌',
+        source: song.source
+          ? `${SOURCE_LABEL[song.source] || song.source} 128k`
+          : fallback
+            ? '群内最近歌单'
+            : '点歌',
         hasUrl: Boolean(play.url),
         mvVid,
         degradeNote: play.degradeNote || '',
@@ -293,7 +302,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         const cardData = buildDetailCardData(song, {
           qualityLabel: play.qualityLabel || play.quality || '',
           payplay: Boolean(song.payplay),
-          source: '播放',
+          source: song.source ? `${SOURCE_LABEL[song.source] || song.source} 128k` : '播放',
           hasUrl: Boolean(play.url),
           mvVid: play.mvVid || '',
           degradeNote: play.degradeNote || '',
