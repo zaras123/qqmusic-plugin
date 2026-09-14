@@ -121,10 +121,12 @@ async function onLoginSuccess(e, info = {}) {
       nick ? `昵称: ${nick}` : '',
       hasKey === false ? '⚠️ 未拿到 key，付费曲可能仍无法播放' : '',
       meta?.hasRefresh ? '含 refresh 材料，过期可自动续期' : '⚠️ 无 refresh，过期后需重新扫码',
-      // 微信扫一扫走的是网页级会话；若后续刷新升不上去，付费曲会没权限 —— 直接把备选路径说清楚
-      channel === 'webqr-wx'
-        ? '提示：微信扫一扫为网页级会话，付费曲若提示无权限，请改用 #qqm登录qq（用 QQ音乐 App 扫码）'
-        : '',
+      // 按实际走的通道给提示（PC 流程 = 复刻 PC 客户端参数，最接近能播付费曲的那种登录态）
+      channel === 'webqr-pc'
+        ? '通道：PC 客户端流程（与 PC 端同参数）。若付费曲仍无权限，多为账号本身无会员，可改用 #qqm登录qq'
+        : channel === 'webqr-wx'
+          ? '提示：网页级会话，付费曲若提示无权限，请改用 #qqm登录qq（用 QQ音乐 App 扫码）'
+          : '',
       '正在生成状态卡片…',
     ]
       .filter(Boolean)
@@ -520,7 +522,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           .join('\n')
       )
 
-      this.startWebQrPoll(e, sessionId, Number(expiresIn || 180), wantWx)
+      this.startWebQrPoll(e, sessionId, Number(expiresIn || 180), wantWx, data.mode || '')
     } catch (err) {
       await e.reply(`扫码登录失败：${err.message}`)
     }
@@ -528,7 +530,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
   }
 
   /** webqr 会话轮询 */
-  startWebQrPoll(e, sessionId, expiresIn, isWx = false) {
+  startWebQrPoll(e, sessionId, expiresIn, isWx = false, apiMode = '') {
     const userId = e.user_id
     const userKey = String(userId || '')
     const started = Date.now()
@@ -569,7 +571,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
             uin: data.uin,
             nick: data.nick,
             hasKey: true,
-            channel: isWx ? 'webqr-wx' : 'webqr',
+            channel: apiMode === 'pc' ? 'webqr-pc' : isWx ? 'webqr-wx' : 'webqr',
           })
           return
         }
