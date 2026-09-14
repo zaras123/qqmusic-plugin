@@ -79,8 +79,8 @@ const cases = [
   // 登录 / 账号
   ['#qqm登录', 'startWebQrLogin'],
   ['#QQ音乐登录', 'startWebQrLogin'],
-  ['#qqm登录微信', 'startQrLogin'], // 微信走 App 扫码通道
-  ['#qqm登录wx', 'startQrLogin'],
+  ['#qqm登录微信', 'startWebQrLogin'], // 微信走网页微信码（用户用微信扫一扫）
+  ['#qqm登录wx', 'startWebQrLogin'],
   ['#qqm登录qq', 'startQrLogin'],
   ['#qqm登录app', 'startQrLogin'],
   ['#qqm状态', 'loginStatus'],

@@ -173,21 +173,21 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       priority: 450,
       rule: [
         {
-          // 微信：走 QQ音乐 App 扫码通道（MQTT），用微信扫这张码
-          // 实测（2026-09）：这条通道拿到的是 App 级会话，付费曲能出 purl；
-          // 而网页扫码（webqr）的微信码换出来是网页级会话，付费曲永远没 purl（服务端 code=1000）
+          // 微信：走「网页微信码」通道 —— 用户用微信扫一扫即可，不需要 QQ音乐 App
+          // （webqr 返回微信码 + QQ码，插件按消息里的「微信」选用微信码；
+          //   登录态由浏览器内 OAuth 自动完成并被 API 捕获，随后 API 会用 App 真实参数形状刷新升级）
           reg: '^#?(qq|QQ)m(登录|登陆)(微信|wx)$|^#?(qq|QQ)音乐(登录|登陆)(微信|wx)$',
-          fnc: 'startQrLogin',
+          fnc: 'startWebQrLogin',
           permission: 'master',
         },
         {
-          // 统一登录命令：#qqm登录（网页扫码，一张 QQ 码，覆盖 QQ + QQ音乐 App 用户）
+          // 统一登录命令：#qqm登录（网页扫码，一张 QQ 码）
           reg: '^#?(qq|QQ)m(登录|登陆)$|^#?(qq|QQ)音乐(登录|登陆)$',
           fnc: 'startWebQrLogin',
           permission: 'master',
         },
         {
-          // QQ音乐 App 扫码（MQTT 通道）：#qqm登录qq
+          // QQ音乐 App 扫码（MQTT 通道）：App 内授权，凭证等级最高
           reg: '^#?(qq|QQ)m登录(qq|app)$',
           fnc: 'startQrLogin',
           permission: 'master',
@@ -273,13 +273,12 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         [
           wantWx
             ? [
-                '请用「QQ音乐 App」扫码 —— App 里用你的微信账号登录即可',
-                '⚠️ 别用微信/QQ 的扫一扫直接扫这个码，会提示 scanned by another APP',
-                '（这张码绑定 tmeAppID=qqmusic，只有 QQ音乐 App 能扫，且只有它给的会话能播付费曲）',
+                '请用【微信】扫一扫这张码（不需要 QQ音乐 App）',
+                '扫完确认后会自动登录；若付费曲仍提示无权限，说明该账号没有会员或需改用 #qqm登录qq',
               ].join('\n')
             : tips || '请使用 QQ / 微信 / QQ音乐 App 扫码',
-          `二维码 ${Math.round((expiresIn || 900) / 60)} 分钟内有效`,
-          imgSent ? '' : '（图片发送失败可重新发命令）',
+          `二维码 ${Math.round((expiresIn || 180) / 60)} 分钟内有效`,
+          imgSent >= codes.length ? '' : '（图片发送失败可重新发命令）',
         ]
           .filter(Boolean)
           .join('\n')
