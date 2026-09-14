@@ -36,6 +36,12 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
           permission: 'master',
         },
         {
+          // 点歌增强开关：接管无前缀 #点歌 / 其它平台补充曲
+          reg: '^#?(qq|QQ)m\\s*(默认点歌|补充曲)\\s*(开启|关闭|开|关)$',
+          fnc: 'toggleExtra',
+          permission: 'master',
+        },
+        {
           reg: '^#?(qq|QQ)m\\s*音质\\s*(128|m4a|320|flac|ape|hires|atmos|master|atmos_master)$',
           fnc: 'setQuality',
           permission: 'master',
@@ -118,14 +124,19 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         `音质: ${c.quality}（自动降级: ${c.qualityFallback !== false}）  列表: ${c.maxList}`,
         `语音: ${c.sendVocal}  群文件: ${c.uploadFile}`,
         `原生卡: ${c.sendNativeCard}  自定义卡: ${c.sendCustomCard}`,
+        `默认点歌: ${c.defaultPickSong === true ? '开' : '关'}（接管无前缀 #点歌）  补充曲: ${
+          c.extraSources === true ? '开' : '关'
+        }（其它平台免费曲）`,
         '',
         '主人命令：',
         '#qqm登录          扫码绑定（QQ 码）',
-        '#qqm登录微信      微信扫码（备用）',
+        '#qqm登录微信      用微信扫 App 码（付费曲可播）',
         '#qqm状态 / #qms   状态图片卡片',
         '#qqm绑定 qqmusic://...  （DeepLink 导入）',
         '#qqm api <地址>   （设置 API 地址）',
         '#qqm 开启点歌 / #qqm 关闭解析',
+        '#qqm 默认点歌 开/关   接管无前缀「#点歌」',
+        '#qqm 补充曲 开/关     其它平台免费曲补进列表',
         '#qqm 音质 flac',
         '#qqm 测试',
         `#qqm更新          拉取最新代码（当前 v${getLocalVersion()}）`,
@@ -155,6 +166,27 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
     const patch = m[2] === '点歌' ? { enableSongRequest: on } : { enableResolve: on }
     Config.mergeConfig('qqmusic', patch)
     await e.reply(`已${m[1]}${m[2]}`)
+    return true
+  }
+
+  /** #qqm 默认点歌 开/关 ；#qqm 补充曲 开/关 */
+  async toggleExtra(e) {
+    const m = String(e.msg || '').match(/(默认点歌|补充曲)\s*(开启|关闭|开|关)/)
+    if (!m) return true
+    const on = m[2] === '开启' || m[2] === '开'
+    const isDefaultPick = m[1] === '默认点歌'
+    Config.mergeConfig('qqmusic', isDefaultPick ? { defaultPickSong: on } : { extraSources: on })
+    await e.reply(
+      isDefaultPick
+        ? `已${on ? '开启' : '关闭'}「接管无前缀 #点歌」` +
+            (on
+              ? '\n现在发送「#点歌 关键词」由本插件处理（若其它点歌插件优先级更高，仍可能被它们先接走）'
+              : '\n不加 #qqm 前缀的点歌交还给其它插件')
+        : `已${on ? '开启' : '关闭'}「其它平台补充曲」` +
+            (on
+              ? '\n点歌列表尾部会追加网易云/酷我的免费曲（128k，可用 #qqm听序号 播放）'
+              : '\n点歌列表只显示 QQ 音乐的结果')
+    )
     return true
   }
 

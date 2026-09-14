@@ -24,6 +24,8 @@ import { logError, logWarn } from '../utils/log.js'
 
 /** 匹配 #qqm点歌 / #qqm 点歌 等 */
 const RE_PICK = /^#?(?:qq|QQ)m\s*点歌\s*(.+)$/
+/** 无前缀「#点歌 关键词」—— 仅在锅巴开启「接管无前缀点歌」后响应 */
+const RE_PICK_PLAIN = /^#?点歌\s*(.+)$/
 const RE_LISTEN = /^#?(?:qq|QQ)m\s*听\s*([1-9][0-9]?)$|^#听\s*([1-9][0-9]?)$/
 const RE_PLAY = /^#?(?:qq|QQ)m\s*播放\s*(.+)$/
 const RE_LYRIC = /^#?(?:qq|QQ)m\s*歌词\s*(.+)$/
@@ -84,6 +86,11 @@ export class qqmusicSong extends (await loadPluginBase()) {
           fnc: 'pickSong',
         },
         {
+          // 无前缀「#点歌」：只在锅巴开启「接管无前缀点歌」后响应，未开启时返回 false 让给其它插件
+          reg: '^#?点歌\\s*(.+)$',
+          fnc: 'pickSongDefault',
+        },
+        {
           // #qqm听N 正式指令；#听N 仅在本插件会话存在时响应（不抢其它插件）
           reg: '^#?(qq|QQ)m\\s*听\\s*([1-9][0-9]?)$|^#听\\s*([1-9][0-9]?)$',
           fnc: 'chooseSong',
@@ -112,11 +119,19 @@ export class qqmusicSong extends (await loadPluginBase()) {
     return getCfg()
   }
 
+  /** 无前缀「#点歌」：配置开启才接管，否则放行给其它点歌插件 */
+  async pickSongDefault(e) {
+    const cfg = this.cfg()
+    if (cfg.defaultPickSong !== true) return false
+    return this.pickSong(e)
+  }
+
   async pickSong(e) {
     const cfg = this.cfg()
     if (!cfg.enable || cfg.enableSongRequest === false) return false
 
-    const m = String(e.msg || '').trim().match(RE_PICK)
+    const msg = String(e.msg || '').trim()
+    const m = msg.match(RE_PICK) || msg.match(RE_PICK_PLAIN)
     const keyword = m?.[1]?.trim()
     if (!keyword) {
       await e.reply('用法：#qqm点歌 关键词')
@@ -129,6 +144,8 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const list = await searchSongs(keyword, {
         pageSize: Math.min(Number(cfg.maxList) || 10, 20),
         userKey,
+        // 补充曲：默认关闭，锅巴开启后才去其它平台补免费曲
+        fill: cfg.extraSources === true,
       })
       if (!list.length) {
         await e.reply('没有搜到相关歌曲')

@@ -109,6 +109,24 @@ export const schemas = [
   },
   {
     component: 'Divider',
+    label: '点歌增强',
+  },
+  {
+    field: 'defaultPickSong',
+    label: '接管无前缀「#点歌」',
+    bottomHelpMessage:
+      '开启后：「#点歌 关键词」由本插件处理（不加 #qqm 前缀）。默认关闭，以免与其它点歌插件抢命令',
+    component: 'Switch',
+  },
+  {
+    field: 'extraSources',
+    label: '其它平台补充曲',
+    bottomHelpMessage:
+      '开启后：点歌列表尾部追加网易云/酷我的免费曲（128k，实测免登录可播）。默认关闭',
+    component: 'Switch',
+  },
+  {
+    component: 'Divider',
     label: '发送方式',
   },
   {
