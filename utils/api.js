@@ -70,6 +70,8 @@ function emptyUrlResult(type, mediaId, extra = {}) {
     refreshed: undefined,
     refreshReason: undefined,
     triedChannels: undefined,
+    tried: undefined,
+    achieved: '',
     raw: undefined,
     ...extra,
   }
@@ -286,7 +288,9 @@ function mapSongUrlBody(body, type, realMedia) {
       file: body.file || d.file,
       domain: body.domain || d.domain,
       purl: body.purl || d.purl,
-      quality: d.quality || type,
+      // API 的 QQ 阶梯把 quality 放在响应顶层；外部平台补充曲放在 data 里 —— 两处都认
+      quality: d.quality || body.quality || type,
+      tried: d.tried || body.tried || undefined, // API 侧音质阶梯的逐档记录
       // 外部平台补充曲带回来的标记：来源与档位要能显示出来（别谎报 FLAC）
       qualityLabel: d.qualityLabel || '',
       source: d.source || '',
@@ -310,19 +314,22 @@ function mapSongUrlBody(body, type, realMedia) {
 }
 
 /** 单次指定音质 */
-export async function songUrl(songmid, { type = '128', mediaId, channel = 'auto', userKey = '' } = {}) {
+export async function songUrl(
+  songmid,
+  { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '' } = {}
+) {
   const realMedia = mediaId || songmid
+  // quality + fallback 交给 API 侧的音质阶梯（一次请求内部逐级下探）
+  const params = { id: songmid, mediaId: realMedia, channel }
+  if (quality) params.quality = quality
+  else params.type = type
+  if (Number(fallback) === 1) params.fallback = 1
   try {
-    const body = await request('/song/url', {
-      id: songmid,
-      type,
-      mediaId: realMedia,
-      channel,
-    }, 'post', userKey)
-    return mapSongUrlBody(body, type, realMedia)
+    const body = await request('/song/url', params, 'post', userKey)
+    return mapSongUrlBody(body, quality || type, realMedia)
   } catch (e) {
     const p = e.payload || {}
-    return emptyUrlResult(type, p.mediaId || realMedia, {
+    return emptyUrlResult(quality || type, p.mediaId || realMedia, {
       raw: p,
       tip: p.errMsg || p.tip || e.message || '',
       retcode: p.retcode ?? e.retcode,
@@ -331,6 +338,8 @@ export async function songUrl(songmid, { type = '128', mediaId, channel = 'auto'
       refreshed: p.refreshed,
       refreshReason: p.refreshReason,
       triedChannels: p.triedChannels,
+      tried: Array.isArray(p.tried) ? p.tried : undefined, // 阶梯逐档记录
+      achieved: p.achieved || '',
       error: e.message,
     })
   }
@@ -399,105 +408,112 @@ function buildDegradeNote(preferred, achieved, tried) {
 /**
  * 最高音质 + 自适配降级
  */
+/** 音质阶梯里比 q 低一档（用于客户端探活失败后继续下探）；没有更低档返回 '' */
+function nextQualityBelow(q) {
+  const i = QUALITY_LADDER.indexOf(String(q))
+  if (i < 0 || i + 1 >= QUALITY_LADDER.length) return ''
+  return QUALITY_LADDER[i + 1]
+}
+
 export async function songUrlBest(
   songmid,
   { quality = 'flac', mediaId, fallback = true, probe = true, userKey = '' } = {}
 ) {
   const preferred = String(quality || 'flac').toLowerCase()
-  const list = qualityCandidates(preferred, fallback !== false)
   let realMedia = mediaId || songmid
-  let sizeInfo = null
-  let predicted = ''
   let mvVid = ''
 
-  // 补充曲（ne_/kw_ 前缀）是别家平台的 id，QQ 的详情接口查不到，跳过这一步省一次请求
+  // 补充曲（ne_/kw_/bi_ 前缀）走外部平台：没有音质阶梯
   const isExternalMid = /^(ne|kw|bi)_/.test(String(songmid))
   if (!isExternalMid) {
     try {
       const detail = await songDetail(songmid, userKey)
       const file = detail?.track_info?.file || detail?.file || {}
       realMedia = mediaId || file.media_mid || file.master_tape_media_mid || songmid
-      sizeInfo = file
-      predicted = pickBestAvailableQuality(file, preferred)
       mvVid = detail?.track_info?.mv?.vid || ''
       const sz = summarizeFileSizes(file)
       logInfo(
-        `音质自适配: 上限=${preferred} 预判=${predicted || 'unknown'} 候选=${list.join('→')} sizes(flac=${sz.flac},hires=${sz.hires},dolby=${sz.dolby},new0=${sz.new0},new2=${sz.new2},new10=${sz.new10})`
+        `音质自适配: 上限=${preferred}（逐档下探交由 API）sizes(flac=${sz.flac},hires=${sz.hires},dolby=${sz.dolby},new0=${sz.new0},new2=${sz.new2},new10=${sz.new10})`
       )
     } catch {
-      logInfo(`音质自适配: 上限=${preferred}（无详情 size，将逐级探测）`)
+      logInfo(`音质自适配: 上限=${preferred}（无详情 size，交由 API 阶梯判断）`)
     }
   }
 
-  let lastErr = null
   const tried = []
+  let askFrom = preferred
+  let lastResult = null
+  let lastErr = null
 
-  for (const type of list) {
-    if (sizeInfo && !isQualitySizeOk(type, sizeInfo)) {
-      tried.push(`${type}:skip-size`)
-      continue
-    }
+  // 音质阶梯已挪到 API：一次请求内部就从请求档位逐级下探到可用档。
+  // 插件只按「客户端探活」结果继续下探 —— 下载发生在机器人主机，
+  // 那条链能不能下只有这里知道（API 那边看不到机器人的网络）。
+  for (let round = 0; round < 3; round++) {
+    let r = null
     try {
-      const r = await songUrl(songmid, { type, mediaId: realMedia, userKey })
-      if (!r?.url) {
-        tried.push(`${type}:no-url`)
-        lastErr = Object.assign(new Error(r.tip || `${type} 无播放链`), {
-          payload: r.raw || r,
-          pay: r.pay,
-          retcode: r.retcode,
-        })
-        continue
-      }
-
-      const fileName = String(r.file || r.url || '')
-      if (/RS01|RS02|Q000/i.test(fileName) && sizeInfo && !isQualitySizeOk(type, sizeInfo)) {
-        tried.push(`${type}:skip-fake-file`)
-        continue
-      }
-
-      if (probe !== false) {
-        const ok = await probeUrlAlive(r.url)
-        if (!ok) {
-          tried.push(`${type}:cdn-dead`)
-          logWarn(`${type} 链接不可用，降级…`)
-          lastErr = new Error(`${type} CDN 不可用`)
-          continue
-        }
-      }
-
-      tried.push(`${type}:ok`)
-      // 外部平台补充曲：档位由 API 给出（网易云/酷我 128k、B站 192k），别谎报 FLAC
-      const isExt = Boolean(r.external)
-      logInfo(
-        `音质选定: ${isExt ? r.qualityLabel || r.source : type} ch=${r.playChannel || 'auto'} [${tried.join(', ')}]`
-      )
-      return {
-        ...r,
-        quality: isExt ? r.quality || '128' : type,
-        qualityLabel: isExt ? r.qualityLabel || r.quality || '128k' : QUALITY_LABEL[type] || type,
+      r = await songUrl(songmid, {
+        quality: askFrom,
+        fallback: fallback !== false ? 1 : 0,
         mediaId: realMedia,
-        adaptedFrom: preferred,
-        predicted,
-        tried,
-        playChannel: r.playChannel,
-        mvVid,
-        degradeNote: isExt ? '' : buildDegradeNote(preferred, type, tried),
-      }
+        userKey,
+      })
     } catch (e) {
       lastErr = e
       if (e?.payload?.pay) lastErr.pay = e.payload.pay
-      if (!lastErr.payload && e?.payload) lastErr.payload = e.payload
-      tried.push(`${type}:err`)
+      if (Array.isArray(e?.payload?.tried)) tried.push(...e.payload.tried)
+      break
+    }
+
+    lastResult = r
+    if (Array.isArray(r?.tried) && r.tried.length) tried.push(...r.tried)
+
+    if (!r?.url) {
+      const pl = r?.raw || r || {}
+      lastErr = new Error(pl.errMsg || pl.tip || '获取播放链接失败')
+      lastErr.payload = pl
+      if (pl.pay) lastErr.pay = pl.pay
+      break
+    }
+
+    const isExt = Boolean(r.external)
+    if (!isExt && probe !== false) {
+      const ok = await probeUrlAlive(r.url)
+      if (!ok) {
+        tried.push(`${r.quality}:cdn-dead`)
+        logWarn(`${r.quality} 链接不可用，继续下探…`)
+        const next = nextQualityBelow(r.quality)
+        if (!next || fallback === false) {
+          lastErr = new Error(`${r.quality} CDN 不可用`)
+          lastErr.payload = r.raw || r
+          break
+        }
+        askFrom = next
+        continue
+      }
+    }
+
+    tried.push(`${r.quality}:ok`)
+    logInfo(
+      `音质选定: ${isExt ? r.qualityLabel || r.source : r.quality} ch=${r.playChannel || 'auto'} [${tried.join(', ')}]`
+    )
+    return {
+      ...r,
+      quality: r.quality,
+      qualityLabel: isExt
+        ? r.qualityLabel || r.quality || '128k'
+        : r.qualityLabel || QUALITY_LABEL[r.quality] || r.quality,
+      mediaId: r.mediaId || realMedia,
+      adaptedFrom: preferred,
+      tried,
+      mvVid: r.mvVid || mvVid,
+      degradeNote: isExt ? '' : buildDegradeNote(preferred, r.quality, tried),
     }
   }
 
   const hint = tried.length ? ` 已尝试: ${tried.join(', ')}` : ''
-  const payload = lastErr?.payload || lastErr?.raw || {}
+  const payload = lastErr?.payload || lastResult?.raw || lastResult || {}
   const pay = payload.pay || lastErr?.pay
-  const payHint =
-    pay && Number(pay.pay_play) === 1
-      ? ' 该曲需会员播放，请 #qqm登录'
-      : ''
+  const payHint = pay && Number(pay.pay_play) === 1 ? ' 该曲需会员播放，请 #qqm登录' : ''
   const detail = payload.errMsg || payload.tip || lastErr?.message || ''
   const msg = detail
     ? `${detail}${payHint}${hint}`
@@ -507,6 +523,7 @@ export async function songUrlBest(
   else if (hint && !String(err.message).includes('已尝试')) err.message = `${err.message}${hint}`
   if (pay) err.pay = pay
   err.payload = payload
+  err.tried = tried
   throw err
 }
 
