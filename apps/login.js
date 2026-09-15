@@ -465,6 +465,18 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       // ⚠️ 注意：PC 形状换到的凭证**不能播付费曲**（实测无 refresh_key、连 128 都拿不到 purl），
       // API 侧已改成「App 形状优先、PC 形状兜底」，mode=pc 现在只表示"允许 PC 形状兜底"
       const wantWxMsg = /微信|wx/i.test(String(e.msg || ''))
+      // 微信账号建议走 QQ音乐 App 扫码（#qqm登录app）：微信扫一扫这条通道换到的凭证实测
+      // 拿不到付费曲播权，且 key 只有 3 天、不支持自动续期。仍照常生成二维码（有人只是想拿个
+      // 能用的登录态），但把实测结论说在前面，免得又白扫一轮。
+      if (wantWxMsg) {
+        await e.reply(
+          [
+            '⚠️ 微信扫一扫这条通道：实测拿不到付费曲播权，key 仅 3 天且不支持自动续期',
+            '建议改用 #qqm登录app（用 QQ音乐 App 扫码，微信绑定的账号同样适用），播歌正常',
+            '仍需要微信扫码的话，继续为你生成二维码…',
+          ].join('\n')
+        )
+      }
       await e.reply('正在生成登录二维码…')
       const body = await request(
         '/login/webqr',
