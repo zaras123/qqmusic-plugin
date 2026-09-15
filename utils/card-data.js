@@ -193,9 +193,12 @@ export function buildLyricCardData({
  */
 export async function buildSettingsCardData(e = null) {
   const c = Config.getConfig('qqmusic') || {}
+  // ⚠️ 必须带调用者 userKey：多账号下不带就落到 API 的 default 槽，
+  // 会把「另一个账号」的 uin/昵称当成当前登录显示（与 #qqm状态 自相矛盾）
+  const userKey = String(e?.user_id || '')
   let login = { ok: false, text: '查询失败', uin: '', nick: '' }
   try {
-    const st = await request('/login/status')
+    const st = await request('/login/status', {}, 'get', userKey)
     const d = st?.data || {}
     if (d.login) {
       login = {
