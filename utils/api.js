@@ -340,8 +340,10 @@ function mapSongUrlBody(body, type, realMedia) {
       pay: body.pay || d.pay,
       refreshed: body.refreshed,
       playChannel: body.playChannel || d.playChannel,
-      // 加密文件（.mflac/.mgg）：API 会一并下发 ekey，下载后要先解密（utils/drm.js）
+      // 加密文件（.mflac/.mgg）：API 会一并下发 ekey / purl 里的 vkey，
+      // 下载后要先解密（utils/drm.js 会把它们逐个当密钥候选试）
       ekey: body.ekey || d.ekey || '',
+      vkey: body.vkey || d.vkey || '',
       encrypted: Boolean(body.encrypted || d.encrypted),
     }
   }

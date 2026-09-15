@@ -953,10 +953,21 @@ export async function deliverSong(e, song, play, options = {}) {
     size = dl.size
     // 加密文件（.mflac/.mgg）：VIP 曲目服务端只给加密文件，先解密再用。
     // 解不开就抛错走失败回落 —— 绝不把解不开的文件当音频发出去（drm.js 里有魔数校验）
-    if (play.encrypted && play.ekey) {
+    if (play.encrypted && (play.ekey || play.vkey)) {
       const { decryptQmcBuffer } = await import('./drm.js')
       const raw = fs.readFileSync(dl.filePath)
-      const r = decryptQmcBuffer(raw, play.ekey, play.file || play.url || '')
+      // 密钥候选：API 给的 ekey，以及 purl 里带的 vkey（真机抓包显示客户端下载 URL 上只有 vkey）。
+      // drm.js 逐个试并用**音频魔数**判定哪个对 —— 解错会被拦下，不会静默出错。
+      let r = { ok: false, reason: '没有可用密钥' }
+      let keyFrom = ''
+      for (const [label, k] of [['ekey', play.ekey], ['vkey', play.vkey]]) {
+        if (!k) continue
+        r = decryptQmcBuffer(raw, k, play.file || play.url || '')
+        if (r.ok) {
+          keyFrom = label
+          break
+        }
+      }
       if (!r.ok) throw new Error(`加密文件解密失败：${r.reason}`)
       const outExt = r.format === 'ogg' ? '.ogg' : r.format === 'mp3' ? '.mp3' : '.flac'
       const outPath = dl.filePath.replace(/\.[^.]+$/, '') + outExt
@@ -968,7 +979,7 @@ export async function deliverSong(e, song, play, options = {}) {
       }
       logInfo(
         `加密文件已解密: ${path.basename(outPath)} ${formatSize(r.data.length)}` +
-          `（Map 变体 ${r.variant}，密钥 ${r.keyLen} 字节）`
+          `（Map 变体 ${r.variant}，密钥 ${r.keyLen} 字节，来源 ${keyFrom}）`
       )
       localPath = outPath
       size = r.data.length
