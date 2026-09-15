@@ -782,9 +782,10 @@ export function parseQQMusicExtendedIds(text = '') {
   const s = String(text)
   const out = { ...parseQQMusicIds(s) }
 
-  // 专辑
+  // 专辑：PC 端标准分享链接是 /n/ryqq/albumDetail/<mid>（与 songDetail/playlist/singer 同族路由），
+  // 漏掉 albumDetail 会导致最常见的那种专辑链接解析为空、整个专辑解析功能静默失效
   const albumMid =
-    s.match(/\/album\/([A-Za-z0-9]+)/i) ||
+    s.match(/\/(?:albumDetail|album)\/([A-Za-z0-9]+)/i) ||
     s.match(/[?&]albummid=([A-Za-z0-9]+)/i)
   if (albumMid) out.albummid = out.albummid || albumMid[1]
 
