@@ -121,9 +121,11 @@ async function onLoginSuccess(e, info = {}) {
       nick ? `昵称: ${nick}` : '',
       hasKey === false ? '⚠️ 未拿到 key，付费曲可能仍无法播放' : '',
       meta?.hasRefresh ? '含 refresh 材料，过期可自动续期' : '⚠️ 无 refresh，过期后需重新扫码',
-      // 按实际走的通道给提示（PC 流程 = 复刻 PC 客户端参数，最接近能播付费曲的那种登录态）
+      // 微信走「PC 流程」，但换码形状已由 API 侧改成 App 形状优先、PC 形状兜底：
+      // 实测 PC 形状换到的是网页级凭证（无 refresh_key、付费曲拿不到 purl），
+      // 故这里不再说「多为账号本身无会员」——那会把人往错方向带
       channel === 'webqr-pc'
-        ? '通道：PC 客户端流程（与 PC 端同参数）。若付费曲仍无权限，多为账号本身无会员，可改用 #qqm登录qq'
+        ? '通道：微信扫码（已优先用 App 级凭证换码，失败才回落 PC 网页形状）。若付费曲仍无权限，可改用 #qqm登录qq 对照'
         : channel === 'webqr-wx'
           ? '提示：网页级会话，付费曲若提示无权限，请改用 #qqm登录qq（用 QQ音乐 App 扫码）'
           : '',
@@ -458,8 +460,9 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const userKey = String(e.user_id || '')
 
     try {
-      // 微信登录走「PC 客户端流程」：PC 端能播付费曲，且与网页端同一个 appid，
-      // 差别只在换码参数形状（API 侧 mode=pc，失败会自动回落到常规网页扫码）
+      // 微信登录走「PC 流程」（mode=pc）：与网页端同一个 appid，只是换码参数形状不同。
+      // ⚠️ 注意：PC 形状换到的凭证**不能播付费曲**（实测无 refresh_key、连 128 都拿不到 purl），
+      // API 侧已改成「App 形状优先、PC 形状兜底」，mode=pc 现在只表示"允许 PC 形状兜底"
       const wantWxMsg = /微信|wx/i.test(String(e.msg || ''))
       await e.reply('正在生成登录二维码…')
       const body = await request(
