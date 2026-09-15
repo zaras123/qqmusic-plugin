@@ -3,7 +3,7 @@
  */
 import Config from '../components/Config.js'
 import { QUALITY_LABEL } from './quality.js'
-import { request, SOURCE_LABEL, sourceIconOf } from './api.js'
+import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
 
@@ -232,6 +232,24 @@ export async function buildSettingsCardData(e = null) {
   const apiHint = c.apiBase ? `API · ${apiBaseView.replace(/^https?:\/\//, '')}` : 'API 未配置'
 
   const onOff = (v) => (v === false ? '关' : '开')
+  // 公共账号：没登录的群友点歌回落到这个号（留空=不启用）
+  const publicAccount = String(c.publicAccount || c.public_account || '').trim()
+  // 配了公共账号、但那个号其实没登录 = 静默失效（回落不生效却看不出原因），查一次并标注。
+  // 查不到（API 异常）时不下结论，避免误报。
+  let publicAccountReady = null
+  if (publicAccount) {
+    try {
+      const list = await listAccounts()
+      publicAccountReady = list.some((a) => String(a.userKey) === publicAccount)
+    } catch {
+      publicAccountReady = null
+    }
+  }
+  const publicAccountText = !publicAccount
+    ? '未启用'
+    : publicAccountReady === false
+      ? `${publicAccount} · ⚠️ 该账号未登录，回落不会生效`
+      : `${publicAccount} · 未登录者点歌回落`
 
   return {
     title: 'QQ音乐设置',
@@ -255,6 +273,8 @@ export async function buildSettingsCardData(e = null) {
     loginText: login.text,
     loginUin: login.uin,
     loginNick: login.nick,
+    publicAccount,
+    publicAccountText,
     adapterName: adapter.name,
     adapterKind: adapter.kind,
     adapterId: adapter.id,
@@ -269,6 +289,7 @@ export async function buildSettingsCardData(e = null) {
     rows: [
       { k: 'API', v: apiBaseView },
       { k: '登录', v: login.text },
+      { k: '公共账号', v: publicAccountText },
       { k: '适配器', v: `${adapter.name} (${adapter.kind})` },
       { k: '音质', v: `${qualityLabel}${c.qualityFallback !== false ? ' · 自动降级' : ''}` },
       { k: '列表数', v: String(Number(c.maxList) || 10) },
@@ -318,6 +339,7 @@ export function formatSettingsText(data) {
     `enable: ${data.enableRaw !== false}`,
     `apiBase: ${data.apiBase}`,
     `login: ${data.loginText}`,
+    `公共账号: ${data.publicAccountText || '未启用（留空）'}`,
     `adapter: ${data.adapterName} (${data.adapterKind})`,
     `点歌: ${data.song}  解析: ${data.resolve}  列表卡: ${data.listCard}`,
     `音质: ${data.qualityKey}（自动降级: ${data.qualityFallback}）  列表: ${data.maxList}`,

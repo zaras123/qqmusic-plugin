@@ -57,6 +57,16 @@ function sanitizeForHeader(value) {
     .trim()
 }
 
+/**
+ * 公共账号（QQ 号）：群友自己没登录时，播歌回落到这个已登录的账号（通常是主人的 VIP 号）。
+ * 留空 = 不启用（默认），行为与没这个功能时完全一致。
+ * 回落只发生在「播歌 / 取数据」类接口 —— 登录状态、取 CK、刷新都仍只看请求者本人。
+ */
+function getPublicAccount() {
+  const cfg = Config.getConfig('qqmusic') || {}
+  return sanitizeForHeader(cfg.publicAccount || cfg.public_account || '')
+}
+
 function emptyUrlResult(type, mediaId, extra = {}) {
   return {
     url: '',
@@ -88,6 +98,12 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
   const headers = {}
   const safeUserKey = sanitizeForHeader(userKey)
   if (safeUserKey) headers['x-qqmusic-user'] = safeUserKey
+  // 公共账号：带上就好，是否真的回落由 API 判断（请求者自己登录了就一直用他自己的）
+  const publicAccount = getPublicAccount()
+  if (publicAccount) {
+    params = { ...params, publicUserKey: publicAccount }
+    headers['x-qqmusic-public-user'] = publicAccount
+  }
   if (token) {
     headers['x-api-token'] = token
     headers.Authorization = `Bearer ${token}`
