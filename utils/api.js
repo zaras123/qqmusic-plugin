@@ -432,6 +432,23 @@ function nextQualityBelow(q) {
   return QUALITY_LADDER[i + 1]
 }
 
+/**
+ * 组装「拿不到播放链」的用户可见文案（导出以便单测）
+ *
+ * DRM 曲目要省略「该曲需会员播放，请 #qqm登录」那句：API 已说明该曲**只提供加密文件**，
+ * 登录/会员都解决不了 —— 再追加会员提示是自相矛盾，会把用户往错方向带（实测踩过）。
+ */
+export function buildPlayFailMessage(payload = {}, pay = null, tried = [], detailFallback = '') {
+  const hint = tried.length ? ` 已尝试: ${tried.join(', ')}` : ''
+  const text = String(payload.errMsg || payload.tip || '')
+  const isDrm = Boolean(payload.drm) || /加密文件|加密\(DRM\)|DRM/i.test(text)
+  const payHint = pay && Number(pay.pay_play) === 1 && !isDrm ? ' 该曲需会员播放，请 #qqm登录' : ''
+  const detail = text || detailFallback || ''
+  return detail
+    ? `${detail}${payHint}${hint}`
+    : `所有音质均无可用链接（可 #qqm登录 重新扫码）${payHint}${hint}`
+}
+
 export async function songUrlBest(
   songmid,
   { quality = 'flac', mediaId, fallback = true, probe = true, userKey = '' } = {}
@@ -529,14 +546,10 @@ export async function songUrlBest(
     }
   }
 
-  const hint = tried.length ? ` 已尝试: ${tried.join(', ')}` : ''
   const payload = lastErr?.payload || lastResult?.raw || lastResult || {}
   const pay = payload.pay || lastErr?.pay
-  const payHint = pay && Number(pay.pay_play) === 1 ? ' 该曲需会员播放，请 #qqm登录' : ''
-  const detail = payload.errMsg || payload.tip || lastErr?.message || ''
-  const msg = detail
-    ? `${detail}${payHint}${hint}`
-    : `所有音质均无可用链接（可 #qqm登录 重新扫码）${payHint}${hint}`
+  const hint = tried.length ? ` 已尝试: ${tried.join(', ')}` : ''
+  const msg = buildPlayFailMessage(payload, pay, tried, lastErr?.message || '')
   const err = lastErr || new Error(msg)
   if (!err.message || err.message === 'Error') err.message = msg
   else if (hint && !String(err.message).includes('已尝试')) err.message = `${err.message}${hint}`

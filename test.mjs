@@ -195,7 +195,7 @@ console.log('\n=== 纯函数抽查 ===\n')
 let pureOk = 0
 let pureBad = 0
 try {
-  const { parseQQMusicExtendedIds } = await import('./utils/api.js')
+  const { parseQQMusicExtendedIds, buildPlayFailMessage } = await import('./utils/api.js')
   const { buildMusicFileName, formatSize } = await import('./utils/send.js')
   const { isPluginCommandMsg } = await import('./utils/common.js')
 
@@ -248,6 +248,24 @@ try {
     ['识别 #QQ状态', isPluginCommandMsg('#QQ状态'), true],
     ['识别 #qqm点歌', isPluginCommandMsg('#qqm点歌 晴天'), true],
     ['普通聊天不算命令', isPluginCommandMsg('今天天气不错'), false],
+    // DRM 曲目：服务端只说「仅提供加密文件」，此时再追加「需会员播放，请 #qqm登录」是自相矛盾
+    [
+      'DRM 曲不追加「需会员播放」（登录/会员都解决不了）',
+      /需会员播放/.test(
+        buildPlayFailMessage({ drm: true, errMsg: '该曲仅提供加密文件 DRM' }, { pay_play: 1 }, ['flac:no-url'])
+      ),
+      false,
+    ],
+    [
+      'DRM 判定也认文案里的「加密文件」（不依赖 drm 字段）',
+      /需会员播放/.test(buildPlayFailMessage({ errMsg: '仅提供加密文件' }, { pay_play: 1 }, [])),
+      false,
+    ],
+    [
+      '普通会员曲仍保留「需会员播放」提示',
+      /需会员播放/.test(buildPlayFailMessage({ errMsg: '无链' }, { pay_play: 1 }, [])),
+      true,
+    ],
   ]
 
   for (const [name, got, want] of pure) {
