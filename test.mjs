@@ -79,8 +79,11 @@ const cases = [
   // 登录 / 账号
   ['#qqm登录', 'startWebQrLogin'],
   ['#QQ音乐登录', 'startWebQrLogin'],
-  ['#qqm登录微信', 'startWebQrLogin'], // 微信走网页微信码（用户用微信扫一扫）
-  ['#qqm登录wx', 'startWebQrLogin'],
+  // 2026-09-16：微信改走 QQ音乐 App 扫码（原来走网页微信码）。
+  // 原因是浏览器换码通道拿不到「播放票据」(psrf_*) 与 wid，播放链恒 104003。
+  // 这两条断言以前期望 startWebQrLogin —— 是**旧行为**，随入口一起改。
+  ['#qqm登录微信', 'startQrLogin'],
+  ['#qqm登录wx', 'startQrLogin'],
   ['#qqm登录qq', 'startQrLogin'],
   ['#qqm登录app', 'startQrLogin'],
   ['#qqm状态', 'loginStatus'],

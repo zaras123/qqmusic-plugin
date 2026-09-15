@@ -182,11 +182,18 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       priority: 450,
       rule: [
         {
-          // 微信：走「网页微信码」通道 —— 用户用微信扫一扫即可，不需要 QQ音乐 App
-          // （webqr 返回微信码 + QQ码，插件按消息里的「微信」选用微信码；
-          //   登录态由浏览器内 OAuth 自动完成并被 API 捕获，随后 API 会用 App 真实参数形状刷新升级）
+          // 微信：走「QQ音乐 App 扫码」（MQTT 通道，与 #qqm登录app 同一条）
+          //
+          // 2026-09-16 改动：原来走 /login/webqr 的 PC 网页流程。换掉的原因不是形状问题
+          // （那条路已穷举 6 种换码 × 22 种续期，全部拿不到播权），而是**App 通道送来的是
+          // 整套 cookie** —— 里面可能带浏览器通道根本拿不到的「播放票据」（psrf_*）和 wid，
+          // 而这两样正是客户端能播、我们不能播的已知缺口。
+          // 用户在 QQ音乐 App 内用它自己的微信账号登录后扫这张码即可。
+          //
+          // ⚠️ webqr 那条路**没有删**，仍由下面的 #qqm登录 使用；要回退只需把 fnc 改回
+          // startWebQrLogin（并在消息里带「微信」二字触发 PC 形状）。
           reg: '^#?(qq|QQ)m(登录|登陆)(微信|wx)$|^#?(qq|QQ)音乐(登录|登陆)(微信|wx)$',
-          fnc: 'startWebQrLogin',
+          fnc: 'startQrLogin',
           permission: 'master',
         },
         {
@@ -445,8 +452,12 @@ export class qqmusicLogin extends (await loadPluginBase()) {
   }
 
   /**
-   * 浏览器无感扫码（#qqm登录 / #qqm登录微信）
-   * 一个二维码，微信 / QQ / QQ音乐 App 均可扫；api 侧浏览器内自动完成 OAuth
+   * 浏览器无感扫码（**现在只剩 `#qqm登录`**）
+   *
+   * 2026-09-16：`#qqm登录微信` 已改走 `startQrLogin`（QQ音乐 App 扫码），
+   * 因为浏览器换码通道拿不到「播放票据」（psrf_*）与 wid，播放链恒 104003。
+   * 本方法保留作为回退路径：把上面那条规则的 fnc 改回 startWebQrLogin 即可，
+   * 消息里带「微信」二字仍会触发下面的 PC 形状分支（wantWxMsg）。
    */
 
   async startWebQrLogin(e) {
