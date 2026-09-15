@@ -326,6 +326,19 @@
       font-weight: 800;
     }
 
+    /* 封面：占位图打底，真图盖在上面；图挂了（404）自动移除 → 露出占位，不留破图 */
+    .song-cover.ph {
+      position: relative;
+      overflow: hidden;
+    }
+    .song-cover.ph .cover-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
     /* 来源标签里的小 app 图标 */
     .song-tag .src-icon {
       width: 12px;
@@ -510,7 +523,9 @@
             <div class="song">
               <div class="song-idx">{{song.index}}</div>
               {{if song.cover}}
-              <img class="song-cover" src="{{song.cover}}" referrerpolicy="no-referrer" />
+              <div class="song-cover ph">
+                ♪<img class="cover-img" src="{{song.cover}}" referrerpolicy="no-referrer" onerror="this.remove()" />
+              </div>
               {{else}}
               <div class="song-cover ph">♪</div>
               {{/if}}

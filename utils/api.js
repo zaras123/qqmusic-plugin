@@ -229,9 +229,13 @@ export function normalizeSearchItem(item, idx = 0) {
     ? raw.singer.map((s) => s.name || s.title).filter(Boolean).join(' / ')
     : raw.singername || raw.singerName || raw.singer || ''
   const albummid = raw.albummid || raw.album?.mid || raw.albumMID || ''
+  // 封面：专辑图 → 外部平台自带图 → 专辑 pic → 歌手图（翻唱/UGC 条目常没有专辑 mid）
+  const singerMid = Array.isArray(raw.singer)
+    ? raw.singer[0]?.mid || ''
+    : raw.singermid || raw.singerMid || ''
   const cover = albummid
     ? coverUrl(albummid)
-    : raw.cover || raw.album?.pic || raw.album?.cover || ''
+    : raw.cover || raw.album?.pic || raw.album?.cover || singerCoverUrl(singerMid)
   // 时长：QQ 给秒（interval），外部 provider 统一给毫秒（duration）
   const interval = Number(
     raw.interval || raw.songTime || (raw.duration ? Math.round(Number(raw.duration) / 1000) : 0)
@@ -622,6 +626,12 @@ export function parseQQMusicCard(msg) {
 export function coverUrl(albummid, size = 300) {
   if (!albummid) return ''
   return `https://y.gtimg.cn/music/photo_new/T002R${size}x${size}M000${albummid}.jpg`
+}
+
+/** 歌手头像：无专辑图时的兜底（翻唱/上传/UGC 条目常没有专辑 mid，但有歌手 mid） */
+export function singerCoverUrl(singermid, size = 300) {
+  if (!singermid) return ''
+  return `https://y.gtimg.cn/music/photo_new/T001R${size}x${size}M000${singermid}.jpg`
 }
 
 // ──────────── 排行榜 ────────────
