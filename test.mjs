@@ -198,6 +198,7 @@ try {
   const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint } = await import('./utils/api.js')
   const { buildMusicFileName, formatSize } = await import('./utils/send.js')
   const { isPluginCommandMsg } = await import('./utils/common.js')
+  const drm = await import('./utils/drm.js')
 
   const pure = [
     // 专辑链接三种分享形态都要认得（少一种 = 那类链接用户发了没反应）
@@ -295,6 +296,43 @@ try {
       true,
     ],
     ['未登录时不输出续期提示', loginRenewHint({ login: false, hasRefresh: true }), ''],
+    // 加密文件解密（DRM）：算法对不对要真机样本才能定，但「解不开必须拦住、绝不把
+    // 解不开的文件当音频发出去」这条守卫现在就要成立
+    ['DRM 目标格式 .mflac → flac', drm.targetFormatOf('F0M0abc.mflac'), 'flac'],
+    ['DRM 目标格式 .mgg → ogg', drm.targetFormatOf('O6M0abc.mgg'), 'ogg'],
+    ['DRM ekey 为空被拒', drm.parseEkey('').ok, false],
+    ['DRM ekey 过短被拒', drm.parseEkey(Buffer.from('tiny').toString('base64')).ok, false],
+    [
+      'DRM EncV2 ekey 明确报「未实现」而不是当原始密钥用',
+      drm.parseEkey(Buffer.from('QQMusic EncV2,Key:abcdefgh').toString('base64')).kind,
+      'encv2',
+    ],
+    ['DRM 原始 ekey 可用', drm.parseEkey(Buffer.alloc(64, 7).toString('base64')).ok, true],
+    [
+      'DRM 魔数校验：真 FLAC 头通过',
+      drm.looksLikeAudio(Buffer.concat([Buffer.from('fLaC', 'latin1'), Buffer.alloc(16)]), 'flac'),
+      true,
+    ],
+    ['DRM 魔数校验：乱码被拦', drm.looksLikeAudio(Buffer.from('not audio at all!!', 'latin1'), 'flac'), false],
+    [
+      'DRM 魔数校验：OggS 通过',
+      drm.looksLikeAudio(Buffer.concat([Buffer.from('OggS', 'latin1'), Buffer.alloc(16)]), 'ogg'),
+      true,
+    ],
+    ['DRM 密钥 >300 字节明确报 RC4 分支未实现', /RC4/.test(drm.decryptQmcBuffer(Buffer.alloc(32), Buffer.alloc(301, 3).toString('base64'), 'a.mflac').reason || ''), true],
+    ['DRM 解不开时不返回数据（守卫）', Boolean(drm.decryptQmcBuffer(Buffer.alloc(80), Buffer.alloc(64, 7).toString('base64'), 'a.mflac').data), false],
+    [
+      'DRM 往返自洽：同一掩码加密后能解回合法 FLAC（并选出变体 0）',
+      (() => {
+        const key = Buffer.alloc(64, 7)
+        const plain = Buffer.concat([Buffer.from('fLaC', 'latin1'), Buffer.alloc(60, 0x11)])
+        const enc = Buffer.alloc(plain.length)
+        for (let i = 0; i < plain.length; i++) enc[i] = plain[i] ^ drm.mapMask(key, i, 0)
+        const r = drm.decryptQmcBuffer(enc, key.toString('base64'), 'x.mflac')
+        return r.ok === true && r.variant === 0 && r.format === 'flac'
+      })(),
+      true,
+    ],
   ]
 
   for (const [name, got, want] of pure) {
