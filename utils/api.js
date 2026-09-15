@@ -169,7 +169,31 @@ export async function pullLoginMeta(userKey = '') {
     loginType: d.login_type,
     tmeLoginType: d.tmeLoginType,
     keyAgeSec: d.keyAgeSec ?? null,
+    // key 有效期（秒）与「登录时实测能否续期」—— 见 loginRenewHint
+    keyExpiresIn: Number(d.keyExpiresIn) || 0,
+    refreshable: d.refreshable === true,
+    refreshChecked: Boolean(d.refreshChecked),
+    refreshReason: d.refreshReason || '',
   }
+}
+
+/**
+ * 登录续期状态的用户可见提示（导出以便单测）
+ *
+ * ⚠️ 不能只看「有没有 refresh 材料」：微信 PC 流程换到的会话**有 refresh_key 但续期实测被拒**
+ * （所有形状都回 code=1000），而 App 扫码的会话能续期 —— 两者表面一样。
+ * 所以以 API 登录时实测的结果 `refreshable` 为准；没实测过时才退回看材料。
+ */
+export function loginRenewHint(meta = {}) {
+  if (!meta || !meta.login) return ''
+  const days = Number(meta.keyExpiresIn) > 0 ? Math.round(Number(meta.keyExpiresIn) / 86400) : 0
+  const ttl = days > 0 ? `key 有效期约 ${days} 天` : ''
+  const withTtl = (s) => (ttl ? `${s}（${ttl}）` : s)
+  if (meta.refreshChecked && meta.refreshable === false) {
+    return `⚠️ 该登录方式不支持自动续期（登录时实测被服务端拒绝），${ttl ? `${ttl}，` : ''}到期需重新扫码`
+  }
+  if (meta.hasRefresh) return withTtl('含 refresh 材料，可自动续期')
+  return withTtl('⚠️ 无 refresh，过期后需重新扫码')
 }
 
 export async function listAccounts() {

@@ -11,7 +11,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 await loadPluginBase()
 
 import Config from '../components/Config.js'
-import { request, pullLoginMeta, refreshLogin } from '../utils/api.js'
+import { request, pullLoginMeta, refreshLogin, loginRenewHint } from '../utils/api.js'
 import { getTempDir } from '../utils/send.js'
 import { buildQQMusicStatusData } from '../utils/status-card.js'
 import { renderStatusCard, formatStatusText } from '../utils/render.js'
@@ -120,7 +120,8 @@ async function onLoginSuccess(e, info = {}) {
       uin ? `uin: ${uin}` : '',
       nick ? `昵称: ${nick}` : '',
       hasKey === false ? '⚠️ 未拿到 key，付费曲可能仍无法播放' : '',
-      meta?.hasRefresh ? '含 refresh 材料，过期可自动续期' : '⚠️ 无 refresh，过期后需重新扫码',
+      // 续期提示以登录时**实测**结果为准（微信 PC 流程有 refresh_key 也续不了，见 loginRenewHint）
+      loginRenewHint(meta || {}),
       // 微信走「PC 流程」，但换码形状已由 API 侧改成 App 形状优先、PC 形状兜底：
       // 实测 PC 形状换到的是网页级凭证（无 refresh_key、付费曲拿不到 purl），
       // 故这里不再说「多为账号本身无会员」——那会把人往错方向带

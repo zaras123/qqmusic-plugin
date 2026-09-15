@@ -195,7 +195,7 @@ console.log('\n=== 纯函数抽查 ===\n')
 let pureOk = 0
 let pureBad = 0
 try {
-  const { parseQQMusicExtendedIds, buildPlayFailMessage } = await import('./utils/api.js')
+  const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint } = await import('./utils/api.js')
   const { buildMusicFileName, formatSize } = await import('./utils/send.js')
   const { isPluginCommandMsg } = await import('./utils/common.js')
 
@@ -266,6 +266,35 @@ try {
       /需会员播放/.test(buildPlayFailMessage({ errMsg: '无链' }, { pay_play: 1 }, [])),
       true,
     ],
+    // 续期提示：以登录时**实测**结果为准 —— 微信 PC 流程有 refresh_key 也续不了（实测全形状 1000），
+    // 光看「有没有材料」会写出假承诺
+    [
+      '实测续期被拒：不谎称「可自动续期」',
+      /不支持自动续期/.test(
+        loginRenewHint({ login: true, hasRefresh: true, refreshChecked: true, refreshable: false, keyExpiresIn: 259200 })
+      ),
+      true,
+    ],
+    [
+      '实测续期被拒：带上实际有效期（259200 秒 → 3 天）',
+      /3 天/.test(
+        loginRenewHint({ login: true, hasRefresh: true, refreshChecked: true, refreshable: false, keyExpiresIn: 259200 })
+      ),
+      true,
+    ],
+    [
+      '实测可续期：才说「可自动续期」',
+      /可自动续期/.test(
+        loginRenewHint({ login: true, hasRefresh: true, refreshChecked: true, refreshable: true, keyExpiresIn: 259200 })
+      ),
+      true,
+    ],
+    [
+      '没实测过时退回看材料：无 refresh 才提示需重扫',
+      /无 refresh/.test(loginRenewHint({ login: true, hasRefresh: false })),
+      true,
+    ],
+    ['未登录时不输出续期提示', loginRenewHint({ login: false, hasRefresh: true }), ''],
   ]
 
   for (const [name, got, want] of pure) {
