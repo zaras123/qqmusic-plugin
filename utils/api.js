@@ -6,8 +6,6 @@ import Config from '../components/Config.js'
 import {
   QUALITY_LABEL,
   QUALITY_LADDER,
-  isQualitySizeOk,
-  pickBestAvailableQuality,
   summarizeFileSizes,
 } from './quality.js'
 import { logInfo, logWarn } from './log.js'
@@ -547,8 +545,6 @@ export async function songUrlBest(
   err.tried = tried
   throw err
 }
-
-export { isQualitySizeOk as isQualityAvailable, pickBestAvailableQuality }
 
 export async function lyric(songmid, userKey = '') {
   const body = await request('/lyric', { songmid }, 'get', userKey)

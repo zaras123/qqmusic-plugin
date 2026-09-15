@@ -1,5 +1,13 @@
 /**
- * QQ 音乐音质档位（最高音质 + 自动降级/自适配）
+ * QQ 音乐音质档位（标签与阶梯顺序）
+ *
+ * ⚠️ 这里**只保留标签和阶梯顺序**（界面展示、请求档位排序用）。
+ * 「这首歌到底有没有这一档」的元数据判定（size_* / size_new）已收归 API：
+ *   qqmusic-api-enhanced/util/quality.js → qualitySizeOk()
+ *
+ * 插件侧原先那份 isQualitySizeOk / pickBestAvailableQuality 是旧实现，语义已与 API 分叉
+ * —— 少了「元数据里连一个 size 字段都没有就不拦」这层守卫，会把整首歌逐档误杀成
+ * 「没音质可选」。已于 2026-09 删除；需要判档请调 API，别在这里再加一份。
  */
 export const QQMUSIC_QUALITY_LIST = Object.freeze([
   { label: '自动（自适配最高可用）', value: 'auto' },
@@ -14,7 +22,7 @@ export const QQMUSIC_QUALITY_LIST = Object.freeze([
   { label: '臻品母带2.0', value: 'atmos_master' },
 ])
 
-/** 从高到低完整阶梯 */
+/** 从高到低完整阶梯（与 API 侧 util/quality.js 的 LADDER 保持一致，已核对） */
 export const QUALITY_LADDER = Object.freeze([
   'atmos_master',
   'master',
@@ -34,87 +42,7 @@ export const QUALITY_LABEL = Object.freeze({
   ),
 })
 
-/** 读取 size_new[idx]；数组不能用 Number() 转（会得到 NaN） */
-export function sizeNewAt(file = {}, idx = 0) {
-  const arr = file?.size_new
-  if (!Array.isArray(arr)) return 0
-  const i = Number(idx)
-  if (!Number.isFinite(i) || i < 0 || i >= arr.length) return 0
-  const v = Number(arr[i] || 0)
-  return Number.isFinite(v) && v > 0 ? v : 0
-}
-
-/**
- * 生成待尝试的音质列表
- */
-export function qualityCandidates(preferred = 'flac', fallback = true) {
-  const q = String(preferred || 'flac').toLowerCase()
-
-  if (q === 'auto' || q === 'adaptive' || q === 'best') {
-    return fallback ? [...QUALITY_LADDER] : ['flac', '320', '128']
-  }
-
-  const idx = QUALITY_LADDER.indexOf(q)
-  const start = idx >= 0 ? idx : QUALITY_LADDER.indexOf('flac')
-  if (!fallback) return [QUALITY_LADDER[start] || '128']
-  return QUALITY_LADDER.slice(start >= 0 ? start : 0)
-}
-
-/**
- * 仅根据 size_* / size_new 选出最高可用档（不请求 vkey）
- */
-export function pickBestAvailableQuality(file = {}, preferred = 'auto') {
-  const list = qualityCandidates(preferred, true)
-  for (const type of list) {
-    if (isQualitySizeOk(type, file)) return type
-  }
-  return '128'
-}
-
-/**
- * 根据 track_info.file 判断该档是否真实存在
- * - 经典字段 size_flac / size_hires / size_dolby …
- * - 新字段 size_new[i]（母带/增强档常只出现在这里）
- */
-export function isQualitySizeOk(type, file = {}) {
-  if (!file || typeof file !== 'object') return true
-  const t = String(type || '').toLowerCase()
-  const n = (k) => {
-    const v = file[k]
-    // 切勿 Number(数组)
-    if (Array.isArray(v)) return 0
-    const num = Number(v || 0)
-    return Number.isFinite(num) ? num : 0
-  }
-
-  switch (t) {
-    case '128':
-      return n('size_128mp3') > 0 || n('size_96aac') > 0 || n('size_48aac') > 0
-    case 'm4a':
-      return n('size_48aac') > 0 || n('size_96aac') > 0 || n('size_192aac') > 0
-    case '320':
-      return n('size_320mp3') > 0 || sizeNewAt(file, 3) > 0
-    case 'flac':
-      return n('size_flac') > 0 || sizeNewAt(file, 1) > 0
-    case 'ape':
-      return n('size_ape') > 0
-    case 'hires':
-      // 经典 Hi-Res 或 size_new[2]
-      return n('size_hires') > 0 || sizeNewAt(file, 2) > 0
-    case 'atmos':
-    case 'dolby':
-      return n('size_dolby') > 0 || sizeNewAt(file, 10) > 0
-    case 'master':
-    case 'atmos_master':
-      // 母带几乎只在 size_new[0]；勿把整个 size_new 数组 Number()
-      // 也勿把 dolby/hires 误判成母带
-      return n('size_master') > 0 || sizeNewAt(file, 0) > 0
-    default:
-      return true
-  }
-}
-
-/** 调试：摘要 size_new 与经典字段 */
+/** 调试：摘要 size_new 与经典字段（仅用于日志） */
 export function summarizeFileSizes(file = {}) {
   if (!file || typeof file !== 'object') return {}
   const n = (k) => Number(file[k] || 0) || 0
@@ -130,6 +58,3 @@ export function summarizeFileSizes(file = {}) {
     new10: arr[10] || 0,
   }
 }
-
-/** 兼容旧名 */
-export const isQualityAvailable = isQualitySizeOk
