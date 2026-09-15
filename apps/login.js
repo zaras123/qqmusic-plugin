@@ -274,17 +274,12 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         imgSent = await sendImage(e, file)
       }
 
-      const wantWx = /微信|wx/i.test(String(e.msg || ''))
+      // 本流程的提示文案由 API /login/qr 给出（「请用 QQ音乐 App 扫码…」）
       await e.reply(
         [
-          wantWx
-            ? [
-                '请用【微信】扫一扫这张码（不需要 QQ音乐 App）',
-                '扫完确认后会自动登录；若付费曲仍提示无权限，说明该账号没有会员或需改用 #qqm登录qq',
-              ].join('\n')
-            : tips || '请使用 QQ / 微信 / QQ音乐 App 扫码',
-          `二维码 ${Math.round((expiresIn || 180) / 60)} 分钟内有效`,
-          imgSent >= codes.length ? '' : '（图片发送失败可重新发命令）',
+          tips || '请使用 QQ音乐 App 扫码',
+          `二维码 ${Math.round((expiresIn || 900) / 60)} 分钟内有效`,
+          imgSent ? '' : '（图片发送失败可重新发命令）',
         ]
           .filter(Boolean)
           .join('\n')

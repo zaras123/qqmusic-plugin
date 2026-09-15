@@ -171,6 +171,21 @@ for (const fnc of masterFnc) {
   }
 }
 
+// 处理函数变量作用域检查（见 scripts/check-scope.mjs）
+// 起因：改文案时把变量 codes 误用到 startQrLogin，用户扫码后才报 codes is not defined；
+// 路由测试只看正则，抓不到这类问题
+console.log('\n=== 变量作用域检查 ===\n')
+try {
+  const { execFileSync } = await import('node:child_process')
+  const { fileURLToPath } = await import('node:url')
+  // 用相对本文件的路径（测试可能从框架根目录运行，cwd 不是插件目录）
+  const script = fileURLToPath(new URL('./scripts/check-scope.mjs', import.meta.url))
+  execFileSync(process.execPath, [script], { stdio: 'inherit' })
+} catch {
+  allPassed = false
+  console.log('❌ 变量作用域检查未通过（见上表）')
+}
+
 console.log(
   `\n=== 测试结果: ${allPassed ? '全部通过 ✅' : '有失败 ❌'} ===` +
     `\n命令路由 ${routeOk} 通过 / ${routeBad} 失败`
