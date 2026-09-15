@@ -2,6 +2,7 @@
  * 加载 Yunzai 插件基类（兼容 ESM + top-level await）
  */
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 let cached = null
 
@@ -19,7 +20,9 @@ export async function loadPluginBase() {
 
   for (const p of candidates) {
     try {
-      const mod = await import(p)
+      // 必须转成 file:// URL：Windows 下绝对路径（D:\...）会被 ESM 当成 URL，
+      // 报「不支持 d: 协议」而全部加载失败（Linux 上恰好能过，所以只在本地测试时暴露）
+      const mod = await import(pathToFileURL(p).href)
       cached = mod.default || mod.plugin || mod
       return cached
     } catch {

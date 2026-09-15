@@ -10,7 +10,11 @@ export function getCfg() {
 
 /** 点歌/登录/管理等指令，解析模块应放行 */
 export function isPluginCommandMsg(msg = '') {
-  return /^#?(qq|QQ)m\b|^#?(qq|QQ)音乐|^#听\s*[1-9]|^#qm帮助/i.test(String(msg || '').trim())
+  // #qms / #QMS 与 #QQ状态 也是本插件命令，但都不满足 `m\b`（后面跟的是字母/中文边界不同），
+  // 必须单独列出来 —— 漏掉的话解析守卫会把它们当普通消息去抽链接
+  return /^#?(qq|QQ)m\b|^#?(qq|QQ)音乐|^#?(qq|QQ)状态$|^#?(qms|QMS)$|^#听\s*[1-9]|^#qm帮助/i.test(
+    String(msg || '').trim()
+  )
 }
 
 /**

@@ -556,8 +556,9 @@ export function cleanTrackText(s = '', maxLen = 40) {
   }
   // 未闭合括号及之后（分享标题常被截断）
   t = t.replace(/\([^)]*$/g, ' ')
-  // 路径与控制字符
-  t = t.replace(/[\\/:*?"<>|\r\n\t]/g, ' ')
+  // 路径字符换成下划线（这里的结果只用于拼文件名），控制字符换空格
+  t = t.replace(/[\\/:*?"<>|]/g, '_')
+  t = t.replace(/[\r\n\t]/g, ' ')
   t = t.replace(/[…·•]+/g, ' ')
   t = t.replace(/[.。]{2,}/g, ' ')
   t = t.replace(/\s+/g, ' ').trim()
@@ -588,8 +589,8 @@ export function buildMusicFileName(
   if (!artist) artist = '未知歌手'
 
   let stem = `${artist}-${name}${qTag}`
+  // 非法路径字符已在 cleanTrackText 里换成下划线，这里只做空白与下划线规整
   stem = stem
-    .replace(/[\\/:*?"<>|\r\n\t]/g, '_')
     .replace(/\s+/g, ' ')
     .replace(/_+/g, '_')
     .replace(/\s*-\s*/g, '-')

@@ -186,8 +186,89 @@ try {
   console.log('❌ 变量作用域检查未通过（见上表）')
 }
 
+// ──────────── 纯函数抽查（链接解析 / 文件名 / 命令识别）────────────
+// 起因：这三类 bug 路由测试都抓不到 ——
+//  ① /n/ryqq/albumDetail/<mid>（PC 端标准专辑链接）解析为空 → 专辑链接识别整条静默失效
+//  ② #qms 不在 isPluginCommandMsg 里 → 解析守卫认不出自家命令
+//  ③ 文件名里那句非法字符替换是死分支（cleanTrackText 已先把它们换成空格）
+console.log('\n=== 纯函数抽查 ===\n')
+let pureOk = 0
+let pureBad = 0
+try {
+  const { parseQQMusicExtendedIds } = await import('./utils/api.js')
+  const { buildMusicFileName, formatSize } = await import('./utils/send.js')
+  const { isPluginCommandMsg } = await import('./utils/common.js')
+
+  const pure = [
+    // 专辑链接三种分享形态都要认得（少一种 = 那类链接用户发了没反应）
+    [
+      '专辑 /albumDetail/ 链接解析',
+      parseQQMusicExtendedIds('https://y.qq.com/n/ryqq/albumDetail/002fRO0N4FftzY').albummid,
+      '002fRO0N4FftzY',
+    ],
+    [
+      '专辑 /album/ 链接解析',
+      parseQQMusicExtendedIds('https://y.qq.com/n/ryqq/album/002fRO0N4FftzY').albummid,
+      '002fRO0N4FftzY',
+    ],
+    [
+      '专辑 ?albummid= 链接解析',
+      parseQQMusicExtendedIds(
+        'https://i.y.qq.com/n2/m/share/details/album.html?albummid=002fRO0N4FftzY'
+      ).albummid,
+      '002fRO0N4FftzY',
+    ],
+    [
+      '歌单链接解析',
+      parseQQMusicExtendedIds('https://y.qq.com/n/ryqq/playlist/7286029431').disstid,
+      '7286029431',
+    ],
+    [
+      '歌手链接解析',
+      parseQQMusicExtendedIds('https://y.qq.com/n/ryqq/singer/001fNHEf1SFEFN').singermid,
+      '001fNHEf1SFEFN',
+    ],
+    // 文件名：非法路径字符要换下划线（原来这里是死分支，会留空格）
+    [
+      '文件名非法字符换下划线',
+      buildMusicFileName({ singer: 'a/b', title: 'c:d', ext: '.flac' }),
+      'a_b-c_d.flac',
+    ],
+    [
+      '文件名扩展名非法兜底 .mp3',
+      buildMusicFileName({ singer: 'x', title: 'y', ext: '../x' }).endsWith('.mp3'),
+      true,
+    ],
+    ['文件名空标题兜底', buildMusicFileName({ singer: 'x', title: '', ext: '.flac' }), 'x-未知歌曲.flac'],
+    ['formatSize 0 → 空', formatSize(0), ''],
+    ['formatSize 1KB 边界', formatSize(1024), '1.0 KB'],
+    // 自家命令识别：漏一个就会拿去当普通消息抽链接
+    ['识别 #qms', isPluginCommandMsg('#qms'), true],
+    ['识别 #QMS', isPluginCommandMsg('#QMS'), true],
+    ['识别 #QQ状态', isPluginCommandMsg('#QQ状态'), true],
+    ['识别 #qqm点歌', isPluginCommandMsg('#qqm点歌 晴天'), true],
+    ['普通聊天不算命令', isPluginCommandMsg('今天天气不错'), false],
+  ]
+
+  for (const [name, got, want] of pure) {
+    if (JSON.stringify(got) === JSON.stringify(want)) {
+      pureOk++
+      console.log(`✅ ${name}`)
+    } else {
+      pureBad++
+      allPassed = false
+      console.log(`❌ ${name} → 期望 ${JSON.stringify(want)}，实际 ${JSON.stringify(got)}`)
+    }
+  }
+} catch (err) {
+  allPassed = false
+  pureBad++
+  console.log(`❌ 纯函数抽查异常: ${err.message}`)
+}
+
 console.log(
   `\n=== 测试结果: ${allPassed ? '全部通过 ✅' : '有失败 ❌'} ===` +
-    `\n命令路由 ${routeOk} 通过 / ${routeBad} 失败`
+    `\n命令路由 ${routeOk} 通过 / ${routeBad} 失败` +
+    `\n纯函数 ${pureOk} 通过 / ${pureBad} 失败`
 )
 process.exit(allPassed ? 0 : 1)
