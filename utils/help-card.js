@@ -47,18 +47,8 @@ const SECTIONS = [
     tag: '登录',
     items: [
       { name: '扫码登录', desc: '主人扫码登录（付费音质）', example: '#qqm登录', master: true },
-      {
-        name: 'App 扫码（推荐）',
-        desc: 'QQ 音乐 App 扫码；微信绑定的账号也走这条，播歌正常',
-        example: '#qqm登录app',
-        master: true,
-      },
-      {
-        name: '微信登录',
-        desc: '用微信扫一扫；实测无付费曲播权、key 仅 3 天，仅供应急',
-        example: '#qqm登录微信',
-        master: true,
-      },
+      { name: '微信登录', desc: '用微信扫一扫（微信绑定的账号走这条）', example: '#qqm登录微信', master: true },
+      { name: 'App 扫码', desc: 'QQ 音乐 App 扫码（QQ 账号用）', example: '#qqm登录qq', master: true },
       { name: '状态卡片', desc: '账号 / 会员 / 音质 可视化', example: '#qqm状态' },
       { name: '快捷状态', desc: '状态卡短指令', example: '#qms' },
       { name: '登出解绑', desc: '清除登录态（主人）', example: '#qqm登出', master: true },

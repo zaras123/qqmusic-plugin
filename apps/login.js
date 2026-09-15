@@ -126,9 +126,9 @@ async function onLoginSuccess(e, info = {}) {
       // 实测 PC 形状换到的是网页级凭证（无 refresh_key、付费曲拿不到 purl），
       // 故这里不再说「多为账号本身无会员」——那会把人往错方向带
       channel === 'webqr-pc'
-        ? '通道：微信扫码（已优先用 App 级凭证换码，失败才回落 PC 网页形状）。若付费曲仍无权限，可改用 #qqm登录qq 对照'
+        ? '通道：微信扫码（PC 流程；已优先用 App 级凭证换码，失败才回落 PC 网页形状）'
         : channel === 'webqr-wx'
-          ? '提示：网页级会话，付费曲若提示无权限，请改用 #qqm登录qq（用 QQ音乐 App 扫码）'
+          ? '提示：网页级会话，付费曲可能拿不到播放链'
           : '',
       '正在生成状态卡片…',
     ]
@@ -465,19 +465,9 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       // ⚠️ 注意：PC 形状换到的凭证**不能播付费曲**（实测无 refresh_key、连 128 都拿不到 purl），
       // API 侧已改成「App 形状优先、PC 形状兜底」，mode=pc 现在只表示"允许 PC 形状兜底"
       const wantWxMsg = /微信|wx/i.test(String(e.msg || ''))
-      // 微信账号建议走 QQ音乐 App 扫码（#qqm登录app）：微信扫一扫这条通道换到的凭证实测
-      // 拿不到付费曲播权，且 key 只有 3 天、不支持自动续期。仍照常生成二维码（有人只是想拿个
-      // 能用的登录态），但把实测结论说在前面，免得又白扫一轮。
-      if (wantWxMsg) {
-        await e.reply(
-          [
-            '⚠️ 微信扫一扫这条通道：实测拿不到付费曲播权，key 仅 3 天且不支持自动续期',
-            '建议改用 #qqm登录app（用 QQ音乐 App 扫码，微信绑定的账号同样适用），播歌正常',
-            '仍需要微信扫码的话，继续为你生成二维码…',
-          ].join('\n')
-        )
-      }
-      await e.reply('正在生成登录二维码…')
+      // 微信走 PC 网页流程：微信绑定的账号在 QQ音乐 App 里没有扫码登录入口，只能走这条。
+      // 该通道换到的是「网页级」凭证（key 约 3 天；续期已在 API 侧改走签名 PC 通道重试）。
+      await e.reply(wantWxMsg ? '正在生成登录二维码（微信扫一扫）…' : '正在生成登录二维码…')
       const body = await request(
         '/login/webqr',
         wantWxMsg ? { mode: 'pc' } : {},
