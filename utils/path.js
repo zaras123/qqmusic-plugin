@@ -1,6 +1,6 @@
 import path from 'node:path'
 import fs from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -18,6 +18,13 @@ export const pluginPath = real(path.join(__dirname, '..'))
 
 /** 插件文件夹名 */
 export const pluginName = path.basename(pluginPath)
+
+/**
+ * 插件 logo 的绝对 file URL。
+ * 卡片有两条渲染路径（直连截图 / Yunzai puppeteer 回退），绝对路径在两条里都有效，
+ * 相对路径只在其中一条能被子路径改写规则正确处理。
+ */
+export const logoUrl = pathToFileURL(path.join(pluginPath, 'resources/img/logo.png')).href
 
 /**
  * Yunzai 根目录

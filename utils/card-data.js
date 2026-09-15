@@ -5,6 +5,7 @@ import Config from '../components/Config.js'
 import { QUALITY_LABEL } from './quality.js'
 import { request, SOURCE_LABEL, sourceIconOf } from './api.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
+import { logoUrl } from './path.js'
 
 /** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
 export function buildListCardData(keyword, songs, options = {}) {
@@ -38,6 +39,7 @@ export function buildListCardData(keyword, songs, options = {}) {
   return {
     keyword: keyword || '歌曲列表',
     total: songs.length,
+    logo: logoUrl,
     quality: String(cfg.quality || 'auto').toUpperCase(),
     apiHint: apiHintFor(),
     singerInfo: options.singerInfo || '',

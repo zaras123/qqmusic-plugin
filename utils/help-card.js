@@ -8,6 +8,7 @@
 import Config from '../components/Config.js'
 import { apiHintFor } from './privacy.js'
 import { getLocalVersion } from './update.js'
+import { logoUrl } from './path.js'
 
 /** 全部帮助条目；master: true = 仅主人渲染（与 rule 的 permission: 'master' 对应） */
 const SECTIONS = [
@@ -104,6 +105,7 @@ export function buildHelpCardData(e) {
 
   return {
     version: `v${getLocalVersion()}`,
+    logo: logoUrl,
     statCommands: `${cmdCount}+`,
     statQuality: quality,
     statMode: songOn && resolveOn ? '全开' : songOn ? '点歌' : resolveOn ? '解析' : '待机',
