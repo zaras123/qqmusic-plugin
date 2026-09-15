@@ -178,6 +178,23 @@ export async function pullLoginMeta(userKey = '') {
 }
 
 /**
+ * 加密曲目的「服务端下载并解密」地址（主逻辑在 API，插件只负责搬运明文）。
+ * 抓包显示客户端下载 URL 上只有 vkey、没有 ekey，故两个都带上让 API 逐个试。
+ */
+export function buildSongFileUrl({ url = '', filename = '', ekey = '', vkey = '', userKey = '' } = {}) {
+  const base = getBase()
+  const params = new URLSearchParams()
+  params.set('url', String(url))
+  if (filename) params.set('filename', String(filename))
+  if (ekey) params.set('key', String(ekey))
+  if (vkey) params.set('vkey', String(vkey))
+  if (userKey) params.set('userKey', String(userKey))
+  const token = getApiToken()
+  if (token) params.set('token', token) // 下载器不方便加头，用 query token（API 支持）
+  return `${base}/song/file?${params.toString()}`
+}
+
+/**
  * 登录续期状态的用户可见提示（导出以便单测）
  *
  * ⚠️ 不能只看「有没有 refresh 材料」：微信 PC 流程换到的会话**有 refresh_key 但续期实测被拒**
@@ -340,8 +357,9 @@ function mapSongUrlBody(body, type, realMedia) {
       pay: body.pay || d.pay,
       refreshed: body.refreshed,
       playChannel: body.playChannel || d.playChannel,
-      // 加密文件（.mflac/.mgg）：API 会一并下发 ekey / purl 里的 vkey，
-      // 下载后要先解密（utils/drm.js 会把它们逐个当密钥候选试）
+      // 加密文件（.mflac/.mgg）：API 会一并下发 ekey / purl 里的 vkey。
+      // 解密（含密钥候选与魔数校验）在 **API 侧**完成（util/drm.js），
+      // 插件只把这两个值回传给 /song/file 让它去下载+解密
       ekey: body.ekey || d.ekey || '',
       vkey: body.vkey || d.vkey || '',
       encrypted: Boolean(body.encrypted || d.encrypted),
