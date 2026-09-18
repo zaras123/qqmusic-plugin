@@ -57,12 +57,15 @@ function sanitizeForHeader(value) {
 
 /**
  * 主人账号（配置键 publicAccount）：群友自己没登录时，播歌回落到主人已登录的账号（通常是主人的 VIP 号）。
- * 留空 = 不启用（默认），行为与没这个功能时完全一致。
+ * 留空 = 自动取最近一次扫码登录的账号（lastLoginUserKey，备注 uin 兜底）—— 一般无需手填，
+ * 多账号想固定用某一个时才手动填。
  * 回落只发生在「播歌 / 取数据」类接口 —— 登录状态、取 CK、刷新都仍只看请求者本人。
  */
 function getPublicAccount() {
   const cfg = Config.getConfig('qqmusic') || {}
-  return sanitizeForHeader(cfg.publicAccount || cfg.public_account || '')
+  return sanitizeForHeader(
+    cfg.publicAccount || cfg.public_account || cfg.lastLoginUserKey || cfg.lastLoginUin || ''
+  )
 }
 
 /** 「一律走主人账号」开关：播歌/取数据不看请求者是谁，全按主人的 ck 走 */
@@ -117,7 +120,7 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
   const forceMaster = isForceMasterAccount()
   if (forceMaster && !publicAccount && !forceNoAccountWarned) {
     forceNoAccountWarned = true
-    logWarn('[qqmusic-plugin] 开了「一律走主人账号」但没填主人账号（publicAccount），开关不生效')
+    logWarn('[qqmusic-plugin] 开了「一律走主人账号」但机器人还没有扫码登录记录，开关不生效（先 #qqm登录）')
   }
 
   // 一律走主人账号：播歌/取数据全按主人的 ck，不看请求者自己登录没有

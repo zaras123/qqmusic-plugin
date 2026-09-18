@@ -235,11 +235,14 @@ export async function buildSettingsCardData(e = null) {
   const apiHint = c.apiBase ? `API · ${apiBaseView.replace(/^https?:\/\//, '')}` : 'API 未配置'
 
   const onOff = (v) => (v === false ? '关' : '开')
-  // 主人账号：没登录的群友点歌回落到这个号（留空=不启用）；
-  // 开了「一律走主人账号」时则不看请求者，所有人点歌都按这个号走
-  const publicAccount = String(c.publicAccount || c.public_account || '').trim()
+  // 主人账号：没登录的群友点歌回落到这个号；开了「一律走主人账号」时则不看请求者。
+  // 未手填时自动取最近扫码登录的账号（lastLoginUserKey 是登录会话键，备注 uin 兜底）
+  const explicitAccount = String(c.publicAccount || c.public_account || '').trim()
+  const publicAccount =
+    explicitAccount || String(c.lastLoginUserKey || c.lastLoginUin || '').trim()
+  const autoAccount = !explicitAccount && publicAccount
   const forceMasterAccount = c.forceMasterAccount === true
-  // 配了主人账号、但那个号其实没登录 = 静默失效（回落不生效却看不出原因），查一次并标注。
+  // 主人账号没登录 = 静默失效（回落不生效却看不出原因），查一次并标注。
   // 查不到（API 异常）时不下结论，避免误报。
   let publicAccountReady = null
   if (publicAccount) {
@@ -250,15 +253,16 @@ export async function buildSettingsCardData(e = null) {
       publicAccountReady = null
     }
   }
+  const autoTag = autoAccount ? '（自动·最近登录）' : ''
   const publicAccountText = !publicAccount
     ? forceMasterAccount
-      ? '未启用 · ⚠️ 开了「一律走主人账号」但没填账号，不生效'
+      ? '未登录 · ⚠️ 开了「一律走主人账号」但还没有扫码登录记录'
       : '未启用'
     : publicAccountReady === false
       ? `${publicAccount} · ⚠️ 该账号未登录，回落不会生效`
       : forceMasterAccount
-        ? `${publicAccount} · 所有人点歌一律走此号`
-        : `${publicAccount} · 未登录者点歌回落`
+        ? `${publicAccount} · 所有人点歌一律走此号${autoTag}`
+        : `${publicAccount} · 未登录者点歌回落${autoTag}`
 
   return {
     title: 'QQ音乐设置',
@@ -348,7 +352,7 @@ export function formatSettingsText(data) {
     `enable: ${data.enableRaw !== false}`,
     `apiBase: ${data.apiBase}`,
     `login: ${data.loginText}`,
-    `主人账号: ${data.publicAccountText || '未启用（留空）'}`,
+    `主人账号: ${data.publicAccountText || '未启用'}`,
     `adapter: ${data.adapterName} (${data.adapterKind})`,
     `点歌: ${data.song}  解析: ${data.resolve}  列表卡: ${data.listCard}`,
     `音质: ${data.qualityKey}（自动降级: ${data.qualityFallback}）  列表: ${data.maxList}`,

@@ -55,20 +55,10 @@ export const schemas = [
     },
   },
   {
-    field: 'publicAccount',
-    label: '主人账号（QQ 号）',
-    bottomHelpMessage:
-      '留空=不启用。填主人已登录账号的 QQ 号（通常是 VIP 号）：没登录的群友点歌时回落到这个账号，全群都能播 VIP 曲',
-    component: 'Input',
-    componentProps: {
-      placeholder: '留空=不启用，例如 821352679',
-    },
-  },
-  {
     field: 'forceMasterAccount',
     label: '一律走主人账号',
     bottomHelpMessage:
-      '开启后所有人点歌都按主人账号（主人的 ck）取播放链，不看请求者自己有没有登录过（群友在自己机器人上登录过也不影响）。登录状态/收藏/刷新仍按请求者本人。需先填主人账号',
+      '开启后所有人点歌都按主人账号（主人的 ck）取播放链，不看请求者自己有没有登录过（群友在自己机器人上登录过也不影响）。主人账号自动取最近扫码登录的账号，无需手填；登录状态/收藏/刷新仍按请求者本人',
     component: 'Switch',
   },
   {
@@ -295,6 +285,8 @@ export async function setConfigData(data, { Result } = {}) {
         const meta = await pullLoginMeta()
         if (meta.login && meta.hasKey) {
           next.lastLoginUin = meta.uin || next.lastLoginUin || ''
+          // 登录会话在 API 侧按 userKey 存；主人账号自动模式靠它定位，备注 uin 可能与会话键不同
+          if (meta.userKey && meta.userKey !== 'default') next.lastLoginUserKey = meta.userKey
           next.lastLoginNick = meta.nick || next.lastLoginNick || ''
           next.lastLoginAt = Date.now()
           next.lastHasRefresh = meta.hasRefresh

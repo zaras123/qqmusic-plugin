@@ -106,6 +106,8 @@ async function onLoginSuccess(e, info = {}) {
       ...cfg,
       cookie: '',
       lastLoginUin: String(meta?.uin || uin || cfg.lastLoginUin || ''),
+      // 登录会话在 API 侧按发起登录的机器人用户（userKey）存，备注 uin 仅兜底展示
+      lastLoginUserKey: String(e.user_id || cfg.lastLoginUserKey || ''),
       lastLoginNick: String(meta?.nick || nick || cfg.lastLoginNick || ''),
       lastLoginAt: Date.now(),
       lastHasRefresh: Boolean(meta?.hasRefresh),
@@ -653,6 +655,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           ...cfg,
           cookie: '',
           lastLoginUin: '',
+          lastLoginUserKey: '',
           lastLoginNick: '',
           lastLoginAt: 0,
           lastHasRefresh: false,
@@ -677,6 +680,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       Config.setConfig('qqmusic', {
         ...cfg,
         lastLoginUin: meta.uin || cfg.lastLoginUin || '',
+        lastLoginUserKey: userKey || cfg.lastLoginUserKey || '',
         lastLoginNick: meta.nick || cfg.lastLoginNick || '',
         lastLoginAt: Date.now(),
         lastHasRefresh: meta.hasRefresh,
@@ -724,6 +728,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           Config.setConfig('qqmusic', {
             ...cfg,
             lastLoginUin: meta.uin || cfg.lastLoginUin || '',
+            lastLoginUserKey: userKey || cfg.lastLoginUserKey || '',
             lastLoginNick: meta.nick || cfg.lastLoginNick || '',
             lastLoginAt: Date.now(),
             lastHasRefresh: meta.hasRefresh,
