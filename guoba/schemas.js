@@ -56,13 +56,20 @@ export const schemas = [
   },
   {
     field: 'publicAccount',
-    label: '公共账号（QQ 号）',
+    label: '主人账号（QQ 号）',
     bottomHelpMessage:
-      '留空=不启用。填已登录账号的 QQ 号：没登录的群友点歌时回落到这个账号（主人登了 VIP 号，全群都能播 VIP 曲）',
+      '留空=不启用。填主人已登录账号的 QQ 号（通常是 VIP 号）：没登录的群友点歌时回落到这个账号，全群都能播 VIP 曲',
     component: 'Input',
     componentProps: {
       placeholder: '留空=不启用，例如 821352679',
     },
+  },
+  {
+    field: 'forceMasterAccount',
+    label: '一律走主人账号',
+    bottomHelpMessage:
+      '开启后所有人点歌都按主人账号（主人的 ck）取播放链，不看请求者自己有没有登录过（群友在自己机器人上登录过也不影响）。登录状态/收藏/刷新仍按请求者本人。需先填主人账号',
+    component: 'Switch',
   },
   {
     component: 'Divider',
@@ -223,6 +230,7 @@ export function getConfigData() {
     // 否则锅巴显示"关"、实际却是"开"，对不上
     extraSources: c.extraSources !== false,
     defaultPickSong: c.defaultPickSong === true,
+    forceMasterAccount: c.forceMasterAccount === true,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
     pullLoginMeta: false,
   }

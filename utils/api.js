@@ -56,7 +56,7 @@ function sanitizeForHeader(value) {
 }
 
 /**
- * 公共账号（QQ 号）：群友自己没登录时，播歌回落到这个已登录的账号（通常是主人的 VIP 号）。
+ * 主人账号（配置键 publicAccount）：群友自己没登录时，播歌回落到主人已登录的账号（通常是主人的 VIP 号）。
  * 留空 = 不启用（默认），行为与没这个功能时完全一致。
  * 回落只发生在「播歌 / 取数据」类接口 —— 登录状态、取 CK、刷新都仍只看请求者本人。
  */
@@ -64,6 +64,31 @@ function getPublicAccount() {
   const cfg = Config.getConfig('qqmusic') || {}
   return sanitizeForHeader(cfg.publicAccount || cfg.public_account || '')
 }
+
+/** 「一律走主人账号」开关：播歌/取数据不看请求者是谁，全按主人的 ck 走 */
+function isForceMasterAccount() {
+  const cfg = Config.getConfig('qqmusic') || {}
+  return cfg.forceMasterAccount === true
+}
+
+/** 登录管理类接口：就算开了「一律走主人账号」也只看请求者本人，不能被主人账号顶掉 */
+function isLoginScopePath(pathname) {
+  const p = String(pathname || '')
+  return p.startsWith('/login/') || p === '/user/refresh' || p === '/user/liked'
+}
+
+/**
+ * 播歌类请求实际生效的 userKey：
+ * 开了「一律走主人账号」且配了主人账号 → 返回主人账号（主人的 ck）；否则原样返回请求者。
+ * /song/file 直链（buildSongFileUrl）不经过 request()，调用方用它保证取链和下载用同一个账号。
+ */
+export function pickPlayUserKey(userKey = '') {
+  const publicAccount = getPublicAccount()
+  if (publicAccount && isForceMasterAccount()) return publicAccount
+  return userKey
+}
+
+let forceNoAccountWarned = false
 
 function emptyUrlResult(type, mediaId, extra = {}) {
   return {
@@ -87,17 +112,29 @@ function emptyUrlResult(type, mediaId, extra = {}) {
 export async function request(pathname, params = {}, method = 'get', userKey = '') {
   const base = getBase()
   const url = `${base}${pathname.startsWith('/') ? pathname : `/${pathname}`}`
+
+  const publicAccount = getPublicAccount()
+  const forceMaster = isForceMasterAccount()
+  if (forceMaster && !publicAccount && !forceNoAccountWarned) {
+    forceNoAccountWarned = true
+    logWarn('[qqmusic-plugin] 开了「一律走主人账号」但没填主人账号（publicAccount），开关不生效')
+  }
+
+  // 一律走主人账号：播歌/取数据全按主人的 ck，不看请求者自己登录没有
+  // （群友在别的机器人上扫码登录过也不影响）；登录管理类接口仍按请求者本人
+  const effectiveUserKey =
+    publicAccount && forceMaster && !isLoginScopePath(pathname) ? publicAccount : userKey
+
   // 多账号：带 userKey（机器人侧调用者标识，通常是 QQ 号）
   // 仅作为 query/body 参数传递；header 版见下方 sanitizeForHeader
-  if (userKey) {
-    params = { ...params, userKey }
+  if (effectiveUserKey) {
+    params = { ...params, userKey: effectiveUserKey }
   }
   const token = getApiToken()
   const headers = {}
-  const safeUserKey = sanitizeForHeader(userKey)
+  const safeUserKey = sanitizeForHeader(effectiveUserKey)
   if (safeUserKey) headers['x-qqmusic-user'] = safeUserKey
-  // 公共账号：带上就好，是否真的回落由 API 判断（请求者自己登录了就一直用他自己的）
-  const publicAccount = getPublicAccount()
+  // 主人账号：带上就好，是否真的回落由 API 判断（请求者自己登录了就一直用他自己的）
   if (publicAccount) {
     params = { ...params, publicUserKey: publicAccount }
     headers['x-qqmusic-public-user'] = publicAccount

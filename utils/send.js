@@ -911,13 +911,14 @@ export async function deliverSong(e, song, play, options = {}) {
     // 加密曲目：改走服务端（API 下载并解密后回明文）—— 解密主逻辑在 API，插件不再做
     if (play.encrypted) {
       try {
-        const { buildSongFileUrl } = await import('./api.js')
+        const { buildSongFileUrl, pickPlayUserKey } = await import('./api.js')
         const apiUrl = buildSongFileUrl({
           url: play.url,
           filename: play.file,
           ekey: play.ekey,
           vkey: play.vkey,
-          userKey: String(e.user_id || ''),
+          // 与取播放链同一账号（开了「一律走主人账号」时是主人的 ck，不能再用请求者本人）
+          userKey: pickPlayUserKey(String(e.user_id || '')),
         })
         if (apiUrl) tryUrls[0] = apiUrl
       } catch {
