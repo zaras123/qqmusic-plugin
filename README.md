@@ -194,11 +194,9 @@ cd qqmusic-plugin && pnpm install
 >
 > 支持的协议端：**ICQQ**，以及带 `send_packet` 扩展动作的 **OneBot**（NapCat、SnowLuma）；LLOneBot / Lagrange 没有该动作，会在首次调用后明确提示并停用。`#qqm一起听 状态` 可随时查看房间当前曲目。
 >
-> **两级开关，默认都是关的**（两处都打开才生效）：
-> 1. 锅巴「启用一起听」`togetherEnable` —— 插件侧总开关，关着时指令不走 API（`#qqm一起听 探测` 除外，它是排障路径）；
-> 2. API 侧 `data/together.json` 的 `enabled`（或 `QQMUSIC_TOGETHER_ENABLED=1`）—— 服务端总开关，关着时除探测外一律拒绝，连老版本插件也塞不进来。
+> **默认关闭**：锅巴「启用一起听」`togetherEnable` 关着时指令不走 API（`#qqm一起听 探测` 除外，它是排障路径）；「点歌后自动同步」`togetherAuto` 是第二个开关，**要与总开关同时打开**才生效。
 >
-> 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受上面两个开关限制。
+> 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受开关限制。
 
 ---
 
@@ -257,7 +255,7 @@ qqmusic-plugin/
 - 一律走主人账号（默认开；主人账号自动取最近扫码登录的账号，所有人点歌都按主人的 ck，锅巴可关）
 - 主人账号手动指定（`publicAccount`，留空=自动；多账号想固定用某一个时才填）
 - 从 API 一键回填登录态
-- 一起听：启用开关（默认关）/ 点歌后自动同步（默认关）—— 协议参数与总开关在 API 侧：`data/together.json` 的 `enabled`/`aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`
+- 一起听：启用开关（默认关）/ 点歌后自动同步（默认关，需总开关同时打开）—— 协议参数在 API 侧：`data/together.json` 的 `aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`
 
 ---
 
