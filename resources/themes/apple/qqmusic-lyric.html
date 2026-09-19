@@ -7,7 +7,7 @@
   <style>
     /* 歌词：阅读优先 —— 18px/1.9，字色略淡，行与行之间留白靠行高而非 margin */
     .lyric {
-      padding: 4px var(--pad-card) 8px;
+      padding: 4px var(--pad) 8px;
     }
     .lyric p {
       font-size: 18px;
@@ -28,7 +28,7 @@
       width: 56px;
       height: 56px;
       border-radius: 12px;
-      background: var(--glass-3) center/cover no-repeat;
+      background: var(--fill-3) center/cover no-repeat;
       flex: none;
     }
   </style>
@@ -60,7 +60,6 @@
       {{if data.tip}}<div class="empty">{{data.tip}}</div>{{/if}}
 
       <div class="foot">
-        <span class="t-foot">{{data.apiHint}}</span>
         <span class="foot-brand">qqmusic-plugin</span>
       </div>
     </div>

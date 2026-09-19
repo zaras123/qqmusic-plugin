@@ -9,14 +9,14 @@
       display: flex;
       align-items: center;
       gap: 16px;
-      padding: var(--pad-card);
+      padding: var(--pad);
     }
     .avatar {
       width: 72px;
       height: 72px;
       flex: none;
       border-radius: 18px;
-      background: var(--glass-3) center/cover no-repeat;
+      background: var(--fill-3) center/cover no-repeat;
       object-fit: cover;
     }
     /* 真头像用圆形（通讯录观感），默认 logo 保持圆角方形 */
@@ -93,7 +93,6 @@
       {{/if}}
 
       <div class="foot">
-        <span class="t-foot">{{data.apiBase}}</span>
         <span class="foot-brand">{{data.footer || 'qqmusic-plugin'}}</span>
       </div>
     </div>

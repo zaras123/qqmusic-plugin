@@ -1,118 +1,82 @@
 /* ============================================================
- * Apple 风主题 · Liquid Glass 材质系统
+ * Apple 风主题 · 设计与材质
  *
- * 与「扁平卡片」的区别在三件事上：
- *   1. 玻璃是**半透明**的 —— 背后的彩色底会透上来（backdrop-filter 模糊 + 提饱和）
- *   2. 边缘有**高光**：一圈 rim light + 一道斜向镜面反光，这是"玻璃感"的主要来源
- *   3. 形状更**圆润**：大圆角 + 同心圆角（内层 = 外层 − 内边距），胶囊一律 999
+ * 数值对齐 apple.com.cn 的实测值（浏览器里读出来的 computed style）：
+ *   · 字体栈  "SF Pro SC" → "SF Pro Text" → "PingFang SC" → "Helvetica Neue"
+ *   · 正文    17px / 25px（行高 1.47）· 字色 #1d1d1f（略暖的近黑）
+ *   · 次级    12px / 16px · #6e6e73
+ *   · 标题    34px · 600 · 字距 0（苹果在 24-34px 不做负字距）
+ *   · 强调    #0071e3，且**只**用在这一个色上
+ *   · 底色    纯白 / #f5f5f7，大面积留白 —— 不是彩色渐变
  *
- * 关键约束：卡片要发给 QQ，**整页必须不透明**（透明 PNG 会被 QQ 填成白底）。
- * 所以做法是「不透光的彩色底 + 其上悬浮玻璃」，而不是让页面透明。
- *
- * 明暗由 <html data-mode="dark">（渲染器注入）切换，不依赖 prefers-color-scheme。
+ * 材质的克制版 Liquid Glass：玻璃感来自 rim 细边 + 极轻投影 + 层次，
+ * 而不是靠浓色背景硬撑。底色只做**同一色系内的极轻位移**，随时段变暖变冷。
  * ============================================================ */
 
-/* ---------- 设计令牌 ---------- */
 :root {
-  /* 玻璃 */
-  --glass-1: rgba(255, 255, 255, 0.76); /* 主卡（.card 另有渐变，见下） */
-  --glass-2: rgba(255, 255, 255, 0.42); /* 卡内分组 */
-  --glass-3: rgba(255, 255, 255, 0.62); /* 胶囊/缩略图 */
-  --blur-1: 34px;
-  --blur-2: 22px;
-  --saturate: 170%;
-
-  /* 边缘光 */
-  --rim: rgba(255, 255, 255, 0.7);
-  --rim-soft: rgba(255, 255, 255, 0.35);
-  --specular: rgba(255, 255, 255, 0.55);
-  --inner-glow: rgba(255, 255, 255, 0.75);
-
-  /* 文字（玻璃上要比实底更实一点，保证可读） */
-  --label: #16181d;
-  --label-2: rgba(35, 40, 52, 0.66);
-  --label-3: rgba(35, 40, 52, 0.38);
-
-  --separator: rgba(60, 60, 67, 0.14);
+  /* 文字与面 */
+  --label: #1d1d1f;
+  --label-2: #6e6e73;
+  --label-3: #86868b;
+  --divider: rgba(0, 0, 0, 0.08);
+  --fill-2: rgba(0, 0, 0, 0.03); /* 卡内浅面 */
+  --fill-3: rgba(0, 0, 0, 0.05); /* 胶囊底 */
 
   --accent: #0071e3;
-  --green: #28a745;
-  --orange: #d97706;
-  --red: #e0342b;
-  --gold: #a9841f;
+  --green: #00a862;
+  --orange: #b25000;
+  --red: #d70015;
+  --gold: #8a6d1f;
 
-  --radius-card: 34px;
-  --radius-group: 26px;
-  --radius-thumb: 14px;
-  --pad-card: 24px;
+  /* 玻璃：白玻璃 + 细边；深色下换暗玻璃 */
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-strong: rgba(255, 255, 255, 0.86);
+  --rim: rgba(255, 255, 255, 0.9);
+  --hairline: rgba(0, 0, 0, 0.06);
+  --blur: 30px;
 
-  /* 一天四段的底色（渲染器把当前时段写成 <html data-time>）。底色必须够浓 ——
-   * 淡雅底会让玻璃糊成一片，看不出边缘，文字对比度也掉。 */
-  --bg-dawn: radial-gradient(120% 100% at 6% -10%, #ff9d5c 0%, rgba(255, 157, 92, 0) 58%),
-    radial-gradient(100% 90% at 104% 0%, #ff6fa5 0%, rgba(255, 111, 165, 0) 55%),
-    radial-gradient(120% 110% at 88% 104%, #7aa2ff 0%, rgba(122, 162, 255, 0) 60%),
-    linear-gradient(160deg, #5b4a86 0%, #7d5a86 45%, #a06a7a 100%);
-  --bg-day: radial-gradient(120% 100% at 4% -10%, #3d8bfd 0%, rgba(61, 139, 253, 0) 58%),
-    radial-gradient(100% 90% at 106% 0%, #17b8c8 0%, rgba(23, 184, 200, 0) 55%),
-    radial-gradient(120% 110% at 90% 106%, #45d69a 0%, rgba(69, 214, 154, 0) 60%),
-    linear-gradient(160deg, #24507f 0%, #26688c 45%, #2a7f83 100%);
-  --bg-dusk: radial-gradient(120% 100% at 6% -8%, #ff7a3d 0%, rgba(255, 122, 61, 0) 58%),
-    radial-gradient(100% 90% at 104% 2%, #e0417f 0%, rgba(224, 65, 127, 0) 55%),
-    radial-gradient(120% 110% at 88% 104%, #7a4bd0 0%, rgba(122, 75, 208, 0) 60%),
-    linear-gradient(160deg, #4a2a6b 0%, #7a2f5f 45%, #b04a55 100%);
-  --bg-night: radial-gradient(120% 100% at 4% -10%, #1c3fa8 0%, rgba(28, 63, 168, 0) 58%),
-    radial-gradient(100% 90% at 106% 0%, #5a2a8a 0%, rgba(90, 42, 138, 0) 55%),
-    radial-gradient(120% 110% at 90% 106%, #0e5c6b 0%, rgba(14, 92, 107, 0) 60%),
-    linear-gradient(160deg, #0a1030 0%, #16123a 45%, #231036 100%);
+  --radius-card: 28px;
+  --radius-group: 20px;
+  --radius-thumb: 12px;
+  --pad: 28px;
 
-  --shadow-card: 0 24px 60px rgba(20, 30, 60, 0.22), 0 2px 8px rgba(20, 30, 60, 0.08);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04);
 
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
-    "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Noto Sans SC",
-    "Helvetica Neue", Arial, sans-serif;
+  /* 一天四段：只在**极浅**的范围内变暖变冷，保持"白"的干净 */
+  --bg-dawn: linear-gradient(178deg, #fdf6f2 0%, #f8f2f8 100%);
+  --bg-day: linear-gradient(178deg, #f8f9fc 0%, #f2f5fa 100%);
+  --bg-dusk: linear-gradient(178deg, #fdf4ed 0%, #f8f0f6 100%);
+  --bg-night: linear-gradient(178deg, #eef0f5 0%, #e8ebf2 100%);
+
+  --font: "SF Pro SC", "SF Pro Text", "SF Pro Display", "PingFang SC", "HarmonyOS Sans SC",
+    "Microsoft YaHei UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
 }
 
 html[data-mode="dark"] {
-  --glass-1: rgba(30, 32, 40, 0.55);
-  --glass-2: rgba(255, 255, 255, 0.07);
-  --glass-3: rgba(255, 255, 255, 0.1);
+  --label: #f5f5f7;
+  --label-2: #a1a1a6;
+  --label-3: #86868b;
+  --divider: rgba(255, 255, 255, 0.12);
+  --fill-2: rgba(255, 255, 255, 0.06);
+  --fill-3: rgba(255, 255, 255, 0.1);
 
-  --rim: rgba(255, 255, 255, 0.18);
-  --rim-soft: rgba(255, 255, 255, 0.12);
-  --specular: rgba(255, 255, 255, 0.14);
-  --inner-glow: rgba(255, 255, 255, 0.16);
+  --accent: #2997ff;
+  --green: #30d158;
+  --orange: #ff9f0a;
+  --red: #ff453a;
+  --gold: #d9b45a;
 
-  --label: #ffffff;
-  --label-2: rgba(235, 235, 245, 0.68);
-  --label-3: rgba(235, 235, 245, 0.4);
+  --glass: rgba(28, 28, 30, 0.72);
+  --glass-strong: rgba(28, 28, 30, 0.86);
+  --rim: rgba(255, 255, 255, 0.14);
+  --hairline: rgba(255, 255, 255, 0.08);
 
-  --separator: rgba(235, 235, 245, 0.14);
+  --shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
 
-  --accent: #4da3ff;
-  --green: #3ddc6b;
-  --orange: #ffc457;
-  --red: #ff6b60;
-  --gold: #e8c76a;
-
-  /* 深色四段：色相同源、明度压低，不是把浅色反相 */
-  --bg-dawn: radial-gradient(120% 100% at 6% -10%, #7a3a12 0%, rgba(122, 58, 18, 0) 58%),
-    radial-gradient(100% 90% at 104% 0%, #6e1f45 0%, rgba(110, 31, 69, 0) 55%),
-    radial-gradient(120% 110% at 88% 104%, #1f3a8a 0%, rgba(31, 58, 138, 0) 60%),
-    linear-gradient(160deg, #0d0a16 0%, #1a1020 45%, #241318 100%);
-  --bg-day: radial-gradient(120% 100% at 4% -10%, #0f3f8a 0%, rgba(15, 63, 138, 0) 58%),
-    radial-gradient(100% 90% at 106% 0%, #0a5c66 0%, rgba(10, 92, 102, 0) 55%),
-    radial-gradient(120% 110% at 90% 106%, #0a5c46 0%, rgba(10, 92, 70, 0) 60%),
-    linear-gradient(160deg, #05070f 0%, #071018 45%, #06141a 100%);
-  --bg-dusk: radial-gradient(120% 100% at 6% -8%, #8a3a12 0%, rgba(138, 58, 18, 0) 58%),
-    radial-gradient(100% 90% at 104% 2%, #7a1f4a 0%, rgba(122, 31, 74, 0) 55%),
-    radial-gradient(120% 110% at 88% 104%, #3a1f7a 0%, rgba(58, 31, 122, 0) 60%),
-    linear-gradient(160deg, #0f0812 0%, #1a0d1c 45%, #24100f 100%);
-  --bg-night: radial-gradient(120% 100% at 4% -10%, #0f2470 0%, rgba(15, 36, 112, 0) 58%),
-    radial-gradient(100% 90% at 106% 0%, #3a1060 0%, rgba(58, 16, 96, 0) 55%),
-    radial-gradient(120% 110% at 90% 106%, #063a44 0%, rgba(6, 58, 68, 0) 60%),
-    linear-gradient(160deg, #03040a 0%, #060818 45%, #0a0614 100%);
-
-  --shadow-card: 0 30px 70px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.3);
+  --bg-dawn: linear-gradient(178deg, #141013 0%, #191319 100%);
+  --bg-day: linear-gradient(178deg, #0d0e11 0%, #111319 100%);
+  --bg-dusk: linear-gradient(178deg, #14100e 0%, #181115 100%);
+  --bg-night: linear-gradient(178deg, #0a0a0c 0%, #101014 100%);
 }
 
 /* ---------- 基础 ---------- */
@@ -130,25 +94,24 @@ body {
   min-height: 0;
   margin: 0;
   padding: 0;
-  background: #eef2fa !important; /* 兜底：渲染器随后会用主题底色覆盖 */
+  background: #f5f5f7 !important; /* 兜底；渲染器随后用主题底色覆盖 */
   color: var(--label);
   font-family: var(--font);
+  font-size: 17px;
+  line-height: 25px; /* 苹果正文行高 1.47 */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: geometricPrecision;
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- 彩色底：玻璃要有东西可以透上来 ----------
- * 底色按**一天四段**切换（渲染器把当前时段写进 <html data-time>）；
- * 深浅色只是把同一批变量换成暗版，所以规则只有下面这几行。 */
+/* 底色：按时段只在浅色区间里微调冷暖，保持干净 */
 .page {
   display: block;
   width: fit-content;
-  padding: 26px;
-  background: var(--bg-day); /* 默认白天 */
+  padding: 24px;
+  background: var(--bg-day);
 }
-
 html[data-time="dawn"] .page {
   background: var(--bg-dawn);
 }
@@ -159,99 +122,75 @@ html[data-time="night"] .page {
   background: var(--bg-night);
 }
 
-/* ---------- 玻璃卡 ---------- */
+/* ---------- 玻璃卡：白玻璃 + 细边 + 极轻投影 ---------- */
 .card {
   position: relative;
   width: 600px;
   border-radius: var(--radius-card);
-  /* 亮玻璃：中心偏实（保证可读），靠 blur 把底色透成"玻璃里透出的颜色" */
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.76) 0%,
-    rgba(255, 255, 255, 0.58) 100%
-  );
-  -webkit-backdrop-filter: blur(var(--blur-1)) saturate(var(--saturate));
-  backdrop-filter: blur(var(--blur-1)) saturate(var(--saturate));
-  /* 边缘：亮 rim + 一圈极淡的暗边，让玻璃在亮底上也有边界 */
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
+  backdrop-filter: blur(var(--blur)) saturate(160%);
   border: 1px solid var(--rim);
-  box-shadow: var(--shadow-card), 0 0 0 1px rgba(10, 20, 50, 0.05),
-    inset 0 1.5px 0 var(--inner-glow), inset 0 -1px 0 var(--rim-soft);
+  box-shadow: var(--shadow), 0 0 0 1px var(--hairline);
   overflow: hidden;
 }
-
-/* 深色玻璃：暗底上也要有"透出来的颜色"，不能变成一块死灰 */
-html[data-mode="dark"] .card {
-  background: linear-gradient(
-    180deg,
-    rgba(44, 47, 58, 0.72) 0%,
-    rgba(24, 26, 34, 0.62) 100%
-  );
-  box-shadow: var(--shadow-card), 0 0 0 1px rgba(0, 0, 0, 0.5),
-    inset 0 1.5px 0 var(--inner-glow), inset 0 -1px 0 var(--rim-soft);
-}
-
-/* 顶缘高光 + 底缘反光：玻璃质感的主要来源（不压在文字上，children 在上面） */
+/* 顶缘一道几乎看不见的高光 —— 有它才像"面"，没有就是一块色块 */
 .card::after {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    var(--specular) 0%,
-    rgba(255, 255, 255, 0) 16%,
-    rgba(255, 255, 255, 0) 84%,
-    var(--rim-soft) 100%
-  );
-  opacity: 0.65;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 12%);
+  opacity: 0.7;
 }
-
+html[data-mode="dark"] .card::after {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 12%);
+}
 .card > * {
   position: relative;
   z-index: 1;
 }
 
-/* ---------- 排印层级（与扁平版一致，玻璃上略加重） ---------- */
+/* ---------- 排印：苹果的字号是"少而稳"，不做负字距 ---------- */
 .t-hero {
-  font-size: 36px;
+  font-size: 34px;
   line-height: 42px;
-  font-weight: 700;
-  letter-spacing: -0.6px;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 .t-title {
-  font-size: 22px;
-  line-height: 28px;
+  font-size: 24px;
+  line-height: 31px;
   font-weight: 600;
-  letter-spacing: -0.2px;
+  letter-spacing: 0.2px;
 }
 .t-head {
   font-size: 17px;
-  line-height: 22px;
+  line-height: 25px;
   font-weight: 600;
-  letter-spacing: -0.1px;
 }
 .t-body {
   font-size: 17px;
-  line-height: 22px;
+  line-height: 25px;
   font-weight: 400;
 }
 .t-sub {
-  font-size: 15px;
-  line-height: 20px;
+  font-size: 17px;
+  line-height: 25px;
   color: var(--label-2);
 }
 .t-foot {
-  font-size: 13px;
-  line-height: 18px;
-  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--label-3);
 }
+/* 苹果的分组标题：小、灰、不加大写也不加字距 */
 .t-caption {
-  font-size: 13px;
-  line-height: 18px;
+  font-size: 14px;
+  line-height: 20px;
   font-weight: 600;
   color: var(--label-2);
-  letter-spacing: 0.4px;
 }
 .t-num {
   font-variant-numeric: tabular-nums;
@@ -270,7 +209,7 @@ html[data-mode="dark"] .card {
 
 /* ---------- 卡头 ---------- */
 .hero {
-  padding: var(--pad-card) var(--pad-card) 20px;
+  padding: var(--pad) var(--pad) 20px;
   display: flex;
   align-items: flex-start;
   gap: 16px;
@@ -282,62 +221,51 @@ html[data-mode="dark"] .card {
 .hero-eyebrow {
   font-size: 12px;
   line-height: 16px;
-  font-weight: 700;
-  letter-spacing: 0.8px;
-  color: var(--label-3);
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  color: var(--accent);
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 .hero-sub {
   margin-top: 6px;
 }
 
-/* 顶部统计：玻璃小片 */
+/* ---------- 概览数字：不用卡片，直接排（苹果不用小方块装数字） ---------- */
 .stat-row {
   display: flex;
-  gap: 10px;
-  padding: 0 var(--pad-card) 20px;
+  gap: 40px;
+  padding: 0 var(--pad) 8px;
 }
 .stat {
-  flex: 1;
-  border-radius: 18px;
-  padding: 12px 14px;
-  background: var(--glass-3);
-  -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--saturate));
-  backdrop-filter: blur(var(--blur-2)) saturate(var(--saturate));
-  border: 1px solid var(--rim-soft);
-  box-shadow: inset 0 1px 0 var(--inner-glow);
+  min-width: 0;
 }
 .stat-v {
-  font-size: 20px;
-  line-height: 24px;
+  font-size: 24px;
+  line-height: 31px;
   font-weight: 600;
-  letter-spacing: -0.2px;
+  letter-spacing: 0.2px;
 }
 .stat-k {
   margin-top: 2px;
   font-size: 12px;
   line-height: 16px;
-  color: var(--label-2);
+  color: var(--label-3);
 }
 
-/* ---------- 分组（玻璃片内嵌玻璃片，同心圆角） ---------- */
+/* ---------- 分组 ---------- */
 .group {
-  margin-top: 24px;
+  margin-top: 34px;
 }
 .group-title {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 0 6px 8px;
+  padding: 0 4px 12px;
 }
 .group-body {
   border-radius: var(--radius-group);
-  background: var(--glass-2);
-  -webkit-backdrop-filter: blur(var(--blur-2)) saturate(var(--saturate));
-  backdrop-filter: blur(var(--blur-2)) saturate(var(--saturate));
-  border: 1px solid var(--rim-soft);
-  box-shadow: inset 0 1px 0 var(--inner-glow);
+  background: var(--fill-2);
   overflow: hidden;
 }
 .card > .group:first-child,
@@ -345,29 +273,29 @@ html[data-mode="dark"] .card {
   margin-top: 0;
 }
 .inset {
-  margin: 0 var(--pad-card);
+  margin: 0 var(--pad);
 }
 
-/* ---------- 行 ---------- */
+/* ---------- 行：苹果的行高很松 ---------- */
 .row {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 60px;
-  padding: 10px 16px;
+  gap: 14px;
+  min-height: 64px;
+  padding: 12px 18px;
 }
 .row + .row::before {
   content: "";
   position: absolute;
   top: 0;
-  left: 16px;
+  left: 18px;
   right: 0;
   height: 1px;
-  background: var(--separator);
+  background: var(--divider);
 }
 .row--thumb + .row--thumb::before {
-  left: 80px;
+  left: 86px;
 }
 .row-main {
   flex: 1;
@@ -375,25 +303,24 @@ html[data-mode="dark"] .card {
 }
 .row-title {
   font-size: 17px;
-  line-height: 22px;
-  font-weight: 500;
-  letter-spacing: -0.1px;
+  line-height: 24px;
+  font-weight: 400;
 }
 .row-sub {
-  margin-top: 2px;
+  margin-top: 3px;
   font-size: 14px;
-  line-height: 19px;
+  line-height: 20px;
   color: var(--label-2);
 }
 .row-value {
   font-size: 17px;
-  line-height: 22px;
+  line-height: 25px;
   color: var(--label-2);
   text-align: right;
-  max-width: 260px;
+  max-width: 280px;
 }
 .row--plain {
-  min-height: 52px;
+  min-height: 56px;
 }
 .chev {
   flex: none;
@@ -404,24 +331,25 @@ html[data-mode="dark"] .card {
 
 .rank {
   flex: none;
-  width: 26px;
+  width: 24px;
   text-align: center;
   font-size: 17px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--label-3);
   font-variant-numeric: tabular-nums;
 }
 .rank--top {
-  color: var(--red);
+  color: var(--label);
+  font-weight: 600;
 }
 
-/* ---------- 缩略图：玻璃片 ---------- */
+/* ---------- 缩略图 ---------- */
 .thumb {
   flex: none;
   width: 52px;
   height: 52px;
   border-radius: var(--radius-thumb);
-  background-color: var(--glass-3);
+  background-color: var(--fill-3);
   background-position: center;
   background-size: cover;
   background-repeat: no-repeat;
@@ -429,133 +357,97 @@ html[data-mode="dark"] .card {
   align-items: center;
   justify-content: center;
   color: var(--label-3);
-  border: 1px solid var(--rim-soft);
-  box-shadow: inset 0 1px 0 var(--inner-glow);
 }
 .thumb--sm {
   width: 40px;
   height: 40px;
-  border-radius: 11px;
+  border-radius: 10px;
 }
 .thumb--lg {
-  width: 132px;
-  height: 132px;
-  border-radius: 26px;
+  width: 128px;
+  height: 128px;
+  border-radius: 22px;
 }
 
-/* ---------- 胶囊：玻璃药丸 ---------- */
+/* ---------- 胶囊：苹果的 chip 是浅底、无边框、不描边 ---------- */
 .pill {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 23px;
-  padding: 0 10px;
+  height: 24px;
+  padding: 0 11px;
   border-radius: 999px;
   font-size: 12px;
-  line-height: 23px;
-  font-weight: 600;
-  background: var(--glass-3);
-  -webkit-backdrop-filter: blur(12px) saturate(var(--saturate));
-  backdrop-filter: blur(12px) saturate(var(--saturate));
-  border: 1px solid var(--rim-soft);
-  box-shadow: inset 0 1px 0 var(--inner-glow);
+  line-height: 24px;
+  font-weight: 500;
+  background: var(--fill-3);
   color: var(--label-2);
   white-space: nowrap;
 }
 .pill--accent {
-  background: color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.4));
-  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
-  color: color-mix(in srgb, var(--accent) 68%, #000);
-}
-.pill--green {
-  background: color-mix(in srgb, var(--green) 30%, rgba(255, 255, 255, 0.4));
-  border-color: color-mix(in srgb, var(--green) 42%, transparent);
-  color: color-mix(in srgb, var(--green) 70%, #000);
-}
-.pill--orange {
-  background: color-mix(in srgb, var(--orange) 30%, rgba(255, 255, 255, 0.4));
-  border-color: color-mix(in srgb, var(--orange) 42%, transparent);
-  color: color-mix(in srgb, var(--orange) 72%, #000);
-}
-.pill--red {
-  background: color-mix(in srgb, var(--red) 26%, rgba(255, 255, 255, 0.4));
-  border-color: color-mix(in srgb, var(--red) 40%, transparent);
-  color: color-mix(in srgb, var(--red) 74%, #000);
-}
-.pill--gold {
-  background: color-mix(in srgb, var(--gold) 30%, rgba(255, 255, 255, 0.4));
-  border-color: color-mix(in srgb, var(--gold) 42%, transparent);
-  color: color-mix(in srgb, var(--gold) 76%, #000);
-}
-html[data-mode="dark"] .pill--accent,
-html[data-mode="dark"] .pill--green,
-html[data-mode="dark"] .pill--orange,
-html[data-mode="dark"] .pill--red,
-html[data-mode="dark"] .pill--gold {
-  background: color-mix(in srgb, currentColor 22%, rgba(255, 255, 255, 0.04));
-  border-color: color-mix(in srgb, currentColor 40%, transparent);
-}
-html[data-mode="dark"] .pill--accent {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
 }
-html[data-mode="dark"] .pill--green {
+.pill--green {
+  background: color-mix(in srgb, var(--green) 12%, transparent);
   color: var(--green);
 }
-html[data-mode="dark"] .pill--orange {
+.pill--orange {
+  background: color-mix(in srgb, var(--orange) 12%, transparent);
   color: var(--orange);
 }
-html[data-mode="dark"] .pill--red {
+.pill--red {
+  background: color-mix(in srgb, var(--red) 12%, transparent);
   color: var(--red);
 }
-html[data-mode="dark"] .pill--gold {
+.pill--gold {
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
   color: var(--gold);
 }
 .pill-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex: none;
 }
 
-/* ---------- 进度/热度条 ---------- */
+/* ---------- 细进度条 ---------- */
 .bar {
-  height: 6px;
+  height: 3px;
   border-radius: 999px;
-  background: rgba(120, 130, 160, 0.16);
+  background: var(--fill-3);
   overflow: hidden;
 }
 .bar > i {
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--label);
 }
 .bar--warm > i {
-  background: linear-gradient(90deg, #ffb340, #ff5f57);
+  background: var(--accent);
 }
 
-/* ---------- 页脚 ---------- */
+/* ---------- 页脚：只有署名，不放任何基础设施信息 ---------- */
 .foot {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 18px var(--pad-card) 22px;
-  margin-top: 24px;
-  border-top: 1px solid var(--separator);
+  justify-content: flex-end;
+  padding: 20px var(--pad) 24px;
+  margin-top: 28px;
 }
 .foot-brand {
-  font-size: 13px;
-  line-height: 18px;
-  font-weight: 600;
-  letter-spacing: -0.1px;
-  color: var(--label-2);
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--label-3);
+  letter-spacing: 0.2px;
 }
 
 /* ---------- 空态 ---------- */
 .empty {
-  padding: 30px var(--pad-card);
+  padding: 32px var(--pad);
   text-align: center;
   color: var(--label-2);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 20px;
 }

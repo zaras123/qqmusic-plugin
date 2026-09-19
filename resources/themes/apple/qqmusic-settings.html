@@ -23,7 +23,7 @@
       color: #fff;
     }
     .sw--off {
-      background: var(--glass-3);
+      background: var(--fill-3);
       color: var(--label-2);
     }
     html[data-mode="dark"] .sw--on {
@@ -49,7 +49,7 @@
     }
     /* 底部说明：与内容左对齐（别贴卡片边） */
     .note {
-      padding: 16px var(--pad-card) 0;
+      padding: 16px var(--pad) 0;
       font-size: 13px;
       line-height: 18px;
       color: var(--label-2);
@@ -114,7 +114,6 @@
       {{if data.tip}}<div class="note">{{data.tip}}</div>{{/if}}
 
       <div class="foot">
-        <span class="t-foot">{{data.apiHint || data.apiBase}}</span>
         <span class="foot-brand">qqmusic-plugin</span>
       </div>
     </div>

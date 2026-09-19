@@ -77,8 +77,7 @@ const samples = {
     keyword: '起风了',
     total: 5,
     quality: 'FLAC',
-    apiHint: 'API · 127.0.0.1:3300',
-    commands: [
+        commands: [
       { name: '#qqm听序号', desc: '播放当前列表中的指定歌曲（会话内也可 #听序号）', example: '#qqm听1' },
       { name: '#qqm歌词 序号', desc: '查看指定歌曲的纯文本歌词', example: '#qqm歌词1' },
       { name: '#qqmMV 播放 序号', desc: '播放 / 下载该曲 MV（列表带 🎬 即是有 MV 的歌曲）', example: '#qqmMV 播放 1' },
@@ -90,8 +89,7 @@ const samples = {
     title: 'QQ音乐热搜',
     subtitle: '实时热搜 · 可直接 #qqm点歌 关键词',
     total: 10,
-    apiHint: 'API · 127.0.0.1:3300',
-    tip: '复制热搜词后发送 #qqm点歌 关键词 即可搜索',
+        tip: '复制热搜词后发送 #qqm点歌 关键词 即可搜索',
     items: [
       { index: 1, word: '起风了', hot: '982万' },
       { index: 2, word: '七里香', hot: '865万' },
@@ -112,8 +110,7 @@ const samples = {
     cover: '',
     songmid: '0039MnYb0qxYhV',
     lineCount: 16,
-    apiHint: 'API · 127.0.0.1:3300',
-    tip: '已去除时间戳，纯文本歌词',
+        tip: '已去除时间戳，纯文本歌词',
     lines: [
       '这一路上走走停停',
       '顺着少年漂流的痕迹',
@@ -149,7 +146,6 @@ const samples = {
       { label: '一起听', value: '关', on: false },
     ],
     rows: [
-      { k: 'API', v: 'http://127.0.0.1:3300' },
       { k: '登录', v: '已绑定 · DemoUser' },
       { k: '适配器', v: 'QQBot (qqbot)' },
       { k: '主题', v: 'classic（浅色）' },
@@ -161,7 +157,7 @@ const samples = {
       { name: '扫码登录', desc: '绑定 QQ 音乐账号获取付费曲权限', example: '#qqm登录' },
       { name: '状态卡片', desc: '查看当前插件运行状态', example: '#qqm状态' },
       { name: '换界面', desc: '切换卡片主题 / 深浅色', example: '#qqm界面 apple' },
-      { name: '改 API', desc: '切换 qqmusic-api 地址', example: '#qqm api http://127.0.0.1:3300' },
+      { name: '改 API', desc: '切换 qqmusic-api 地址', example: '#qqm api <地址>' },
       { name: '改音质', desc: '设置最高播放音质', example: '#qqm 音质 flac' },
       { name: '连通测试', desc: '测试 API 是否正常响应', example: '#qqm 测试' },
     ],
@@ -178,7 +174,6 @@ const samples = {
     vipExpireText: '到期：2026-12-31',
     musicQuality: 'FLAC',
     keyStatus: '正常（剩余 2 天）',
-    apiBase: 'http://127.0.0.1:3300',
     avatarUrl: logoUrl,
     avatarIsPhoto: true,
     stats: [
@@ -194,8 +189,7 @@ const samples = {
     statCommands: '40+',
     statQuality: 'FLAC',
     statMode: '全开',
-    apiHint: 'API · 127.0.0.1:3300',
-    tip: '付费曲需主人扫码登录；指令统一 #qqm 前缀；#听序号 取自己最近一次列表。',
+        tip: '付费曲需主人扫码登录；指令统一 #qqm 前缀；#听序号 取自己最近一次列表。',
     sections: [
       {
         title: '点歌播放',
@@ -235,8 +229,7 @@ const samples = {
     cover: '',
     songmid: '0039MnYb0qxYhV',
     total: 4,
-    apiHint: 'API · 127.0.0.1:3300',
-    tip: '热门评论按点赞排序',
+        tip: '热门评论按点赞排序',
     comments: [
       {
         nick: '听风的人',

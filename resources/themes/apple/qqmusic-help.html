@@ -14,7 +14,7 @@
       width: 52px;
       height: 52px;
       border-radius: 14px;
-      background: var(--glass-3);
+      background: var(--fill-3);
       object-fit: contain;
       flex: none;
     }
@@ -28,7 +28,7 @@
       font-size: 12px;
     }
     .tip {
-      padding: 16px var(--pad-card) 0;
+      padding: 16px var(--pad) 0;
     }
   </style>
 </head>
@@ -86,7 +86,6 @@
       {{if data.tip}}<div class="tip t-foot">{{data.tip}}</div>{{/if}}
 
       <div class="foot">
-        <span class="t-foot">{{data.apiHint}}</span>
         <span class="foot-brand">qqmusic-plugin</span>
       </div>
     </div>

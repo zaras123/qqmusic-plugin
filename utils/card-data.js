@@ -317,7 +317,6 @@ export async function buildSettingsCardData(e = null) {
       { label: '一起听', value: onOff(c.togetherEnable), on: togetherOn },
     ],
     rows: [
-      { k: 'API', v: apiBaseView },
       { k: '登录', v: login.text },
       { k: '主人账号', v: publicAccountText },
       { k: '适配器', v: `${adapter.name} (${adapter.kind})` },
@@ -370,7 +369,6 @@ export function formatSettingsText(data) {
   return [
     '【QQ音乐插件配置】',
     `enable: ${data.enableRaw !== false}`,
-    `apiBase: ${data.apiBase}`,
     `login: ${data.loginText}`,
     `主人账号: ${data.publicAccountText || '未启用'}`,
     `adapter: ${data.adapterName} (${data.adapterKind})`,

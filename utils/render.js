@@ -369,7 +369,6 @@ export function formatStatusText(data) {
     `会员: ${data.vipTitle} · ${data.vipStateText}`,
     `最高音质: ${data.musicQuality}`,
     data.vipExpireText,
-    `API: ${data.apiBase}`,
     `Key: ${data.keyStatus}`,
     !data.loggedIn ? '发送 #qqm登录 扫码绑定' : '',
   ]
