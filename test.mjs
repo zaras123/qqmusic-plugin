@@ -219,6 +219,8 @@ try {
   // 协议字段、编排、限流、文案全在 API 侧（qqmusic-api-enhanced/scripts/test-together.js 有 48 项单测），
   // 插件这边如果还残留可复刻的协议实现，就是这套架构白改了。
   const { togetherAdapter, togetherGate, autoSyncTogether } = await import('./utils/together.js')
+  // 自定义背景：来源识别、图片 API 的 JSON 解析、缓存过期判定
+  const { classifyBgInput, pickImageUrl, shouldRefresh } = await import('./utils/background.js')
   // 主题（多套 UI）：语法糖是「丢个目录就能加主题」，所以这里测的是解析与回落规则
   const {
     listThemeIds,
@@ -439,6 +441,27 @@ try {
     ['classic 不支持深色：跟随时间也不变深', resolveTheme({ uiTheme: 'classic', uiDark: 'auto' }, { now: atHour(22) }).dark, false],
     ['关掉时段配色 → 固定白天', resolveTheme({ uiTheme: 'apple', uiTimeColor: false }, { now: atHour(22) }).period, 'day'],
     ['开着时段配色 → 用真实时段', resolveTheme({ uiTheme: 'apple' }, { now: atHour(22) }).period, 'night'],
+    // 自定义背景：来源自动识别（Win/Linux 路径 vs 链接）
+    ['背景来源：https 直链 → remote', classifyBgInput('https://example.com/a.jpg'), 'remote'],
+    ['背景来源：http 直链 → remote', classifyBgInput('http://example.com/a.jpg'), 'remote'],
+    ['背景来源：Windows 路径 → file', classifyBgInput('D:\\图片\\a.jpg'), 'file'],
+    ['背景来源：Linux 路径 → file', classifyBgInput('/root/pics/a.jpg'), 'file'],
+    ['背景来源：空 → 不启用', classifyBgInput('   '), ''],
+    // 图片 API 的 JSON 形状很多，这几种是最常见的
+    ['背景 API：{url}', pickImageUrl({ url: 'https://a/1.jpg' }), 'https://a/1.jpg'],
+    ['背景 API：{data:{url}}', pickImageUrl({ data: { url: 'https://a/2.jpg' } }), 'https://a/2.jpg'],
+    ['背景 API：{data:[{url}]}', pickImageUrl({ data: [{ url: 'https://a/3.jpg' }] }), 'https://a/3.jpg'],
+    ['背景 API：{imgurl}', pickImageUrl({ imgurl: 'https://a/4.jpg' }), 'https://a/4.jpg'],
+    ['背景 API：裸 URL 字符串', pickImageUrl('https://a/5.jpg'), 'https://a/5.jpg'],
+    ['背景 API：没有图片地址 → 空', pickImageUrl({ ok: true, msg: 'no image' }), ''],
+    // 缓存：同一批卡片共用一张图，过了窗口才重取
+    ['背景缓存：没记录过 → 要取', shouldRefresh(null, 10, 1000), true],
+    ['背景缓存：窗口内 → 不重取', shouldRefresh({ at: 0 }, 10, 60_000), false],
+    ['背景缓存：过窗口 → 重取', shouldRefresh({ at: 0 }, 10, 11 * 60_000), true],
+    ['背景缓存：ttl=0 → 每次都取', shouldRefresh({ at: 0 }, 0, 1), true],
+    // 只有声明了 bg 能力的主题才接管背景配置
+    ['主题能力：apple 支持自定义背景', resolveTheme({ uiTheme: 'apple' }).manifest.bg, true],
+    ['主题能力：classic 不支持', resolveTheme({ uiTheme: 'classic' }).manifest.bg, false],
   ]
 
   for (const [name, got, want] of pure) {

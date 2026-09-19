@@ -101,7 +101,7 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 | ⚙️ 配置 | `#qqm 开启/关闭 点歌/解析` | 功能开关（主人） |
 | ⚙️ 配置 | `#qqm 测试` | 测试 API 连通（主人） |
 | ⚙️ 配置 | `#qqm账号` | 查看已登录账号（主人） |
-| 🎨 界面 | `#qqm界面` | 查看/切换卡片主题、深浅色、热重载模板（主人） |
+| 🎨 界面 | `#qqm界面` | 查看/切换卡片主题、深浅色、自定义背景、热重载模板（主人） |
 | 🔄 更新 | `#qqm更新` | 拉取最新插件代码（主人，需 git 安装） |
 | 🔄 更新 | `#qqm强制更新` | 丢弃本地改动并同步远程（主人） |
 | 🔄 更新 | `#qqm更新日志` | 查看最近提交（主人） |
@@ -199,9 +199,12 @@ cd qqmusic-plugin && pnpm install
 >
 > 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受开关限制。
 
-> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置两套：`classic`（原始界面，默认）与 `apple`（对标 iOS 的分组列表风格，支持深色）。主人发 `#qqm界面` 查看与切换，`#qqm界面 深色` 换深浅，锅巴里也有下拉。
+> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置两套：`classic`（原始界面，默认）与 `apple`（排印对齐 apple.com.cn 的实测值：近白底 + 白玻璃卡 + 蓝色小标；支持深色与时段配色）。主人发 `#qqm界面` 查看与切换，深浅色支持「浅色 / 深色 / 跟随时间（夜晚自动深色）」，锅巴里都有。
 >
 > **换主题、改模板、改 `theme.json` 都是热更新** —— 不用重启机器人（渲染前比对文件 mtime，变了就让 art-template 重新编译；它默认按文件名永久缓存，这正是以前改模板必须重启的原因）。批量改动后想强制重来：`#qqm界面 重载`。
+>
+> 📌 **自定义背景（仅 apple 主题）**：`#qqm界面 背景 <路径或链接>`（锅巴里也能设）。三种来源**自动识别**：服务器本地路径（`D:\图片\a.jpg` / `/root/pics/a.jpg`）、图片直链、图片 API（返回 JSON 里有图片地址，或直接返回图片）。开启后卡片材质自动切成 **iOS 液态玻璃**（半透明 + 强模糊 + 边缘高光）。
+> 远端图**由插件侧取回并缓存成本地文件**（不让浏览器去拉）—— 否则每次渲染都要等远端图，慢图/挂掉的图会把整张卡拖死；缓存时长锅巴可调（`0` = 每次渲染都换）。取不到图时**自动回落主题自带底色**，不影响发卡（日志里有原因）。
 >
 > 主题可以只实现部分卡片，缺的自动回落到 `classic`。本地预览（不进机器人）：`node scripts/preview-cards.mjs`，产出 `temp/preview/<主题>[-dark]/<卡>.png`，走的与生产同一条渲染路径。
 
@@ -226,6 +229,7 @@ qqmusic-plugin/
 │   ├── send.js              # 消息发送（语音 / 群文件 / 音乐卡 / MV 视频）
 │   ├── render.js            # 图片卡片渲染（按主题解析模板 + 热更新）
 │   ├── theme.js             # 主题发现/解析/缓存失效（多套 UI）
+│   ├── background.js        # 自定义背景：本地路径/直链/图片 API + 本地缓存
 │   ├── card-data.js         # 卡片数据构建
 │   ├── adapter.js           # 适配器识别（ICQQ / OneBot / QQBot）
 │   ├── together.js          # 一起听：协议端识别 + 发包（协议知识在 API 侧）
@@ -264,7 +268,7 @@ qqmusic-plugin/
 - 主人账号手动指定（`publicAccount`，留空=自动；多账号想固定用某一个时才填）
 - 从 API 一键回填登录态
 - 一起听：启用开关（默认关）/ 点歌后自动同步（默认关，需总开关同时打开）—— 协议参数在 API 侧：`data/together.json` 的 `aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`
-- 界面：卡片主题（`resources/themes/` 下的目录名，内置 classic / apple）、深色界面（仅支持深色的主题生效）
+- 界面：卡片主题（`resources/themes/` 下的目录名，内置 classic / apple）、深浅色（浅色 / 深色 / 跟随时间）、底色跟随时段、自定义背景（开关 + 来源 + 缓存分钟数，仅 apple 主题支持）
 
 ---
 

@@ -81,7 +81,7 @@ function loadPuppeteer() {
  * 否则预览看到的和真机发出去的会不一致。
  * @returns {{outFile:string, tpl:{file:string, from:string, fallback:boolean}}}
  */
-export function renderHtmlFile(data, card, theme) {
+export function renderHtmlFile(data, card, theme, { bgUrl = '' } = {}) {
   const art = loadArtTemplate()
   const tpl = templateFile(theme, card)
   if (!tpl.file) {
@@ -100,17 +100,29 @@ export function renderHtmlFile(data, card, theme) {
 
   const resUrl = pathToFileURL(path.join(pluginPath, 'resources')).href + '/'
   const mode = theme.dark ? 'dark' : 'light'
-  const absHtml = html
-    // 主题 / 明暗 / 时段挂在 <html> 上：模板据此切调色板（不依赖 prefers-color-scheme，结果确定）。
-    // 放在这里而不是 page.evaluate，是为了 Yunzai / runtime.render 两条回退路径也吃得到。
+  const hasBg = Boolean(bgUrl)
+  let absHtml = html
+    // 主题 / 明暗 / 时段（/ 是否有自定义背景）挂在 <html> 上：模板与 CSS 据此切样式
+    //（不依赖 prefers-color-scheme，结果确定）。放在这里而不是 page.evaluate，
+    // 是为了 Yunzai / runtime.render 两条回退路径也吃得到。
     .replace(
       /<html\b([^>]*)>/,
-      `<html$1 data-theme="${theme.id}" data-mode="${mode}" data-time="${theme.period || 'day'}">`
+      `<html$1 data-theme="${theme.id}" data-mode="${mode}" data-time="${theme.period || 'day'}"${
+        hasBg ? ' data-bg="1"' : ''
+      }>`
     )
     .replace(/src="(\.\/)?resources\//g, `src="${resUrl}`)
     // 主题的共享样式用 <link href="resources/themes/<id>/_base.css"> 引入，这条同样要改写
     .replace(/href="(\.\/)?resources\//g, `href="${resUrl}`)
     .replace(/url\((['"]?)(\.\/)?resources\//g, `url($1${resUrl}`)
+
+  // 背景图地址随配置变，没法写进静态主题 CSS —— 渲染时内联一个变量进去
+  if (hasBg) {
+    absHtml = absHtml.replace(
+      /<\/head>/i,
+      `<style>:root{--bg-image:url("${bgUrl}")}</style></head>`
+    )
+  }
 
   fs.writeFileSync(outFile, absHtml, 'utf8')
   return { outFile, tpl }
@@ -134,14 +146,27 @@ export async function renderCard(e, data, card = 'qqmusic-status') {
 
   // 优先直连截图：可控底色/清晰度；Yunzai 默认页底常为白，容易出现“白背景”
   try {
-    const { outFile } = renderHtmlFile(data, card, theme)
+    // 自定义背景：只有声明了 bg 能力的主题（apple）才接管；取不到就回落主题自带底色。
+    // 整段包起来 —— 背景是锦上添花，绝不能因为它让卡片发不出去。
+    let bg = null
+    if (theme.manifest?.bg === true) {
+      try {
+        const { resolveBackground } = await import('./background.js')
+        bg = await resolveBackground(cfg)
+      } catch (err) {
+        logWarn(`[qqmusic-plugin] 背景解析异常：${err.message}`)
+      }
+    }
+    const { outFile } = renderHtmlFile(data, card, theme, { bgUrl: bg?.url || '' })
     const vw = viewportWidthOf(theme, card)
     const buf = await screenshotDirect(outFile, { viewportWidth: vw, pageBg: pageBgOf(theme) })
     const outPng = path.join(yunzaiPath, 'temp', `${theme.id}-${card}.png`)
     ensureDir(path.dirname(outPng))
     fs.writeFileSync(outPng, buf)
     logInfo(
-      `[qqmusic-plugin] ${card} 截图成功 (direct · 主题 ${theme.id}${theme.dark ? '·深色' : ''}) ${(buf.length / 1024).toFixed(1)}KB`
+      `[qqmusic-plugin] ${card} 截图成功 (direct · 主题 ${theme.id}${theme.dark ? '·深色' : ''}${
+        bg ? `·背景${bg.source === 'file' ? '本地' : `远端/${bg.from}`}` : ''
+      }) ${(buf.length / 1024).toFixed(1)}KB`
     )
     return toSegmentImage(buf)
   } catch (err) {

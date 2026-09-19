@@ -41,6 +41,15 @@ uiTheme: classic
 uiDark: false
 # 底色随时段自动换：清晨 5-8 / 白天 8-17 / 黄昏 17-20 / 夜晚 20-5（声明了时段配色的主题才生效）
 uiTimeColor: true
+# 自定义背景（**只有 apple 主题支持**，其余主题忽略）：开启后卡片切成 iOS 液态玻璃
+uiBgEnable: false
+# 背景来源，自动识别三种：
+#   本地路径  D:\图片\a.jpg   或  /root/pics/a.jpg
+#   图片直链  https://example.com/a.jpg
+#   图片 API  https://api.example.com/random   （返回 JSON 里有图片地址，或直接返回图片）
+uiBgValue: ""
+# 远端背景缓存分钟数；0 = 每次渲染都重新取（要随机图 API 换得勤就填 0）
+uiBgCacheMin: 10
 
 # 其它平台补充曲（默认开）：QQ 音乐没版权的歌，从网易云/酷我补几条免费曲（128k）追加在列表尾部
 extraSources: true

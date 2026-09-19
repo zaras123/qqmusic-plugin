@@ -142,6 +142,33 @@ export const schemas = [
     component: 'Switch',
   },
   {
+    field: 'uiBgEnable',
+    label: '自定义卡片背景',
+    bottomHelpMessage:
+      '开启后卡片切成 iOS 液态玻璃（半透明+高光）。**只有 apple 主题支持**，其余主题会忽略。背景图取不到时会自动回落主题自带底色，不影响发卡',
+    component: 'Switch',
+  },
+  {
+    field: 'uiBgValue',
+    label: '背景来源',
+    bottomHelpMessage:
+      '本地路径（Windows D:\\图片\\a.jpg / Linux /root/pics/a.jpg）、图片直链、或图片 API（返回 JSON 里有图片地址，或直接返回图片）—— 自动识别，不用选类型',
+    component: 'Input',
+    componentProps: {
+      placeholder: 'D:\\图片\\a.jpg  或  https://example.com/a.jpg',
+    },
+  },
+  {
+    field: 'uiBgCacheMin',
+    label: '远端背景缓存(分钟)',
+    bottomHelpMessage: '0 = 每次渲染都重新取（随机图 API 想换得勤就填 0）；本地路径不受此项影响',
+    component: 'InputNumber',
+    componentProps: {
+      min: 0,
+      max: 1440,
+    },
+  },
+  {
     component: 'Divider',
     label: '音质',
   },
@@ -290,6 +317,9 @@ export function getConfigData() {
     uiTheme: String(c.uiTheme || 'classic'),
     uiDark: darkPrefOf(c.uiDark),
     uiTimeColor: c.uiTimeColor !== false,
+    uiBgEnable: c.uiBgEnable === true,
+    uiBgValue: String(c.uiBgValue || ''),
+    uiBgCacheMin: c.uiBgCacheMin === undefined || c.uiBgCacheMin === '' ? 10 : Number(c.uiBgCacheMin) || 0,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
     pullLoginMeta: false,
   }

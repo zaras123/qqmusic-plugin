@@ -13,6 +13,7 @@ import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
 import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
 import { listThemeIds, describeThemes, resolveTheme, TIME_LABEL } from '../utils/theme.js'
+import { describeBackground } from '../utils/background.js'
 
 export class qqmusicAdmin extends (await loadPluginBase()) {
   constructor() {
@@ -251,14 +252,18 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       const lines = describeThemes().map((t) => {
         const mark = t.id === current.id ? '▶' : '　'
         const darkTag = t.dark ? ' · 支持深色' : ''
+        const bgTag = t.bg ? ' · 支持自定义背景' : ''
         const coverTag = t.cards < 8 ? ` · 已实现 ${t.cards}/8 张卡` : ''
-        return `${mark} ${t.id} — ${t.name}${darkTag}${coverTag}${t.desc ? `\n      ${t.desc}` : ''}`
+        return `${mark} ${t.id} — ${t.name}${darkTag}${bgTag}${coverTag}${t.desc ? `\n      ${t.desc}` : ''}`
       })
       await e.reply(
         [
           `当前界面：${current.manifest.name}（${current.id}）· ${
             presentTimeColor ? `${TIME_LABEL[current.period] || current.period}配色` : '固定配色'
           } · ${current.dark ? '深色' : '浅色'}${current.darkPref === 'auto' ? '（跟随时间）' : ''}`,
+          `背景：${describeBackground(cfg)}${
+            current.manifest.bg === true ? '' : '（当前主题不支持自定义背景，仅 apple 支持）'
+          }`,
           '',
           '可用主题：',
           ...lines,
@@ -266,8 +271,46 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
           '切换主题：#qqm界面 <主题id>',
           '深浅：   #qqm界面 深色 / 浅色 / 自动（跟随时间）',
           '底色：   #qqm界面 时段（开/关随时段自动换色）',
+          '背景：   #qqm界面 背景 <路径或链接>  /  #qqm界面 背景 关',
           '热重载： #qqm界面 重载',
           '（换主题、改模板都不用重启，热更新立即生效）',
+        ].join('\n')
+      )
+      return true
+    }
+
+    // 自定义背景（仅 apple 这类声明了 bg 能力的主题生效）
+    if (/^背景/.test(arg)) {
+      const value = arg.replace(/^背景\s*/, '').trim()
+      if (!value) {
+        await e.reply(
+          [
+            `当前背景：${describeBackground(cfg)}`,
+            '',
+            '用法：#qqm界面 背景 <路径或链接>   /   #qqm界面 背景 关',
+            '支持三种来源（自动识别，不用选类型）：',
+            '  · 本地路径  D:\\图片\\a.jpg   或  /root/pics/a.jpg',
+            '  · 图片直链  https://example.com/a.jpg',
+            '  · 图片 API  https://api.example.com/random（JSON 里有图片地址，或直接返回图片）',
+            '远端图会缓存到本地（锅巴可调分钟数，0=每次都换）；取不到时自动回落主题底色。',
+            '仅 apple 主题支持，其余主题忽略此设置。',
+          ].join('\n')
+        )
+        return true
+      }
+      if (/^(关|关闭|off)$/i.test(value)) {
+        Config.mergeConfig('qqmusic', { uiBgEnable: false })
+        await e.reply('已关闭自定义背景，卡片回到主题自带底色')
+        return true
+      }
+      Config.mergeConfig('qqmusic', { uiBgEnable: true, uiBgValue: value })
+      const okTheme = current.manifest.bg === true
+      await e.reply(
+        [
+          `背景已设为：${value}`,
+          okTheme
+            ? '卡片将使用 iOS 液态玻璃；取图失败会自动回落主题底色（日志里有原因）'
+            : `⚠️ 当前主题「${current.manifest.name}」不支持自定义背景，切到 apple 才看得到效果`,
         ].join('\n')
       )
       return true

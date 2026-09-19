@@ -72,6 +72,8 @@ export function normalizeManifest(id, raw = {}) {
     name: String(raw.name || id),
     desc: String(raw.desc || ''),
     dark: raw.dark === true,
+    // 是否支持「自定义背景」（背景 + 液态玻璃）。只有声明了的主题才接管 uiBg* 配置
+    bg: raw.bg === true,
     pageBg: {
       light: String(bg.light || '#F2F2F7'),
       // 只有声明支持深色的主题才需要深色底
@@ -200,6 +202,7 @@ export function describeThemes() {
       name: m?.name || id,
       desc: m?.desc || '',
       dark: m?.dark === true,
+      bg: m?.bg === true,
       cards: CARDS.filter((c) => fs.existsSync(path.join(THEMES_DIR, id, `${c}.html`))).length,
     }
   })

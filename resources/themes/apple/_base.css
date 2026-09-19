@@ -451,3 +451,130 @@ html[data-mode="dark"] .card::after {
   font-size: 14px;
   line-height: 20px;
 }
+
+/* ============================================================
+ * 自定义背景模式（渲染器在有背景时给 <html> 打 data-bg="1"）
+ *
+ * 材质换成 iOS 液态玻璃：两层模糊叠加
+ *   第 1 层 .page::before —— 把墙纸整体柔化并**归正明度**，模拟 iOS 对壁纸的处理。
+ *     用 backdrop-filter 的 brightness() 而不是盖一层死蒙板：
+ *     深色图提亮、浅色图压暗，这样不管用户放什么图，玻璃上的文字都还能读。
+ *   第 2 层 .card —— 真正的液态玻璃：高模糊 + 强饱和（把底下的颜色"吸"上来）
+ *     + 亮 rim + 顶缘高光 + 深投影，靠这几样出通透感。
+ * 没有背景时下面这些全部不生效，保持"苹果官网式简约"那套。
+ * ============================================================ */
+html[data-bg="1"] .page {
+  position: relative;
+  overflow: hidden;
+  /* 留白加大，让墙纸露出来 */
+  padding: 40px;
+  background-image: var(--bg-image);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/* 墙纸处理层（延伸到页面外，靠 overflow 裁掉，保证边缘也吃到模糊） */
+html[data-bg="1"] .page::before {
+  content: "";
+  position: absolute;
+  inset: -60px;
+  -webkit-backdrop-filter: blur(14px) saturate(150%) brightness(1.04);
+  backdrop-filter: blur(14px) saturate(150%) brightness(1.04);
+  background: rgba(255, 255, 255, 0.2);
+}
+html[data-mode="dark"][data-bg="1"] .page::before {
+  -webkit-backdrop-filter: blur(14px) saturate(140%) brightness(0.5);
+  backdrop-filter: blur(14px) saturate(140%) brightness(0.5);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+/* 液态玻璃卡片。
+ * 实度是调出来的：第一版 .54→.38 太透，分组小灰字直接糊在彩色背景上看不清 ——
+ * iOS 的玻璃面板其实相当实（内容优先），只在边缘透出背景色。 */
+html[data-bg="1"] .card {
+  z-index: 1;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.74) 0%,
+    rgba(255, 255, 255, 0.58) 100%
+  );
+  -webkit-backdrop-filter: blur(48px) saturate(190%) brightness(1.06);
+  backdrop-filter: blur(48px) saturate(190%) brightness(1.06);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.12),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.95), inset 0 -1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* 玻璃上的次级文字要更实：背景模式下来源色不可控，灰字很容易被花纹吞掉 */
+html[data-bg="1"] {
+  --label-2: rgba(38, 42, 52, 0.8);
+  --label-3: rgba(38, 42, 52, 0.52);
+  --divider: rgba(0, 0, 0, 0.1);
+}
+html[data-mode="dark"][data-bg="1"] {
+  --label-2: rgba(240, 240, 248, 0.8);
+  --label-3: rgba(240, 240, 248, 0.52);
+  --divider: rgba(255, 255, 255, 0.16);
+}
+/* 顶缘高光 + 底缘反光：玻璃感的主要来源 */
+html[data-bg="1"] .card::after {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(255, 255, 255, 0) 18%,
+    rgba(255, 255, 255, 0) 82%,
+    rgba(255, 255, 255, 0.24) 100%
+  );
+  opacity: 0.85;
+}
+
+html[data-mode="dark"][data-bg="1"] .card {
+  background: linear-gradient(
+    180deg,
+    rgba(42, 42, 48, 0.78) 0%,
+    rgba(22, 22, 26, 0.66) 100%
+  );
+  -webkit-backdrop-filter: blur(48px) saturate(180%) brightness(0.8);
+  backdrop-filter: blur(48px) saturate(180%) brightness(0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.2), inset 0 -1px 0 rgba(255, 255, 255, 0.07);
+}
+html[data-mode="dark"][data-bg="1"] .card::after {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0) 18%,
+    rgba(255, 255, 255, 0) 84%,
+    rgba(255, 255, 255, 0.07) 100%
+  );
+}
+
+/* 玻璃上的内层元素要更实一点，否则跟着背景一起"化"掉、层次就没了 */
+html[data-bg="1"] .group-body,
+html[data-bg="1"] .inset {
+  background: rgba(255, 255, 255, 0.44);
+}
+html[data-bg="1"] .pill {
+  background: rgba(255, 255, 255, 0.62);
+}
+html[data-bg="1"] .thumb {
+  background-color: rgba(255, 255, 255, 0.55);
+}
+html[data-bg="1"] .bar {
+  background: rgba(255, 255, 255, 0.6);
+}
+html[data-mode="dark"][data-bg="1"] .group-body,
+html[data-mode="dark"][data-bg="1"] .inset {
+  background: rgba(255, 255, 255, 0.1);
+}
+html[data-mode="dark"][data-bg="1"] .pill {
+  background: rgba(255, 255, 255, 0.16);
+}
+html[data-mode="dark"][data-bg="1"] .thumb {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+html[data-mode="dark"][data-bg="1"] .bar {
+  background: rgba(255, 255, 255, 0.18);
+}

@@ -3,6 +3,7 @@
   "name": "Apple 风",
   "desc": "对齐 apple.com.cn 的排印与留白：近白底 + 白玻璃卡 + 蓝色小标；支持深色与时段配色",
   "dark": true,
+  "bg": true,
   "pageBg": {
     "light": "#e9eefb",
     "dark": "#0a0d16"

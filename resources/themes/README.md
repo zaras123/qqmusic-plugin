@@ -28,6 +28,7 @@ resources/themes/
 | 字段 | 作用 |
 |---|---|
 | `dark` | 是否支持深色。为 `true` 时才需要 `pageBg.dark`，配置里的「深色界面」也只对这类主题生效 |
+| `bg` | 是否支持**自定义背景**（本地路径 / 图片直链 / 图片 API）。为 `true` 时，用户开启自定义背景后 `<html>` 会多一个 `data-bg="1"`，主题可据此整套换材质（apple 就是靠它切到 iOS 液态玻璃）。没声明的主题完全不受影响 |
 | `pageBg` | 页面底色。**必须不透明** —— QQ 会把透明 PNG 填成白底 |
 | `viewportWidth` | 截图视口宽度（默认 640） |
 | `cardWidth` | 单张卡的宽度覆盖，如详情卡用 580 |
@@ -42,6 +43,18 @@ resources/themes/
 - 最外层必须是 `.page` → `.card`（渲染器就截这个块）
 - 相对路径以 `resources/` 开头，渲染时会改写成绝对 `file://` URL。共享样式可以放主题目录里再 `<link rel="stylesheet" href="resources/themes/<id>/xxx.css">`（一份 CSS 服务多张卡）
 - `<html>` 上会被注入 `data-theme="<主题id>"` 与 `data-mode="light|dark"`，深浅色在 CSS 里用 `html[data-mode="dark"] { ... }` 覆盖变量即可 —— **不要**依赖 `prefers-color-scheme`（渲染时不一定一致）
+
+## 支持自定义背景（可选）
+
+声明 `"bg": true` 后，用户在锅巴/`#qqm界面 背景 <路径或链接>` 打开背景时，渲染器会：
+
+1. 把背景图解析成本地 `file://` 地址（远端图由 Node 侧取回并缓存，**不会**让 Chrome 去等远端图，否则会把渲染拖死）；
+2. 在 `<html>` 上加 `data-bg="1"`；
+3. 在 `</head>` 前内联一段 `<style>:root{--bg-image:url("…")}</style>`。
+
+主题要做的就是写 `html[data-bg="1"]` 那套样式。apple 的做法可以直接抄（`_base.css` 末尾那段注释里写了思路）：整页铺 `var(--bg-image)` → `.page::before` 用 `backdrop-filter: blur() brightness()` 把墙纸柔化并**归正明度**（这样不管用户放深图还是浅图，玻璃上的字都还能读）→ `.card` 再叠一层高模糊高饱和的玻璃 + 亮 rim + 顶缘高光。
+
+> ⚠️ 背景图不受主题控制，所以**别把文字直接压在背景上**：一定要有玻璃/实底垫着，并且次级文字用更实的颜色（apple 在背景模式下把 `--label-2/-3` 加深了一档）。
 
 ## 生效方式（热更新）
 

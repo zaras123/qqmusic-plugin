@@ -7,6 +7,7 @@ import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
 import { resolveTheme, TIME_LABEL } from './theme.js'
+import { describeBackground } from './background.js'
 
 /** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
 export function buildListCardData(keyword, songs, options = {}) {
@@ -321,6 +322,7 @@ export async function buildSettingsCardData(e = null) {
       { k: '主人账号', v: publicAccountText },
       { k: '适配器', v: `${adapter.name} (${adapter.kind})` },
       { k: '界面', v: themeText },
+      { k: '卡片背景', v: describeBackground(c) },
       { k: '一起听', v: togetherText },
       { k: '音质', v: `${qualityLabel}${c.qualityFallback !== false ? ' · 自动降级' : ''}` },
       { k: '列表数', v: String(Number(c.maxList) || 10) },

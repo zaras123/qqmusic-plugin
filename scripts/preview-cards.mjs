@@ -258,6 +258,8 @@ const lightOnly = flags.includes('--light')
 /** --time=dawn|day|dusk|night 强制某个时段；--times 四段全渲染（否则用真实时间） */
 const forcedTime = (flags.find((f) => f.startsWith('--time=')) || '').split('=')[1] || ''
 const allTimes = flags.includes('--times')
+/** --bg=<本地路径或链接> 用自定义背景渲染（走与真机同一套解析，含远端抓取与缓存） */
+const bgArg = (flags.find((f) => f.startsWith('--bg=')) || '').slice(5).trim()
 /** 时段 → 用来喂给 resolveTheme 的假时间（纯为了稳定出图，不影响真机行为） */
 const PERIOD_HOUR = { dawn: 6, day: 12, dusk: 18, night: 22 }
 
@@ -281,6 +283,18 @@ async function main() {
   const failed = []
   const periods = allTimes ? Object.keys(PERIOD_HOUR) : forcedTime ? [forcedTime] : ['']
 
+  // 自定义背景（可选）：解析一次，所有卡片共用
+  let bg = null
+  if (bgArg) {
+    const { resolveBackground } = await import('../utils/background.js')
+    bg = await resolveBackground({ uiBgEnable: true, uiBgValue: bgArg, uiBgCacheMin: 10 })
+    if (!bg) {
+      console.log(`⚠️ 背景解析失败（${bgArg}），按无背景渲染`)
+    } else {
+      console.log(`[preview] 背景: ${bg.source}/${bg.from} → ${bg.path}`)
+    }
+  }
+
   for (const id of themeIds) {
     const manifest = loadManifest(id) || {}
     const modes = []
@@ -293,8 +307,9 @@ async function main() {
           { uiTheme: id, uiDark: mode },
           period ? { now: periodDate(period) } : undefined
         )
-        // 目录名：真实时段时不带后缀；强制/全时段时带上，便于对比
-        const suffix = (mode === 'dark' ? '-dark' : '') + (period ? `-${period}` : '')
+        // 目录名：真实时段时不带后缀；强制/全时段/带背景时带上，便于对比
+        const suffix =
+          (mode === 'dark' ? '-dark' : '') + (period ? `-${period}` : '') + (bg ? '-bg' : '')
         const dirName = `${id}${suffix}`
         const dir = path.join(outRoot, dirName)
         fs.mkdirSync(dir, { recursive: true })
@@ -306,7 +321,7 @@ async function main() {
             continue
           }
           try {
-            const { outFile, tpl } = renderHtmlFile(data, card, theme)
+            const { outFile, tpl } = renderHtmlFile(data, card, theme, { bgUrl: bg?.url || '' })
             const png = await screenshotDirect(outFile, {
               viewportWidth: viewportWidthOf(theme, card),
               pageBg: pageBgOf(theme),
