@@ -32,6 +32,22 @@ const manifestCache = new Map()
 /** file → mtimeMs，用于判断模板是否需要重新编译 */
 const mtimeCache = new Map()
 
+/** 一天里的四个时段（底色跟着时段走，卡片颜色一天里是活的） */
+export const TIME_PERIODS = ['dawn', 'day', 'dusk', 'night']
+export const TIME_LABEL = { dawn: '清晨', day: '白天', dusk: '黄昏', night: '夜晚' }
+
+/**
+ * 当前时段（纯函数，便于测试固定时间）
+ *   清晨 5-8 / 白天 8-17 / 黄昏 17-20 / 夜晚 20-5
+ */
+export function timePeriodOf(date = new Date()) {
+  const h = Number(new Date(date).getHours())
+  if (h >= 5 && h < 8) return 'dawn'
+  if (h >= 8 && h < 17) return 'day'
+  if (h >= 17 && h < 20) return 'dusk'
+  return 'night'
+}
+
 /** 目录下有哪些主题（只认带 theme.json 的目录） */
 export function listThemeIds() {
   try {
@@ -89,24 +105,44 @@ export function loadManifest(id) {
   return manifest
 }
 
+/** uiDark 归一：true=深色 / false=浅色 / 'auto'=跟随时间（夜晚自动深色） */
+export function darkPrefOf(v) {
+  if (v === true) return 'dark'
+  if (v === false || v === undefined || v === null || v === '') return 'light'
+  const s = String(v).trim().toLowerCase()
+  if (s === 'auto' || s === 'time' || s === '自动') return 'auto'
+  if (s === 'true' || s === '1' || s === 'yes' || s === 'on' || s === 'dark') return 'dark'
+  return 'light'
+}
+
 /**
  * 解析出本次要用的主题
  * @param {object} cfg 插件配置（读 uiTheme / uiDark）
- * @returns {{id:string, requested:string, fallback:boolean, dir:string, manifest:object, dark:boolean}}
+ * @param {{now?: number|Date}} [opts] now 用于测试固定时间
+ * @returns {{id, requested, fallback, dir, manifest, period, darkPref, dark}}
  */
-export function resolveTheme(cfg = {}) {
+export function resolveTheme(cfg = {}, opts = {}) {
   const requested = String(cfg.uiTheme || '').trim() || DEFAULT_THEME
   const ids = listThemeIds()
   const id = ids.includes(requested) ? requested : DEFAULT_THEME
   const manifest = loadManifest(id) || loadManifest(DEFAULT_THEME) || normalizeManifest(id, {})
+  // uiTimeColor 关掉就固定用白天那套底色（关掉的人要的是稳定观感）
+  const useTimeColor = cfg.uiTimeColor !== false
+  const period = useTimeColor
+    ? timePeriodOf(opts.now === undefined ? new Date() : opts.now)
+    : 'day'
+  const darkPref = darkPrefOf(cfg.uiDark)
   return {
     id,
     requested,
     fallback: id !== requested,
     dir: path.join(THEMES_DIR, id),
     manifest,
+    period,
+    useTimeColor,
+    darkPref,
     // 主题不支持深色时，配置里的 uiDark 不生效
-    dark: cfg.uiDark === true && manifest.dark === true,
+    dark: manifest.dark === true && (darkPref === 'dark' || (darkPref === 'auto' && period === 'night')),
   }
 }
 

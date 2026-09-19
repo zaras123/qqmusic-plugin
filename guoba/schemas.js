@@ -4,7 +4,7 @@
 import Config from '../components/Config.js'
 import { pullLoginMeta, normalizeApiBase } from '../utils/api.js'
 import { QQMUSIC_QUALITY_LIST } from '../utils/quality.js'
-import { listThemeIds, loadManifest } from '../utils/theme.js'
+import { listThemeIds, loadManifest, darkPrefOf } from '../utils/theme.js'
 
 /** 卡片主题下拉项：直接扫 resources/themes/，丢个主题目录进去（重启锅巴后）就会出现在这里 */
 const UI_THEME_OPTIONS = (() => {
@@ -121,8 +121,24 @@ export const schemas = [
   },
   {
     field: 'uiDark',
-    label: '深色界面',
-    bottomHelpMessage: '只对声明支持深色的主题生效（apple 支持；classic 是浅色专用）',
+    label: '深浅色',
+    bottomHelpMessage:
+      '「跟随时间」= 夜晚（20:00-5:00）自动切深色。只对声明支持深色的主题生效（apple 支持；classic 是浅色专用）',
+    component: 'Select',
+    componentProps: {
+      options: [
+        { label: '浅色', value: 'light' },
+        { label: '深色', value: 'dark' },
+        { label: '跟随时间（夜晚自动深色）', value: 'auto' },
+      ],
+      placeholder: '请选择深浅色',
+    },
+  },
+  {
+    field: 'uiTimeColor',
+    label: '底色跟随时段',
+    bottomHelpMessage:
+      '清晨 5-8 / 白天 8-17 / 黄昏 17-20 / 夜晚 20-5 各一套底色（需要主题声明了时段配色，apple 有）',
     component: 'Switch',
   },
   {
@@ -272,7 +288,8 @@ export function getConfigData() {
     togetherEnable: c.togetherEnable === true,
     togetherAuto: c.togetherAuto === true,
     uiTheme: String(c.uiTheme || 'classic'),
-    uiDark: c.uiDark === true,
+    uiDark: darkPrefOf(c.uiDark),
+    uiTimeColor: c.uiTimeColor !== false,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
     pullLoginMeta: false,
   }

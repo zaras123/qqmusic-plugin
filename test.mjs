@@ -228,11 +228,19 @@ try {
     pageBgOf,
     viewportWidthOf,
     fileChanged,
+    timePeriodOf,
+    darkPrefOf,
   } = await import('./utils/theme.js')
   const themeIds = listThemeIds()
   const classicTheme = resolveTheme({ uiTheme: 'classic' })
   const fallbackTheme = resolveTheme({ uiTheme: '__不存在的主题__' })
   const classicDark = resolveTheme({ uiTheme: 'classic', uiDark: true })
+  /** 把时间钉死在某个整点，避免测试依赖「跑测试时是几点」 */
+  const atHour = (h) => {
+    const d = new Date()
+    d.setHours(h, 0, 0, 0)
+    return d
+  }
 
   // 热更新：mtime 变了才要重新编译模板。用临时文件验，不碰仓库里的真模板
   const scratch = new URL('./temp/_theme-mtime-test.html', import.meta.url)
@@ -403,6 +411,34 @@ try {
     ['热更新：首次判为需编译', firstSeen, true],
     ['热更新：没改动就不重复编译', secondSeen, false],
     ['热更新：mtime 变了要重新编译', afterTouch, true],
+    // 底色跟随时段：边界要准，否则一天里会有一段时间是错的配色
+    ['时段：5 点 = 清晨', timePeriodOf(atHour(5)), 'dawn'],
+    ['时段：7 点 = 清晨', timePeriodOf(atHour(7)), 'dawn'],
+    ['时段：8 点 = 白天（边界）', timePeriodOf(atHour(8)), 'day'],
+    ['时段：16 点 = 白天', timePeriodOf(atHour(16)), 'day'],
+    ['时段：17 点 = 黄昏（边界）', timePeriodOf(atHour(17)), 'dusk'],
+    ['时段：19 点 = 黄昏', timePeriodOf(atHour(19)), 'dusk'],
+    ['时段：20 点 = 夜晚（边界）', timePeriodOf(atHour(20)), 'night'],
+    ['时段：凌晨 4 点 = 夜晚', timePeriodOf(atHour(4)), 'night'],
+    // 深浅色偏好归一
+    ['深浅：true = dark', darkPrefOf(true), 'dark'],
+    ['深浅：false = light', darkPrefOf(false), 'light'],
+    ['深浅：auto = 跟随时间', darkPrefOf('auto'), 'auto'],
+    ['深浅：中文「自动」也认', darkPrefOf('自动'), 'auto'],
+    [
+      '跟随时间：夜里是深色',
+      resolveTheme({ uiTheme: 'apple', uiDark: 'auto' }, { now: atHour(22) }).dark,
+      true,
+    ],
+    [
+      '跟随时间：白天是浅色',
+      resolveTheme({ uiTheme: 'apple', uiDark: 'auto' }, { now: atHour(12) }).dark,
+      false,
+    ],
+    ['显式浅色：夜里也保持浅色', resolveTheme({ uiTheme: 'apple', uiDark: 'light' }, { now: atHour(22) }).dark, false],
+    ['classic 不支持深色：跟随时间也不变深', resolveTheme({ uiTheme: 'classic', uiDark: 'auto' }, { now: atHour(22) }).dark, false],
+    ['关掉时段配色 → 固定白天', resolveTheme({ uiTheme: 'apple', uiTimeColor: false }, { now: atHour(22) }).period, 'day'],
+    ['开着时段配色 → 用真实时段', resolveTheme({ uiTheme: 'apple' }, { now: atHour(22) }).period, 'night'],
   ]
 
   for (const [name, got, want] of pure) {

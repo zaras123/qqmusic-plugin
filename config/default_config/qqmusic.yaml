@@ -37,7 +37,10 @@ renderListCard: true
 # 换主题、改模板文件都是**热更新**，不用重启机器人
 uiTheme: classic
 # 深色：只对声明支持深色的主题生效（apple 支持，classic 不支持）
+#   false = 浅色 / true = 深色 / auto = 跟随时间（夜晚 20:00-5:00 自动切深色）
 uiDark: false
+# 底色随时段自动换：清晨 5-8 / 白天 8-17 / 黄昏 17-20 / 夜晚 20-5（声明了时段配色的主题才生效）
+uiTimeColor: true
 
 # 其它平台补充曲（默认开）：QQ 音乐没版权的歌，从网易云/酷我补几条免费曲（128k）追加在列表尾部
 extraSources: true

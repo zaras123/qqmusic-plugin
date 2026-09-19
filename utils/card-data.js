@@ -6,7 +6,7 @@ import { QUALITY_LABEL } from './quality.js'
 import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
-import { resolveTheme } from './theme.js'
+import { resolveTheme, TIME_LABEL } from './theme.js'
 
 /** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
 export function buildListCardData(keyword, songs, options = {}) {
@@ -260,9 +260,13 @@ export async function buildSettingsCardData(e = null) {
   const togetherText = !togetherOn
     ? '关闭'
     : `开${c.togetherAuto === true ? ' · 点歌后自动同步' : ''}`
-  // 界面：显示**实际生效**的主题（配置里写了个不存在的名字时能一眼看出回落了）
+  // 界面：显示**实际生效**的主题与时段（配置里写了个不存在的名字时能一眼看出回落了）
   const themeNow = resolveTheme(c)
-  const themeText = `${themeNow.manifest.name}（${themeNow.id}${themeNow.dark ? ' · 深色' : ''}）${
+  const periodLabel = TIME_LABEL[themeNow.period] || themeNow.period
+  const modeLabel = themeNow.dark ? '深色' : '浅色'
+  const modePrefLabel =
+    themeNow.darkPref === 'auto' ? `自动·${modeLabel}` : modeLabel
+  const themeText = `${themeNow.manifest.name}（${themeNow.id} · ${themeNow.useTimeColor ? `${periodLabel}配色` : '固定配色'} · ${modePrefLabel}）${
     themeNow.fallback ? ' ⚠️ 已回落' : ''
   }`  const publicAccountText = !publicAccount
     ? forceMasterAccount

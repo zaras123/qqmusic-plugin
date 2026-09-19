@@ -12,7 +12,7 @@ import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
 import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
-import { listThemeIds, describeThemes, resolveTheme } from '../utils/theme.js'
+import { listThemeIds, describeThemes, resolveTheme, TIME_LABEL } from '../utils/theme.js'
 
 export class qqmusicAdmin extends (await loadPluginBase()) {
   constructor() {
@@ -142,7 +142,9 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         `一起听: ${c.togetherEnable === true ? '开' : '关'}${
           c.togetherEnable === true ? `（点歌后自动同步 ${c.togetherAuto === true ? '开' : '关'}）` : ''
         }`,
-        `界面: ${themeNow.manifest.name}（${themeNow.id}${themeNow.dark ? ' · 深色' : ''}）${
+        `界面: ${themeNow.manifest.name}（${themeNow.id} · ${
+          themeNow.useTimeColor ? `${TIME_LABEL[themeNow.period] || themeNow.period}配色` : '固定配色'
+        } · ${themeNow.dark ? '深色' : '浅色'}${themeNow.darkPref === 'auto' ? '·跟随时间' : ''}）${
           themeNow.fallback ? ` ⚠️ 配置的主题「${themeNow.requested}」不存在，已回落` : ''
         }`,
         '',
@@ -243,6 +245,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       .replace(/^#?(qq|QQ)m\s*(界面|主题|ui)\s*/i, '')
       .trim()
     const current = resolveTheme(cfg)
+    const presentTimeColor = current.useTimeColor !== false
 
     if (!arg) {
       const lines = describeThemes().map((t) => {
@@ -253,13 +256,16 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       })
       await e.reply(
         [
-          `当前界面：${current.manifest.name}（${current.id}）${current.dark ? '· 深色' : '· 浅色'}`,
+          `当前界面：${current.manifest.name}（${current.id}）· ${
+            presentTimeColor ? `${TIME_LABEL[current.period] || current.period}配色` : '固定配色'
+          } · ${current.dark ? '深色' : '浅色'}${current.darkPref === 'auto' ? '（跟随时间）' : ''}`,
           '',
           '可用主题：',
           ...lines,
           '',
           '切换主题：#qqm界面 <主题id>',
-          '深浅：   #qqm界面 深色 / 浅色',
+          '深浅：   #qqm界面 深色 / 浅色 / 自动（跟随时间）',
+          '底色：   #qqm界面 时段（开/关随时段自动换色）',
           '热重载： #qqm界面 重载',
           '（换主题、改模板都不用重启，热更新立即生效）',
         ].join('\n')
@@ -275,7 +281,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
     }
 
     if (arg === '深色' || /^dark$/i.test(arg)) {
-      Config.mergeConfig('qqmusic', { uiDark: true })
+      Config.mergeConfig('qqmusic', { uiDark: 'dark' })
       await e.reply(
         current.manifest.dark
           ? '已切到深色'
@@ -284,8 +290,26 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       return true
     }
     if (arg === '浅色' || /^light$/i.test(arg)) {
-      Config.mergeConfig('qqmusic', { uiDark: false })
+      Config.mergeConfig('qqmusic', { uiDark: 'light' })
       await e.reply('已切到浅色')
+      return true
+    }
+    if (arg === '自动' || /^auto$/i.test(arg)) {
+      Config.mergeConfig('qqmusic', { uiDark: 'auto' })
+      await e.reply(
+        '深浅色已设为「跟随时间」：夜晚 20:00-5:00 自动深色，其余时段浅色' +
+          (current.manifest.dark ? '' : `\n注意：当前主题「${current.manifest.name}」不支持深色，切到 apple 之类才有效果`)
+      )
+      return true
+    }
+    if (arg === '时段' || /^time$/i.test(arg)) {
+      const next = !(getCfg().uiTimeColor !== false)
+      Config.mergeConfig('qqmusic', { uiTimeColor: next })
+      await e.reply(
+        next
+          ? '底色已改为「跟随时段」：清晨 / 白天 / 黄昏 / 夜晚 各一套底色（需要主题声明了时段配色，apple 有）'
+          : '底色已固定为白天配色'
+      )
       return true
     }
 

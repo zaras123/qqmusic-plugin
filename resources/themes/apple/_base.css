@@ -46,6 +46,25 @@
   --radius-thumb: 14px;
   --pad-card: 24px;
 
+  /* 一天四段的底色（渲染器把当前时段写成 <html data-time>）。底色必须够浓 ——
+   * 淡雅底会让玻璃糊成一片，看不出边缘，文字对比度也掉。 */
+  --bg-dawn: radial-gradient(120% 100% at 6% -10%, #ff9d5c 0%, rgba(255, 157, 92, 0) 58%),
+    radial-gradient(100% 90% at 104% 0%, #ff6fa5 0%, rgba(255, 111, 165, 0) 55%),
+    radial-gradient(120% 110% at 88% 104%, #7aa2ff 0%, rgba(122, 162, 255, 0) 60%),
+    linear-gradient(160deg, #5b4a86 0%, #7d5a86 45%, #a06a7a 100%);
+  --bg-day: radial-gradient(120% 100% at 4% -10%, #3d8bfd 0%, rgba(61, 139, 253, 0) 58%),
+    radial-gradient(100% 90% at 106% 0%, #17b8c8 0%, rgba(23, 184, 200, 0) 55%),
+    radial-gradient(120% 110% at 90% 106%, #45d69a 0%, rgba(69, 214, 154, 0) 60%),
+    linear-gradient(160deg, #24507f 0%, #26688c 45%, #2a7f83 100%);
+  --bg-dusk: radial-gradient(120% 100% at 6% -8%, #ff7a3d 0%, rgba(255, 122, 61, 0) 58%),
+    radial-gradient(100% 90% at 104% 2%, #e0417f 0%, rgba(224, 65, 127, 0) 55%),
+    radial-gradient(120% 110% at 88% 104%, #7a4bd0 0%, rgba(122, 75, 208, 0) 60%),
+    linear-gradient(160deg, #4a2a6b 0%, #7a2f5f 45%, #b04a55 100%);
+  --bg-night: radial-gradient(120% 100% at 4% -10%, #1c3fa8 0%, rgba(28, 63, 168, 0) 58%),
+    radial-gradient(100% 90% at 106% 0%, #5a2a8a 0%, rgba(90, 42, 138, 0) 55%),
+    radial-gradient(120% 110% at 90% 106%, #0e5c6b 0%, rgba(14, 92, 107, 0) 60%),
+    linear-gradient(160deg, #0a1030 0%, #16123a 45%, #231036 100%);
+
   --shadow-card: 0 24px 60px rgba(20, 30, 60, 0.22), 0 2px 8px rgba(20, 30, 60, 0.08);
 
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
@@ -75,6 +94,24 @@ html[data-mode="dark"] {
   --red: #ff6b60;
   --gold: #e8c76a;
 
+  /* 深色四段：色相同源、明度压低，不是把浅色反相 */
+  --bg-dawn: radial-gradient(120% 100% at 6% -10%, #7a3a12 0%, rgba(122, 58, 18, 0) 58%),
+    radial-gradient(100% 90% at 104% 0%, #6e1f45 0%, rgba(110, 31, 69, 0) 55%),
+    radial-gradient(120% 110% at 88% 104%, #1f3a8a 0%, rgba(31, 58, 138, 0) 60%),
+    linear-gradient(160deg, #0d0a16 0%, #1a1020 45%, #241318 100%);
+  --bg-day: radial-gradient(120% 100% at 4% -10%, #0f3f8a 0%, rgba(15, 63, 138, 0) 58%),
+    radial-gradient(100% 90% at 106% 0%, #0a5c66 0%, rgba(10, 92, 102, 0) 55%),
+    radial-gradient(120% 110% at 90% 106%, #0a5c46 0%, rgba(10, 92, 70, 0) 60%),
+    linear-gradient(160deg, #05070f 0%, #071018 45%, #06141a 100%);
+  --bg-dusk: radial-gradient(120% 100% at 6% -8%, #8a3a12 0%, rgba(138, 58, 18, 0) 58%),
+    radial-gradient(100% 90% at 104% 2%, #7a1f4a 0%, rgba(122, 31, 74, 0) 55%),
+    radial-gradient(120% 110% at 88% 104%, #3a1f7a 0%, rgba(58, 31, 122, 0) 60%),
+    linear-gradient(160deg, #0f0812 0%, #1a0d1c 45%, #24100f 100%);
+  --bg-night: radial-gradient(120% 100% at 4% -10%, #0f2470 0%, rgba(15, 36, 112, 0) 58%),
+    radial-gradient(100% 90% at 106% 0%, #3a1060 0%, rgba(58, 16, 96, 0) 55%),
+    radial-gradient(120% 110% at 90% 106%, #063a44 0%, rgba(6, 58, 68, 0) 60%),
+    linear-gradient(160deg, #03040a 0%, #060818 45%, #0a0614 100%);
+
   --shadow-card: 0 30px 70px rgba(0, 0, 0, 0.55), 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
@@ -103,25 +140,23 @@ body {
 }
 
 /* ---------- 彩色底：玻璃要有东西可以透上来 ----------
- * 底色必须**够浓够饱和** —— 淡雅的粉彩底会让玻璃糊成一片，
- * 既看不出玻璃边缘，文字对比度也会掉。这里是"深底 + 亮玻璃"的搭配。 */
+ * 底色按**一天四段**切换（渲染器把当前时段写进 <html data-time>）；
+ * 深浅色只是把同一批变量换成暗版，所以规则只有下面这几行。 */
 .page {
   display: block;
   width: fit-content;
   padding: 26px;
-  background:
-    radial-gradient(120% 100% at 4% -10%, #3d6fe0 0%, rgba(61, 111, 224, 0) 58%),
-    radial-gradient(100% 90% at 106% 0%, #d94f96 0%, rgba(217, 79, 150, 0) 55%),
-    radial-gradient(120% 110% at 90% 106%, #12a37d 0%, rgba(18, 163, 125, 0) 60%),
-    linear-gradient(160deg, #2b3f7a 0%, #4a3a7a 45%, #743f66 100%);
+  background: var(--bg-day); /* 默认白天 */
 }
 
-html[data-mode="dark"] .page {
-  background:
-    radial-gradient(120% 100% at 4% -10%, #1b3a8a 0%, rgba(27, 58, 138, 0) 58%),
-    radial-gradient(100% 90% at 106% 0%, #7a1f57 0%, rgba(122, 31, 87, 0) 55%),
-    radial-gradient(120% 110% at 90% 106%, #0a5c4a 0%, rgba(10, 92, 74, 0) 60%),
-    linear-gradient(160deg, #05070f 0%, #0b0a1c 45%, #170a16 100%);
+html[data-time="dawn"] .page {
+  background: var(--bg-dawn);
+}
+html[data-time="dusk"] .page {
+  background: var(--bg-dusk);
+}
+html[data-time="night"] .page {
+  background: var(--bg-night);
 }
 
 /* ---------- 玻璃卡 ---------- */

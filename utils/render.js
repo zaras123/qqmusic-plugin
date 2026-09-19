@@ -101,9 +101,12 @@ export function renderHtmlFile(data, card, theme) {
   const resUrl = pathToFileURL(path.join(pluginPath, 'resources')).href + '/'
   const mode = theme.dark ? 'dark' : 'light'
   const absHtml = html
-    // 主题与明暗挂在 <html> 上：模板据此切调色板（不依赖 prefers-color-scheme，结果确定）。
+    // 主题 / 明暗 / 时段挂在 <html> 上：模板据此切调色板（不依赖 prefers-color-scheme，结果确定）。
     // 放在这里而不是 page.evaluate，是为了 Yunzai / runtime.render 两条回退路径也吃得到。
-    .replace(/<html\b([^>]*)>/, `<html$1 data-theme="${theme.id}" data-mode="${mode}">`)
+    .replace(
+      /<html\b([^>]*)>/,
+      `<html$1 data-theme="${theme.id}" data-mode="${mode}" data-time="${theme.period || 'day'}">`
+    )
     .replace(/src="(\.\/)?resources\//g, `src="${resUrl}`)
     // 主题的共享样式用 <link href="resources/themes/<id>/_base.css"> 引入，这条同样要改写
     .replace(/href="(\.\/)?resources\//g, `href="${resUrl}`)

@@ -262,47 +262,71 @@ const onlyTheme = words[0] || ''
 const onlyCard = words[1] || ''
 const darkOnly = flags.includes('--dark')
 const lightOnly = flags.includes('--light')
+/** --time=dawn|day|dusk|night 强制某个时段；--times 四段全渲染（否则用真实时间） */
+const forcedTime = (flags.find((f) => f.startsWith('--time=')) || '').split('=')[1] || ''
+const allTimes = flags.includes('--times')
+/** 时段 → 用来喂给 resolveTheme 的假时间（纯为了稳定出图，不影响真机行为） */
+const PERIOD_HOUR = { dawn: 6, day: 12, dusk: 18, night: 22 }
+
+function periodDate(period) {
+  const d = new Date()
+  d.setHours(PERIOD_HOUR[period] ?? 12, 0, 0, 0)
+  return d
+}
 
 async function main() {
+  // 只重建总览页（不重新渲染，改完索引样式或想刷新清单时用）
+  if (flags.includes('--index-only')) {
+    writeIndex()
+    return
+  }
   const themeIds = listThemeIds().filter((id) => !onlyTheme || id === onlyTheme)
   if (!themeIds.length) throw new Error(`没有匹配的主题（可用: ${listThemeIds().join(', ') || '无'}）`)
 
   const cards = CARDS.filter((c) => !onlyCard || c === onlyCard)
   const done = []
   const failed = []
+  const periods = allTimes ? Object.keys(PERIOD_HOUR) : forcedTime ? [forcedTime] : ['']
 
   for (const id of themeIds) {
     const manifest = loadManifest(id) || {}
     const modes = []
-    if (!darkOnly) modes.push(false)
-    if (!lightOnly && manifest.dark === true) modes.push(true)
+    if (!darkOnly) modes.push('light')
+    if (!lightOnly && manifest.dark === true) modes.push('dark')
 
-    for (const dark of modes) {
-      const theme = resolveTheme({ uiTheme: id, uiDark: dark })
-      const dirName = dark ? `${id}-dark` : id
-      const dir = path.join(outRoot, dirName)
-      fs.mkdirSync(dir, { recursive: true })
+    for (const mode of modes) {
+      for (const period of periods) {
+        const theme = resolveTheme(
+          { uiTheme: id, uiDark: mode },
+          period ? { now: periodDate(period) } : undefined
+        )
+        // 目录名：真实时段时不带后缀；强制/全时段时带上，便于对比
+        const suffix = (mode === 'dark' ? '-dark' : '') + (period ? `-${period}` : '')
+        const dirName = `${id}${suffix}`
+        const dir = path.join(outRoot, dirName)
+        fs.mkdirSync(dir, { recursive: true })
 
-      for (const card of cards) {
-        const data = samples[card]
-        if (!data) {
-          console.log(`SKIP ${dirName}/${card}（没有样例数据）`)
-          continue
-        }
-        try {
-          const { outFile, tpl } = renderHtmlFile(data, card, theme)
-          const png = await screenshotDirect(outFile, {
-            viewportWidth: viewportWidthOf(theme, card),
-            pageBg: pageBgOf(theme),
-          })
-          const outPng = path.join(dir, `${card}.png`)
-          fs.writeFileSync(outPng, png)
-          const tag = tpl.fallback ? ` [回落到 ${tpl.from}]` : ''
-          console.log(`OK   ${dirName}/${card} ${(png.length / 1024).toFixed(1)}KB${tag}`)
-          done.push(`${dirName}/${card}`)
-        } catch (err) {
-          console.log(`FAIL ${dirName}/${card}: ${err.message}`)
-          failed.push(`${dirName}/${card}`)
+        for (const card of cards) {
+          const data = samples[card]
+          if (!data) {
+            console.log(`SKIP ${dirName}/${card}（没有样例数据）`)
+            continue
+          }
+          try {
+            const { outFile, tpl } = renderHtmlFile(data, card, theme)
+            const png = await screenshotDirect(outFile, {
+              viewportWidth: viewportWidthOf(theme, card),
+              pageBg: pageBgOf(theme),
+            })
+            const outPng = path.join(dir, `${card}.png`)
+            fs.writeFileSync(outPng, png)
+            const tag = tpl.fallback ? ` [回落到 ${tpl.from}]` : ''
+            console.log(`OK   ${dirName}/${card} ${(png.length / 1024).toFixed(1)}KB${tag}`)
+            done.push(`${dirName}/${card}`)
+          } catch (err) {
+            console.log(`FAIL ${dirName}/${card}: ${err.message}`)
+            failed.push(`${dirName}/${card}`)
+          }
         }
       }
     }
@@ -310,27 +334,47 @@ async function main() {
 
   console.log(`\n完成 ${done.length} 张，失败 ${failed.length} 张`)
   console.log(`输出目录: ${outRoot}`)
+  writeIndex()
+  if (failed.length) process.exitCode = 1
+}
 
-  // 顺手生成总览页：打开一个文件就能看全所有主题/卡片/深浅
+/**
+ * 总览页：扫描输出目录（不是只看本次渲染 —— 否则分几次跑会把先前的覆盖掉）
+ */
+function writeIndex() {
   try {
-    const idx = path.join(outRoot, 'index.html')
+    const dirNames = fs
+      .readdirSync(outRoot, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+      .sort()
     const groups = {}
-    for (const key of done) {
-      const [dirName, card] = key.split('/')
-      ;(groups[dirName] = groups[dirName] || []).push(card)
+    let total = 0
+    for (const dirName of dirNames) {
+      const pngs = fs
+        .readdirSync(path.join(outRoot, dirName))
+        .filter((f) => f.endsWith('.png'))
+        .map((f) => f.replace(/\.png$/, ''))
+        .sort()
+      if (!pngs.length) continue
+      groups[dirName] = pngs
+      total += pngs.length
     }
+    const idx = path.join(outRoot, 'index.html')
     const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
-<title>卡片预览 · ${done.length} 张</title>
+<title>卡片预览 · ${total} 张</title>
 <style>
   body{margin:0;padding:28px;background:#111;color:#eee;
        font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei UI",sans-serif}
+  h1{font-size:20px;margin:0 0 8px}
   h2{margin:28px 0 12px;font-size:16px;font-weight:600;color:#fff}
   .grid{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
   figure{margin:0;width:300px}
   figcaption{margin-top:6px;font-size:12px;color:#9aa}
   img{width:100%;height:auto;border-radius:8px;display:block;background:#222}
 </style></head><body>
-<h1 style="font-size:20px">卡片预览（${done.length} 张）</h1>
+<h1>卡片预览（${total} 张 · ${Object.keys(groups).length} 组）</h1>
+<p style="color:#9aa;margin:0">目录名 = 主题 [-dark] [-时段]；时段四组用于对比"底色随时段"的效果</p>
 ${Object.entries(groups)
   .map(
     ([dirName, cards]) => `<h2>${dirName}</h2>\n<div class="grid">
@@ -349,8 +393,6 @@ ${cards
   } catch (err) {
     console.log(`总览页生成失败: ${err.message}`)
   }
-
-  if (failed.length) process.exitCode = 1
 }
 
 main().catch((e) => {
