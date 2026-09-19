@@ -1,14 +1,60 @@
 // Miao-Yunzai 插件功能测试脚本
+//
+// 顺序有讲究：**先做全量语法检查，再 import 业务模块**。
+// 起因（2026-09-20）：card-data.js 里两条语句被粘到同一行（模板字符串后紧跟 const），
+// V8 报 `Unexpected token 'const'`；而本测试并不直接 import card-data.js，
+// 路由 / 纯函数 / check-scope 全部照常通过 —— 直到用户点歌时才炸。
+// 静态 import 会被提前求值，语法错会直接崩掉整个测试文件、什么信息都看不到，
+// 所以业务模块改成动态 import，让语法检查先跑。
+import fs from 'node:fs'
+import path from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
+const pluginRoot = path.dirname(fileURLToPath(import.meta.url))
+
+/** 递归收集插件自身的 js/mjs（跳过 node_modules / .git / temp） */
+function collectJsFiles(dir, out = []) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name === '.git' || e.name === 'temp') continue
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) collectJsFiles(p, out)
+    else if (/\.(js|mjs)$/.test(e.name)) out.push(p)
+  }
+  return out
+}
+
+console.log('=== 语法检查（所有 js/mjs 能否解析）===\n')
+let syntaxBad = 0
+for (const f of collectJsFiles(pluginRoot)) {
+  try {
+    execFileSync(process.execPath, ['--check', f], { stdio: 'pipe' })
+  } catch (err) {
+    syntaxBad++
+    const msg = String(err.stderr || err.message)
+      .split('\n')
+      .filter((l) => l.trim())
+      .slice(0, 3)
+      .join('\n    ')
+    console.log(`❌ ${path.relative(pluginRoot, f)}\n    ${msg}`)
+  }
+}
+if (syntaxBad) {
+  console.log(`\n❌ ${syntaxBad} 个文件语法错误，后续测试无意义，直接退出`)
+  process.exit(1)
+}
+console.log(`✅ ${collectJsFiles(pluginRoot).length} 个文件全部通过\n`)
+
 import { loadPluginBase } from './utils/plugin-base.js'
 await loadPluginBase()
 
-import { qqmusicChart } from './apps/chart.js'
-import { qqmusicExplore } from './apps/explore.js'
-import { qqmusicLogin } from './apps/login.js'
-import { qqmusicResolve } from './apps/resolve.js'
-import { qqmusicSong } from './apps/song.js'
-import { qqmusicTogether } from './apps/together.js'
-import { qqmusicAdmin } from './apps/admin.js'
+const { qqmusicChart } = await import('./apps/chart.js')
+const { qqmusicExplore } = await import('./apps/explore.js')
+const { qqmusicLogin } = await import('./apps/login.js')
+const { qqmusicResolve } = await import('./apps/resolve.js')
+const { qqmusicSong } = await import('./apps/song.js')
+const { qqmusicTogether } = await import('./apps/together.js')
+const { qqmusicAdmin } = await import('./apps/admin.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
 

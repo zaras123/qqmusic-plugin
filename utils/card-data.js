@@ -269,7 +269,8 @@ export async function buildSettingsCardData(e = null) {
     themeNow.darkPref === 'auto' ? `自动·${modeLabel}` : modeLabel
   const themeText = `${themeNow.manifest.name}（${themeNow.id} · ${themeNow.useTimeColor ? `${periodLabel}配色` : '固定配色'} · ${modePrefLabel}）${
     themeNow.fallback ? ' ⚠️ 已回落' : ''
-  }`  const publicAccountText = !publicAccount
+  }`
+  const publicAccountText = !publicAccount
     ? forceMasterAccount
       ? '未登录 · ⚠️ 开了「一律走主人账号」但还没有扫码登录记录'
       : '未启用'
