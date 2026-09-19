@@ -188,44 +188,5 @@ const logoPath = path.join(outDir, 'logo.png')
 fs.writeFileSync(logoPath, encodePNG(S, S, px))
 console.log('wrote', logoPath, fs.statSync(logoPath).size)
 
-// 64px
-const S2 = 64
-const px2 = Buffer.alloc(S2 * S2 * 4)
-for (let y = 0; y < S2; y++) {
-  for (let x = 0; x < S2; x++) {
-    const sx = Math.floor(((x + 0.5) * S) / S2)
-    const sy = Math.floor(((y + 0.5) * S) / S2)
-    const si = (sy * S + sx) * 4
-    const di = (y * S2 + x) * 4
-    px2[di] = px[si]
-    px2[di + 1] = px[si + 1]
-    px2[di + 2] = px[si + 2]
-    px2[di + 3] = px[si + 3]
-  }
-}
-const logo64 = path.join(outDir, 'logo-64.png')
-fs.writeFileSync(logo64, encodePNG(S2, S2, px2))
-console.log('wrote', logo64, fs.statSync(logo64).size)
-
-const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="g" x1="20%" y1="10%" x2="80%" y2="90%">
-      <stop offset="0%" stop-color="#4ad68f"/>
-      <stop offset="55%" stop-color="#31c27c"/>
-      <stop offset="100%" stop-color="#1fa968"/>
-    </linearGradient>
-    <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.25"/>
-    </filter>
-  </defs>
-  <circle cx="128" cy="128" r="108" fill="url(#g)" filter="url(#s)"/>
-  <circle cx="128" cy="128" r="95" fill="none" stroke="#fff" stroke-opacity="0.18" stroke-width="6"/>
-  <ellipse cx="118" cy="170" rx="30" ry="24" fill="#fff" transform="rotate(-18 118 170)"/>
-  <rect x="148" y="60" width="14" height="112" rx="4" fill="#fff"/>
-  <path d="M162 60 C200 60 210 88 198 110 C190 72 170 70 162 72 Z" fill="#fff"/>
-  <circle cx="72" cy="78" r="5" fill="#fff" fill-opacity="0.85"/>
-</svg>
-`
-fs.writeFileSync(path.join(outDir, 'logo.svg'), svg)
-console.log('wrote svg')
+// 只产出 logo.png —— 其它尺寸/矢量版（logo-64.png、logo.svg）插件里没有任何地方读，
+// 生成了反而是死文件（2026-09-20 清理时删掉了它们，这里同步收口）。

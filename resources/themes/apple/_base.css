@@ -34,7 +34,6 @@
 
   /* 玻璃：白玻璃 + 细边；深色下换暗玻璃 */
   --glass: rgba(255, 255, 255, 0.72);
-  --glass-strong: rgba(255, 255, 255, 0.86);
   --rim: rgba(255, 255, 255, 0.9);
   --hairline: rgba(0, 0, 0, 0.06);
   --blur: 30px;
@@ -71,7 +70,6 @@ html[data-mode="dark"] {
   --gold: #d9b45a;
 
   --glass: rgba(28, 28, 30, 0.72);
-  --glass-strong: rgba(28, 28, 30, 0.86);
   --rim: rgba(255, 255, 255, 0.14);
   --hairline: rgba(255, 255, 255, 0.08);
 
@@ -169,16 +167,6 @@ html[data-mode="dark"] .card::after {
   font-weight: 600;
   letter-spacing: 0.2px;
 }
-.t-head {
-  font-size: 17px;
-  line-height: 25px;
-  font-weight: 600;
-}
-.t-body {
-  font-size: 17px;
-  line-height: 25px;
-  font-weight: 400;
-}
 .t-sub {
   font-size: 17px;
   line-height: 25px;
@@ -198,9 +186,6 @@ html[data-mode="dark"] .card::after {
 }
 .t-num {
   font-variant-numeric: tabular-nums;
-}
-.muted {
-  color: var(--label-2);
 }
 .accent {
   color: var(--accent);
@@ -326,12 +311,6 @@ html[data-mode="dark"] .card::after {
 .row--plain {
   min-height: 56px;
 }
-.chev {
-  flex: none;
-  width: 8px;
-  height: 13px;
-  color: var(--label-3);
-}
 
 .rank {
   flex: none;
@@ -341,10 +320,6 @@ html[data-mode="dark"] .card::after {
   font-weight: 400;
   color: var(--label-3);
   font-variant-numeric: tabular-nums;
-}
-.rank--top {
-  color: var(--label);
-  font-weight: 600;
 }
 
 /* ---------- 缩略图 ---------- */
@@ -361,16 +336,6 @@ html[data-mode="dark"] .card::after {
   align-items: center;
   justify-content: center;
   color: var(--label-3);
-}
-.thumb--sm {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-}
-.thumb--lg {
-  width: 128px;
-  height: 128px;
-  border-radius: 22px;
 }
 
 /* ---------- 胶囊：苹果的 chip 是浅底、无边框、不描边 ---------- */
