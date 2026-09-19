@@ -4,6 +4,16 @@
 import Config from '../components/Config.js'
 import { pullLoginMeta, normalizeApiBase } from '../utils/api.js'
 import { QQMUSIC_QUALITY_LIST } from '../utils/quality.js'
+import { listThemeIds, loadManifest } from '../utils/theme.js'
+
+/** 卡片主题下拉项：直接扫 resources/themes/，丢个主题目录进去（重启锅巴后）就会出现在这里 */
+const UI_THEME_OPTIONS = (() => {
+  const ids = listThemeIds()
+  return (ids.length ? ids : ['classic']).map((id) => {
+    const m = loadManifest(id)
+    return { label: `${m?.name || id}${m?.dark ? '（支持深色）' : ''}`, value: id }
+  })
+})()
 
 export const schemas = [
   {
@@ -92,6 +102,27 @@ export const schemas = [
     field: 'qrLoginEnable',
     label: '允许扫码登录命令',
     bottomHelpMessage: '#qqm登录',
+    component: 'Switch',
+  },
+  {
+    component: 'Divider',
+    label: '界面',
+  },
+  {
+    field: 'uiTheme',
+    label: '卡片主题',
+    bottomHelpMessage:
+      'resources/themes/ 下的目录名；丢一个目录进去就能加自己的主题（缺哪张卡会自动回落到 classic）。换主题与改模板都是热更新，不用重启',
+    component: 'Select',
+    componentProps: {
+      options: UI_THEME_OPTIONS,
+      placeholder: '请选择卡片主题',
+    },
+  },
+  {
+    field: 'uiDark',
+    label: '深色界面',
+    bottomHelpMessage: '只对声明支持深色的主题生效（apple 支持；classic 是浅色专用）',
     component: 'Switch',
   },
   {
@@ -240,6 +271,8 @@ export function getConfigData() {
     forceMasterAccount: c.forceMasterAccount === true,
     togetherEnable: c.togetherEnable === true,
     togetherAuto: c.togetherAuto === true,
+    uiTheme: String(c.uiTheme || 'classic'),
+    uiDark: c.uiDark === true,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
     pullLoginMeta: false,
   }

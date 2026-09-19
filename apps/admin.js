@@ -12,6 +12,7 @@ import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
 import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
+import { listThemeIds, describeThemes, resolveTheme } from '../utils/theme.js'
 
 export class qqmusicAdmin extends (await loadPluginBase()) {
   constructor() {
@@ -41,6 +42,12 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
           // 点歌增强开关：接管无前缀 #点歌 / 其它平台补充曲 / 一起听（及其自动同步）
           reg: '^#?(qq|QQ)m\\s*(默认点歌|补充曲|一起听同步|一起听)\\s*(开启|关闭|开|关)$',
           fnc: 'toggleExtra',
+          permission: 'master',
+        },
+        {
+          // 界面：查看 / 切换主题 / 深浅色 / 热重载模板
+          reg: '^#?(qq|QQ)m\\s*(界面|主题|ui)\\s*\\S*$',
+          fnc: 'themeCmd',
           permission: 'master',
         },
         {
@@ -115,6 +122,9 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       /* ignore */
     }
 
+    // 实际生效的主题（配置里写了个不存在的主题名时这里能看出来）
+    const themeNow = resolveTheme(c)
+
     await e.reply(
       [
         '【QQ音乐插件配置】',
@@ -131,6 +141,9 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         }（其它平台免费曲）`,
         `一起听: ${c.togetherEnable === true ? '开' : '关'}${
           c.togetherEnable === true ? `（点歌后自动同步 ${c.togetherAuto === true ? '开' : '关'}）` : ''
+        }`,
+        `界面: ${themeNow.manifest.name}（${themeNow.id}${themeNow.dark ? ' · 深色' : ''}）${
+          themeNow.fallback ? ` ⚠️ 配置的主题「${themeNow.requested}」不存在，已回落` : ''
         }`,
         '',
         '主人命令：',
@@ -214,6 +227,78 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         (on ? '\n点歌/播放成功后会顺带把这首歌加进本群一起听；房间不存在时是否开房由 API 侧配置决定' : ''),
     }
     await e.reply(texts[which]())
+    return true
+  }
+
+  /**
+   * #qqm界面            查看当前主题 + 列出可用主题
+   * #qqm界面 apple      切换主题（热更新，立即生效）
+   * #qqm界面 深色/浅色   深浅切换（仅对支持深色的主题有效）
+   * #qqm界面 重载        强制重载全部模板（改了一批模板文件后用）
+   */
+  async themeCmd(e) {
+    const cfg = getCfg()
+    const arg = String(e.msg || '')
+      .trim()
+      .replace(/^#?(qq|QQ)m\s*(界面|主题|ui)\s*/i, '')
+      .trim()
+    const current = resolveTheme(cfg)
+
+    if (!arg) {
+      const lines = describeThemes().map((t) => {
+        const mark = t.id === current.id ? '▶' : '　'
+        const darkTag = t.dark ? ' · 支持深色' : ''
+        const coverTag = t.cards < 8 ? ` · 已实现 ${t.cards}/8 张卡` : ''
+        return `${mark} ${t.id} — ${t.name}${darkTag}${coverTag}${t.desc ? `\n      ${t.desc}` : ''}`
+      })
+      await e.reply(
+        [
+          `当前界面：${current.manifest.name}（${current.id}）${current.dark ? '· 深色' : '· 浅色'}`,
+          '',
+          '可用主题：',
+          ...lines,
+          '',
+          '切换主题：#qqm界面 <主题id>',
+          '深浅：   #qqm界面 深色 / 浅色',
+          '热重载： #qqm界面 重载',
+          '（换主题、改模板都不用重启，热更新立即生效）',
+        ].join('\n')
+      )
+      return true
+    }
+
+    if (arg === '重载' || /^reload$/i.test(arg)) {
+      const { reloadTemplates } = await import('../utils/render.js')
+      reloadTemplates()
+      await e.reply('已重载全部模板与主题缓存，改动立即生效')
+      return true
+    }
+
+    if (arg === '深色' || /^dark$/i.test(arg)) {
+      Config.mergeConfig('qqmusic', { uiDark: true })
+      await e.reply(
+        current.manifest.dark
+          ? '已切到深色'
+          : `已记录深色偏好；但当前主题「${current.manifest.name}」不支持深色，切到支持深色的主题（如 apple）才会生效`
+      )
+      return true
+    }
+    if (arg === '浅色' || /^light$/i.test(arg)) {
+      Config.mergeConfig('qqmusic', { uiDark: false })
+      await e.reply('已切到浅色')
+      return true
+    }
+
+    const ids = listThemeIds()
+    if (!ids.includes(arg)) {
+      await e.reply(`没有主题「${arg}」。可用：${ids.join(' / ') || '（无）'}\n自定义主题：在 resources/themes/ 下丢一个带 theme.json 的目录`)
+      return true
+    }
+    Config.mergeConfig('qqmusic', { uiTheme: arg })
+    const next = resolveTheme({ ...cfg, uiTheme: arg })
+    await e.reply(
+      `界面已切到「${next.manifest.name}」${next.manifest.dark ? (next.dark ? '（深色）' : '（浅色）') : '（该主题只有浅色）'}\n立即生效，无需重启；发 #qqm点歌 / #qqm帮助 就能看到新界面`
+    )
     return true
   }
 

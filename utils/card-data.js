@@ -6,6 +6,7 @@ import { QUALITY_LABEL } from './quality.js'
 import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
+import { resolveTheme } from './theme.js'
 
 /** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
 export function buildListCardData(keyword, songs, options = {}) {
@@ -258,7 +259,12 @@ export async function buildSettingsCardData(e = null) {
   const togetherOn = c.togetherEnable === true
   const togetherText = !togetherOn
     ? '关闭'
-    : `开${c.togetherAuto === true ? ' · 点歌后自动同步' : ''}`  const publicAccountText = !publicAccount
+    : `开${c.togetherAuto === true ? ' · 点歌后自动同步' : ''}`
+  // 界面：显示**实际生效**的主题（配置里写了个不存在的名字时能一眼看出回落了）
+  const themeNow = resolveTheme(c)
+  const themeText = `${themeNow.manifest.name}（${themeNow.id}${themeNow.dark ? ' · 深色' : ''}）${
+    themeNow.fallback ? ' ⚠️ 已回落' : ''
+  }`  const publicAccountText = !publicAccount
     ? forceMasterAccount
       ? '未登录 · ⚠️ 开了「一律走主人账号」但还没有扫码登录记录'
       : '未启用'
@@ -296,6 +302,7 @@ export async function buildSettingsCardData(e = null) {
     adapterKind: adapter.kind,
     adapterId: adapter.id,
     togetherText,
+    themeText,
     tiles: [
       { label: '点歌', value: onOff(c.enableSongRequest), on: c.enableSongRequest !== false },
       { label: '解析', value: onOff(c.enableResolve), on: c.enableResolve !== false },
@@ -310,6 +317,7 @@ export async function buildSettingsCardData(e = null) {
       { k: '登录', v: login.text },
       { k: '主人账号', v: publicAccountText },
       { k: '适配器', v: `${adapter.name} (${adapter.kind})` },
+      { k: '界面', v: themeText },
       { k: '一起听', v: togetherText },
       { k: '音质', v: `${qualityLabel}${c.qualityFallback !== false ? ' · 自动降级' : ''}` },
       { k: '列表数', v: String(Number(c.maxList) || 10) },
@@ -366,6 +374,7 @@ export function formatSettingsText(data) {
     `音质: ${data.qualityKey}（自动降级: ${data.qualityFallback}）  列表: ${data.maxList}`,
     `语音: ${data.sendVocal}  群文件: ${data.uploadFile}`,
     `原生卡: ${data.sendNativeCard}  自定义卡: ${data.sendCustomCard}`,
+    `界面: ${data.themeText || 'classic'}`,
     `一起听: ${data.togetherText || '关闭'}`,
     '',
     '主人命令：',

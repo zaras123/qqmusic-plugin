@@ -110,6 +110,11 @@ const cases = [
   ['#qqm 补充曲 关', 'toggleExtra'],
   ['#qqm补充曲开', 'toggleExtra'],
   ['#qqm 测试', 'ping'],
+  // 界面（主题）
+  ['#qqm界面', 'themeCmd'],
+  ['#qqm界面 apple', 'themeCmd'],
+  ['#qqm主题 深色', 'themeCmd'],
+  ['#qqmui', 'themeCmd'],
   ['#qqm更新', 'update'],
   ['#qqm强制更新', 'forceUpdate'],
   ['#qqm更新日志', 'updateLog'],
@@ -164,6 +169,7 @@ const masterFnc = [
   'setQuality',
   'toggle',
   'toggleExtra',
+  'themeCmd', // 换界面是全局设置，限主人
   'ping',
   'update',
   'forceUpdate',
@@ -213,6 +219,31 @@ try {
   // 协议字段、编排、限流、文案全在 API 侧（qqmusic-api-enhanced/scripts/test-together.js 有 48 项单测），
   // 插件这边如果还残留可复刻的协议实现，就是这套架构白改了。
   const { togetherAdapter, togetherGate, autoSyncTogether } = await import('./utils/together.js')
+  // 主题（多套 UI）：语法糖是「丢个目录就能加主题」，所以这里测的是解析与回落规则
+  const {
+    listThemeIds,
+    resolveTheme,
+    templateFile,
+    normalizeManifest,
+    pageBgOf,
+    viewportWidthOf,
+    fileChanged,
+  } = await import('./utils/theme.js')
+  const themeIds = listThemeIds()
+  const classicTheme = resolveTheme({ uiTheme: 'classic' })
+  const fallbackTheme = resolveTheme({ uiTheme: '__不存在的主题__' })
+  const classicDark = resolveTheme({ uiTheme: 'classic', uiDark: true })
+
+  // 热更新：mtime 变了才要重新编译模板。用临时文件验，不碰仓库里的真模板
+  const scratch = new URL('./temp/_theme-mtime-test.html', import.meta.url)
+  const { writeFileSync, unlinkSync, utimesSync } = await import('node:fs')
+  writeFileSync(scratch, 'a')
+  const firstSeen = fileChanged(scratch) // 首次必然 true（反正也要编译）
+  const secondSeen = fileChanged(scratch) // 没动过 → false
+  const past = new Date(Date.now() - 5000)
+  utimesSync(scratch, past, past) // 改动 mtime（模拟编辑了模板）
+  const afterTouch = fileChanged(scratch)
+  unlinkSync(scratch)
   const mkEvent = (name, { withSendApi = true, group = '100' } = {}) => ({
     group_id: group,
     bot: Object.assign(
@@ -349,6 +380,29 @@ try {
       await autoSyncTogether(icqqEv, { songmid: 'm' }, { togetherEnable: true, togetherAuto: false }),
       null,
     ],
+    // 界面（多套 UI）：主题解析与回落规则 —— 「丢个目录就能加主题」全靠这些规则兜住
+    ['主题：内置 classic 在列', themeIds.includes('classic'), true],
+    ['主题：不填就是 classic', resolveTheme({}).id, 'classic'],
+    ['主题：名字不存在时回落 classic', fallbackTheme.id, 'classic'],
+    ['主题：回落要标记出来（设置页会显示 ⚠️）', fallbackTheme.fallback, true],
+    ['主题：classic 不支持深色（uiDark 对它不生效）', classicDark.dark, false],
+    ['主题：classic 底色保持原样（回归）', pageBgOf(classicTheme), '#e6f6ee'],
+    [
+      '主题：视口宽度保持旧行为（status 580 / list 640）',
+      [viewportWidthOf(classicTheme, 'qqmusic-status'), viewportWidthOf(classicTheme, 'qqmusic-list')],
+      [580, 640],
+    ],
+    ['主题：模板解析到主题目录', templateFile(classicTheme, 'qqmusic-list').from, 'classic'],
+    [
+      '主题：卡片不存在时返回 null（让调用方报错，而不是渲染空卡）',
+      templateFile(classicTheme, '__不存在的卡__').file,
+      null,
+    ],
+    ['主题：manifest 缺字段有安全默认', normalizeManifest('x', {}).viewportWidth, 640],
+    // 热更新：模板 mtime 变了才重新编译（art-template 默认按文件名永久缓存）
+    ['热更新：首次判为需编译', firstSeen, true],
+    ['热更新：没改动就不重复编译', secondSeen, false],
+    ['热更新：mtime 变了要重新编译', afterTouch, true],
   ]
 
   for (const [name, got, want] of pure) {

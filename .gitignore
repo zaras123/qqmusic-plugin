@@ -6,3 +6,5 @@ config/config/*
 .DS_Store
 # Playwright MCP 浏览器测试产物
 .playwright-mcp/
+# 本地生成物：卡片预览（scripts/preview-cards.mjs 的产物）等
+temp/

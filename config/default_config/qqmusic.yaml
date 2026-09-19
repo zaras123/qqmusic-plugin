@@ -32,6 +32,13 @@ resolveCards: true
 # 点歌结果渲染为图片卡片
 renderListCard: true
 
+# ————— 界面（多套 UI）—————
+# 卡片主题：resources/themes/ 下的目录名（内置 classic / apple，丢个目录就能加自己的）
+# 换主题、改模板文件都是**热更新**，不用重启机器人
+uiTheme: classic
+# 深色：只对声明支持深色的主题生效（apple 支持，classic 不支持）
+uiDark: false
+
 # 其它平台补充曲（默认开）：QQ 音乐没版权的歌，从网易云/酷我补几条免费曲（128k）追加在列表尾部
 extraSources: true
 

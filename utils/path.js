@@ -28,9 +28,13 @@ export const logoUrl = pathToFileURL(path.join(pluginPath, 'resources/img/logo.p
 
 /**
  * Yunzai 根目录
- * 优先 process.cwd()（Bot 从 Yunzai 根启动），否则从插件路径向上找
+ * 优先 QQMUSIC_YUNZAI_PATH 环境变量（脱离框架的脚本/本地预览用这个指定）
+ * → process.cwd()（Bot 从 Yunzai 根启动）→ 从插件路径向上找
  */
 function resolveYunzaiPath() {
+  const fromEnv = String(process.env.QQMUSIC_YUNZAI_PATH || '').trim()
+  if (fromEnv && fs.existsSync(fromEnv)) return real(fromEnv)
+
   const cwd = process.cwd()
   if (
     fs.existsSync(path.join(cwd, 'plugins')) &&
