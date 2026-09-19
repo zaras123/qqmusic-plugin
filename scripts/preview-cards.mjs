@@ -310,6 +310,46 @@ async function main() {
 
   console.log(`\n完成 ${done.length} 张，失败 ${failed.length} 张`)
   console.log(`输出目录: ${outRoot}`)
+
+  // 顺手生成总览页：打开一个文件就能看全所有主题/卡片/深浅
+  try {
+    const idx = path.join(outRoot, 'index.html')
+    const groups = {}
+    for (const key of done) {
+      const [dirName, card] = key.split('/')
+      ;(groups[dirName] = groups[dirName] || []).push(card)
+    }
+    const html = `<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">
+<title>卡片预览 · ${done.length} 张</title>
+<style>
+  body{margin:0;padding:28px;background:#111;color:#eee;
+       font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei UI",sans-serif}
+  h2{margin:28px 0 12px;font-size:16px;font-weight:600;color:#fff}
+  .grid{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+  figure{margin:0;width:300px}
+  figcaption{margin-top:6px;font-size:12px;color:#9aa}
+  img{width:100%;height:auto;border-radius:8px;display:block;background:#222}
+</style></head><body>
+<h1 style="font-size:20px">卡片预览（${done.length} 张）</h1>
+${Object.entries(groups)
+  .map(
+    ([dirName, cards]) => `<h2>${dirName}</h2>\n<div class="grid">
+${cards
+  .map(
+    (c) =>
+      `  <figure><img src="./${dirName}/${c}.png" alt="${c}" loading="lazy"><figcaption>${c}</figcaption></figure>`
+  )
+  .join('\n')}
+</div>`
+  )
+  .join('\n')}
+</body></html>`
+    fs.writeFileSync(idx, html, 'utf8')
+    console.log(`总览页: ${idx}`)
+  } catch (err) {
+    console.log(`总览页生成失败: ${err.message}`)
+  }
+
   if (failed.length) process.exitCode = 1
 }
 
