@@ -502,15 +502,15 @@ html[data-mode="dark"][data-bg="1"] .page::before {
  *  · 内暗边 inset 0 0 3px + 一圈内细环（::before）：玻璃的厚度与内壁
  *  · 45° 对角扫光（::after）：液态的流向感
  *  · 大圆角 40px：更圆润
- * 注：他们的 demo 里玻璃中只有图标，填充敢用 0.04；我们卡里全是文字 ——
- * 实测 0.26 时标题直接压在花纹上，0.74 又太实没了玻璃味，**0.46/0.34 这一档**才两头兼顾；
- * 文字所在的卡内分组再单独垫实（见下面 group-body）。 */
+ * 填充实度：液态玻璃本来就很透（用户确认"太透就是这样"），所以这里压到 0.32/0.20 这一档；
+ * 可读性不靠加实卡片，而是靠**把文字所在的卡内分组垫实**（见下面 group-body）——
+ * 这也正是 iOS 的做法：玻璃面板很透，内容区是实面。 */
 html[data-bg="1"] .card {
   z-index: 1;
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.46) 0%,
-    rgba(255, 255, 255, 0.34) 100%
+    rgba(255, 255, 255, 0.32) 0%,
+    rgba(255, 255, 255, 0.2) 100%
   );
   -webkit-backdrop-filter: blur(30px) saturate(190%) brightness(1.08);
   backdrop-filter: blur(30px) saturate(190%) brightness(1.08);
@@ -563,8 +563,8 @@ html[data-bg="1"] .card::after {
 html[data-mode="dark"][data-bg="1"] .card {
   background: linear-gradient(
     180deg,
-    rgba(34, 34, 40, 0.6) 0%,
-    rgba(16, 16, 20, 0.46) 100%
+    rgba(34, 34, 40, 0.46) 0%,
+    rgba(16, 16, 20, 0.3) 100%
   );
   -webkit-backdrop-filter: blur(30px) saturate(180%) brightness(0.86);
   backdrop-filter: blur(30px) saturate(180%) brightness(0.86);
@@ -590,10 +590,11 @@ html[data-mode="dark"][data-bg="1"] .card::after {
 }
 
 /* 玻璃上的内层元素：卡片本身很透（玻璃感来源），**文字所在的这层要垫实**
- * —— 这是"透得好看"和"看得清字"之间的那个平衡点。 */
-html[data-bg="1"] .group-body,
-html[data-bg="1"] .inset {
-  background: rgba(255, 255, 255, 0.56);
+ * —— 这是"透得好看"和"看得清字"之间的那个平衡点。
+ * 注意只给 .group-body 上底色：.inset 只是外层包裹（只有 margin、没有圆角），
+ * 给它上底会露出一圈白色直角（踩过）。 */
+html[data-bg="1"] .group-body {
+  background: rgba(255, 255, 255, 0.6);
 }
 html[data-bg="1"] .pill {
   background: rgba(255, 255, 255, 0.72);
@@ -604,9 +605,8 @@ html[data-bg="1"] .thumb {
 html[data-bg="1"] .bar {
   background: rgba(255, 255, 255, 0.66);
 }
-html[data-mode="dark"][data-bg="1"] .group-body,
-html[data-mode="dark"][data-bg="1"] .inset {
-  background: rgba(255, 255, 255, 0.13);
+html[data-mode="dark"][data-bg="1"] .group-body {
+  background: rgba(255, 255, 255, 0.14);
 }
 html[data-mode="dark"][data-bg="1"] .pill {
   background: rgba(255, 255, 255, 0.19);
