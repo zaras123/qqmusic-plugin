@@ -84,6 +84,9 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 | 🎬 MV | `#qqmMV 播放/下载 序号` | 播放 / 下载列表 MV（点歌后直接发该曲 `#qqmMV 播放/下载` 即可操作） |
 | 🔗 解析 | 群内发 QQ 音乐分享 / 链接 | 自动识别并下载播放（免费音乐未登录也可解析，但仍需 api 鉴权 token） |
 | 🔗 解析 | 专辑 / 歌单 / 歌手链接 | 自动识别并展示歌曲列表 |
+| 🎶 一起听 | `#qqm一起听 N` | 把列表第 N 首加进**群里的一起听**；房间里没有歌时自动开房（ICQQ / NapCat / SnowLuma，需先探测） |
+| 🎶 一起听 | `#qqm一起听 状态` | 查看本群房间当前曲目 / 人数 / 是否允许成员点歌（只读） |
+| 🎶 一起听 | `#qqm一起听 探测` | 只读探测一起听参数（主人；实际由 API 侧算包，插件只转发） |
 | 🔐 登录 | `#qqm登录` | 扫码登录（主人，一张 QQ 码，QQ / QQ 音乐 App 通用） |
 | 🔐 登录 | `#qqm登录微信` | 用微信扫一扫登录（走 PC 客户端流程，无需 QQ音乐 App；主人） |
 | 🔐 登录 | `#qqm登录qq` | QQ 音乐 App 扫码备用（主人，MQTT 通道） |
@@ -177,12 +180,19 @@ cd qqmusic-plugin && pnpm install
 | 视频（MV） | ✅ 本地下载后发 | ✅ 直链 / 本地 | ✅ 直链 |
 | 群文件 | ✅ | ✅ | ✅ |
 | 原生音乐卡 | 视协议 | 视协议 | — |
+| 一起听（群听歌） | ✅ | ✅ NapCat / SnowLuma（待实测） | — |
 
 > 📌 **关于原生音乐卡**：NTQQ 系协议端（NapCat / Lagrange / LLOneBot 等）不支持 go-cq 风格的 `type:qq` 音乐卡（该类型需协议端服务端拉歌单，会以 `retcode 1200` 拒绝）。插件在 OneBot 上**直接用 custom 卡**（带真实播放链 + 封面 + 歌手，效果与官方客户端分享一致，参考小飞插件做法）；ICQQ 仍走原生 `type:qq`。同一适配器连续失败 3 次后本会话内自动跳过并静默降级为语音 / 群文件（点歌功能不受影响）。彻底关闭可在锅巴中关掉「发送原生 QQ 音乐卡」。
 >
 > 📌 **关于高音质语音**：FLAC 等高音质文件体积大，直接作为语音（record）发送会被协议端以体积/格式限制拒绝。插件发送语音前会自动用 ffmpeg 压成紧凑 mp3（保证能发出去），**群文件仍保留原始高音质文件**。需系统安装 `ffmpeg`（`ffmpeg -version` 可验证）。
 >
 > 📌 **关于群文件上传（OneBot/NTQQ）**：LLOneBot / NapCat / Lagrange 的 `upload_group_file` **动作**对 `.flac` 常报「未知文件类型或路径不存在」。插件 OneBot 上传优先用适配器原生 **`e.group.sendFile`**（与 rconsole-plugin 一致，能正常传无损 flac），失败才依次落到 `upload_group_file` → `send_group_msg` 文件段 → 压缩 mp3 兜底。ICQQ 走 `fs.upload`/`sendFile`。
+
+> 📌 **关于一起听（群听歌）**：走 QQ 的 SSO 命令族 `QQAIOMediaSvc.*`（`share_trans` 入列 / `create_room` 开房），**不是**发一张 `com.tencent.together` 卡片 —— 那种卡只是「开始一起听」的邀请入口，客户端解析它时并不读卡片里的 token，复读或伪造它既开不出房间也排不进歌。
+>
+> **架构：协议知识全在 API 侧，插件只做「协议端识别 + 发送」。** 插件把群号/协议端/歌曲交给 API；API 算出「下一步该发什么包」并给出承载通道（`icqq` → `sendUni`，`onebot` → `send_packet`）；插件用自己的协议端会话把包发出去，再把响应原样交回 API，由 API 判定成败并给文案。插件里**不解析包、不做业务判断、没有字段定义**，所以它单独分出去也复刻不了这个功能。
+>
+> 支持的协议端：**ICQQ**，以及带 `send_packet` 扩展动作的 **OneBot**（NapCat、SnowLuma）；LLOneBot / Lagrange 没有该动作，会在首次调用后明确提示并停用。首次使用需在 API 侧探测一次（`POST /together/start {"action":"probe"}`，只读），把 `aio_type`/`media_type` 写进 API 的 `data/together.json`，否则 API 会拒绝加歌。`#qqm一起听 状态` 可随时查看房间当前曲目。
 
 ---
 
@@ -197,6 +207,7 @@ qqmusic-plugin/
 │   ├── explore.js           # 歌手、专辑、歌单、评论
 │   ├── resolve.js           # 分享/链接解析
 │   ├── login.js             # 扫码登录（webqr / MQTT / DeepLink）
+│   ├── together.js          # 一起听（把点歌结果加进群里的房间）
 │   └── admin.js             # 配置管理 / 更新
 ├── components/Config.js     # 配置读写
 ├── utils/
@@ -205,6 +216,7 @@ qqmusic-plugin/
 │   ├── render.js            # 图片卡片渲染
 │   ├── card-data.js         # 卡片数据构建
 │   ├── adapter.js           # 适配器识别（ICQQ / OneBot / QQBot）
+│   ├── together.js          # 一起听：协议端识别 + 发包（协议知识在 API 侧）
 │   ├── session.js           # 点歌会话
 │   ├── format.js            # 列表文本格式化
 │   ├── quality.js           # 音质定义
@@ -239,6 +251,7 @@ qqmusic-plugin/
 - 一律走主人账号（默认开；主人账号自动取最近扫码登录的账号，所有人点歌都按主人的 ck，锅巴可关）
 - 主人账号手动指定（`publicAccount`，留空=自动；多账号想固定用某一个时才填）
 - 从 API 一键回填登录态
+- 一起听：启用开关 / 点歌后自动同步（协议参数在 API 侧：`data/together.json` 的 `aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`）
 
 ---
 

@@ -38,8 +38,8 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
           permission: 'master',
         },
         {
-          // 点歌增强开关：接管无前缀 #点歌 / 其它平台补充曲
-          reg: '^#?(qq|QQ)m\\s*(默认点歌|补充曲)\\s*(开启|关闭|开|关)$',
+          // 点歌增强开关：接管无前缀 #点歌 / 其它平台补充曲 / 一起听（及其自动同步）
+          reg: '^#?(qq|QQ)m\\s*(默认点歌|补充曲|一起听同步|一起听)\\s*(开启|关闭|开|关)$',
           fnc: 'toggleExtra',
           permission: 'master',
         },
@@ -129,6 +129,9 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         `默认点歌: ${c.defaultPickSong === true ? '开' : '关'}（接管无前缀 #点歌）  补充曲: ${
           c.extraSources !== false ? '开' : '关'
         }（其它平台免费曲）`,
+        `一起听: ${c.togetherEnable === true ? '开' : '关'}${
+          c.togetherEnable === true ? `（点歌后自动同步 ${c.togetherAuto === true ? '开' : '关'}）` : ''
+        }`,
         '',
         '主人命令：',
         '#qqm登录          扫码绑定（QQ 码）',
@@ -139,6 +142,9 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         '#qqm 开启点歌 / #qqm 关闭解析',
         '#qqm 默认点歌 开/关   接管无前缀「#点歌」',
         '#qqm 补充曲 开/关     其它平台免费曲补进列表',
+        '#qqm 一起听 开/关     启用群里的一起听（仅 ICQQ）',
+        '#qqm 一起听同步 开/关 点歌后自动同步进一起听',
+        '#qqm一起听 探测      只读探测一起听参数（首次启用必须先跑）',
         '#qqm 音质 flac',
         '#qqm 测试',
         `#qqm更新          拉取最新代码（当前 v${getLocalVersion()}）`,
@@ -171,24 +177,43 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
     return true
   }
 
-  /** #qqm 默认点歌 开/关 ；#qqm 补充曲 开/关 */
+  /** #qqm 默认点歌 开/关 ；#qqm 补充曲 开/关 ；#qqm 一起听 开/关 ；#qqm 一起听同步 开/关 */
   async toggleExtra(e) {
-    const m = String(e.msg || '').match(/(默认点歌|补充曲)\s*(开启|关闭|开|关)/)
+    const m = String(e.msg || '').match(/(默认点歌|补充曲|一起听同步|一起听)\s*(开启|关闭|开|关)/)
     if (!m) return true
     const on = m[2] === '开启' || m[2] === '开'
-    const isDefaultPick = m[1] === '默认点歌'
-    Config.mergeConfig('qqmusic', isDefaultPick ? { defaultPickSong: on } : { extraSources: on })
-    await e.reply(
-      isDefaultPick
-        ? `已${on ? '开启' : '关闭'}「接管无前缀 #点歌」` +
-            (on
-              ? '\n现在发送「#点歌 关键词」由本插件处理（若其它点歌插件优先级更高，仍可能被它们先接走）'
-              : '\n不加 #qqm 前缀的点歌交还给其它插件')
-        : `已${on ? '开启' : '关闭'}「其它平台补充曲」` +
-            (on
-              ? '\n点歌列表尾部会追加网易云/酷我的免费曲（128k，可用 #qqm听序号 播放）'
-              : '\n点歌列表只显示 QQ 音乐的结果')
-    )
+    const which = m[1].replace(/\s/g, '')
+    const patch =
+      which === '默认点歌'
+        ? { defaultPickSong: on }
+        : which === '补充曲'
+          ? { extraSources: on }
+          : which === '一起听同步'
+            ? { togetherAuto: on }
+            : { togetherEnable: on }
+    Config.mergeConfig('qqmusic', patch)
+
+    const texts = {
+      默认点歌: () =>
+        `已${on ? '开启' : '关闭'}「接管无前缀 #点歌」` +
+        (on
+          ? '\n现在发送「#点歌 关键词」由本插件处理（若其它点歌插件优先级更高，仍可能被它们先接走）'
+          : '\n不加 #qqm 前缀的点歌交还给其它插件'),
+      补充曲: () =>
+        `已${on ? '开启' : '关闭'}「其它平台补充曲」` +
+        (on
+          ? '\n点歌列表尾部会追加网易云/酷我的免费曲（128k，可用 #qqm听序号 播放）'
+          : '\n点歌列表只显示 QQ 音乐的结果'),
+      一起听: () =>
+        `已${on ? '开启' : '关闭'}「一起听」` +
+        (on
+          ? '\n支持 ICQQ，以及带 send_packet 的 OneBot（NapCat / SnowLuma）；协议参数在 API 侧，没探测过时 API 会拒绝加歌'
+          : ''),
+      一起听同步: () =>
+        `已${on ? '开启' : '关闭'}「点歌后自动同步一起听」` +
+        (on ? '\n点歌/播放成功后会顺带把这首歌加进本群一起听；房间不存在时是否开房由 API 侧配置决定' : ''),
+    }
+    await e.reply(texts[which]())
     return true
   }
 

@@ -54,3 +54,11 @@ publicAccount: ""
 # 主人账号自动取最近扫码登录的账号，机器人扫码登录过即自动生效；
 # 登录状态/收藏/刷新仍按请求者本人。不想全员走主人号可在锅巴关闭。
 forceMasterAccount: true
+
+# ————— 一起听（群听歌）—————
+# 把点歌结果加进群里的一起听（走 QQAIOMediaSvc.* 的原始 SSO 包）。
+# 插件这里只有开关：包怎么拼、是否开房、限流、失败文案都在 API 侧
+# （qqmusic-api-enhanced 的 util/together.js + data/together.json）。
+togetherEnable: false
+# 自动同步：点歌（#qqm听N / #qqm播放 / 解析卡片等所有发歌路径）成功后再把这首歌加进一起听
+togetherAuto: false

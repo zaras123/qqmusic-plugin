@@ -134,6 +134,23 @@ export const schemas = [
   },
   {
     component: 'Divider',
+    label: '一起听',
+  },
+  {
+    field: 'togetherEnable',
+    label: '启用一起听',
+    bottomHelpMessage:
+      '把点歌结果加进群里的一起听（ICQQ，或带 send_packet 的 OneBot：NapCat / SnowLuma）。首次使用需在 API 侧探测：POST /together/start {action:"probe"}',
+    component: 'Switch',
+  },
+  {
+    field: 'togetherAuto',
+    label: '点歌后自动同步',
+    bottomHelpMessage: '点歌/播放成功后再把这首歌加进一起听（手动 #qqm一起听 N 不受此开关影响）',
+    component: 'Switch',
+  },
+  {
+    component: 'Divider',
     label: '发送方式',
   },
   {
@@ -221,6 +238,8 @@ export function getConfigData() {
     extraSources: c.extraSources !== false,
     defaultPickSong: c.defaultPickSong === true,
     forceMasterAccount: c.forceMasterAccount === true,
+    togetherEnable: c.togetherEnable === true,
+    togetherAuto: c.togetherAuto === true,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
     pullLoginMeta: false,
   }

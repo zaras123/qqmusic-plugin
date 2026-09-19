@@ -21,6 +21,8 @@ const SECTIONS = [
       { name: '直接播放', desc: '搜索并立即播放第一条', example: '#qqm播放 晴天' },
       { name: '查看歌词', desc: '按歌名/mid 取歌词；点歌后 #qqm歌词1 取列表第 1 首歌词', example: '#qqm歌词 七里香' },
       { name: '热搜榜', desc: '查看 QQ 音乐热搜', example: '#qqm热搜' },
+      { name: '一起听', desc: '把列表第 N 首加进群里的一起听（ICQQ / NapCat / SnowLuma）', example: '#qqm一起听 1' },
+      { name: '一起听状态', desc: '查看本群一起听房间当前曲目', example: '#qqm一起听 状态' },
     ],
   },
   {
@@ -65,6 +67,7 @@ const SECTIONS = [
       { name: '功能开关', desc: '开启或关闭点歌、解析', example: '#qqm 开启点歌' },
       { name: '默认点歌', desc: '接管不加前缀的「#点歌」（默认关）', example: '#qqm 默认点歌 开' },
       { name: '补充曲', desc: '其它平台免费曲补进列表（默认开）', example: '#qqm 补充曲 关' },
+      { name: '一起听探测', desc: '只读探测一起听参数（首次启用一起听必须先跑）', example: '#qqm一起听 探测' },
       { name: '连通测试', desc: '探测 API 是否可用', example: '#qqm 测试' },
       { name: '插件更新', desc: 'git 拉取最新代码', example: '#qqm更新' },
       { name: '强制更新', desc: '丢弃本地改动同步远程', example: '#qqm强制更新' },

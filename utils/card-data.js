@@ -254,7 +254,11 @@ export async function buildSettingsCardData(e = null) {
     }
   }
   const autoTag = autoAccount ? '（自动·最近登录）' : ''
-  const publicAccountText = !publicAccount
+  // 一起听：插件只管开关，协议参数在 API 侧；这里不显示技术细节，只标是否开着
+  const togetherOn = c.togetherEnable === true
+  const togetherText = !togetherOn
+    ? '关闭'
+    : `开${c.togetherAuto === true ? ' · 点歌后自动同步' : ''}`  const publicAccountText = !publicAccount
     ? forceMasterAccount
       ? '未登录 · ⚠️ 开了「一律走主人账号」但还没有扫码登录记录'
       : '未启用'
@@ -291,6 +295,7 @@ export async function buildSettingsCardData(e = null) {
     adapterName: adapter.name,
     adapterKind: adapter.kind,
     adapterId: adapter.id,
+    togetherText,
     tiles: [
       { label: '点歌', value: onOff(c.enableSongRequest), on: c.enableSongRequest !== false },
       { label: '解析', value: onOff(c.enableResolve), on: c.enableResolve !== false },
@@ -298,12 +303,14 @@ export async function buildSettingsCardData(e = null) {
       { label: '语音', value: onOff(c.sendVocal), on: c.sendVocal !== false },
       { label: '群文件', value: onOff(c.uploadFile), on: c.uploadFile !== false },
       { label: '降级', value: onOff(c.qualityFallback), on: c.qualityFallback !== false },
+      { label: '一起听', value: onOff(c.togetherEnable), on: togetherOn },
     ],
     rows: [
       { k: 'API', v: apiBaseView },
       { k: '登录', v: login.text },
       { k: '主人账号', v: publicAccountText },
       { k: '适配器', v: `${adapter.name} (${adapter.kind})` },
+      { k: '一起听', v: togetherText },
       { k: '音质', v: `${qualityLabel}${c.qualityFallback !== false ? ' · 自动降级' : ''}` },
       { k: '列表数', v: String(Number(c.maxList) || 10) },
       {
@@ -317,6 +324,7 @@ export async function buildSettingsCardData(e = null) {
       { name: '改 API', desc: '切换 qqmusic-api 地址（主人）', example: '#qqm api <地址>' },
       { name: '改音质', desc: '设置最高播放音质', example: '#qqm 音质 flac' },
       { name: '开关点歌', desc: '开启 / 关闭点歌功能', example: '#qqm 开启点歌' },
+      { name: '一起听', desc: '把点歌列表加进群里的一起听（ICQQ / NapCat / SnowLuma）', example: '#qqm一起听 1' },
       { name: '连通测试', desc: '测试 API 是否正常响应', example: '#qqm 测试' },
     ],
     tip: '详细开关可在锅巴面板修改；API 地址对所有人打码显示',
@@ -358,6 +366,7 @@ export function formatSettingsText(data) {
     `音质: ${data.qualityKey}（自动降级: ${data.qualityFallback}）  列表: ${data.maxList}`,
     `语音: ${data.sendVocal}  群文件: ${data.uploadFile}`,
     `原生卡: ${data.sendNativeCard}  自定义卡: ${data.sendCustomCard}`,
+    `一起听: ${data.togetherText || '关闭'}`,
     '',
     '主人命令：',
     '#qqm登录 / #qqm状态 / #qqm 音质 flac',

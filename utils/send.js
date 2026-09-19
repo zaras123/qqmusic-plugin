@@ -57,7 +57,7 @@ async function withRetry(fn, { times = 3, baseMs = 1500, retryIf = () => true, t
 }
 
 /** OneBot sendApi 封装（TRSS 绑定为 bot.sendApi(action, params)） */
-async function botSendApi(e, action, params = {}) {
+export async function botSendApi(e, action, params = {}) {
   const bot = e?.bot
   if (!bot?.sendApi) return null
   try {
@@ -817,6 +817,22 @@ export async function uploadGroupFile(e, filePath, displayName) {
 }
 
 /**
+ * 一起听同步（deliverSong 收尾调用）
+ * 放在「只发卡」与「完整发送」两个收尾点，但**不放** no_url 早退分支 ——
+ * 点歌失败时不该顺带把一起听房间也开出来。
+ * 失败只回一句短提示，绝不改 deliverSong 的返回值（chart/resolve 也在调它）。
+ */
+async function syncTogetherAfterSend(e, song, cfg) {
+  try {
+    const { autoSyncTogether } = await import('./together.js')
+    const sync = await autoSyncTogether(e, song, cfg)
+    if (sync && !sync.ok && !sync.silent) await e.reply(`（${sync.message}）`)
+  } catch (err) {
+    logWarn(`一起听自动同步异常: ${err.message}`)
+  }
+}
+
+/**
  * 综合发送（点歌 / 卡片解析共用）
  * 流程: (可选文案/音乐卡) → 下载 → 语音 → 群文件
  */
@@ -898,7 +914,11 @@ export async function deliverSong(e, song, play, options = {}) {
   if (!play?.url) return { ok: false, reason: 'no_url', adapter: adapter.kind }
 
   const needDownload = cfg.sendVocal || cfg.uploadFile
-  if (!needDownload) return { ok: true, downloaded: false, adapter: adapter.kind }
+  if (!needDownload) {
+    // 只发文案/音乐卡也属于「发出去了」，同样同步一起听
+    await syncTogetherAfterSend(e, song, cfg)
+    return { ok: true, downloaded: false, adapter: adapter.kind }
+  }
 
   let localPath = ''
   let size = 0
@@ -1112,6 +1132,9 @@ export async function deliverSong(e, song, play, options = {}) {
       }, delay)
     }
   }
+
+  // 一起听：歌已经发出去了，再同步进群里的一起听（细节见 syncTogetherAfterSend）
+  await syncTogetherAfterSend(e, song, cfg)
 
   return { ok: true, downloaded: true, path: localPath, size, adapter: adapter.kind }
 }

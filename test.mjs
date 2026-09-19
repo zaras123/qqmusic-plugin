@@ -7,6 +7,7 @@ import { qqmusicExplore } from './apps/explore.js'
 import { qqmusicLogin } from './apps/login.js'
 import { qqmusicResolve } from './apps/resolve.js'
 import { qqmusicSong } from './apps/song.js'
+import { qqmusicTogether } from './apps/together.js'
 import { qqmusicAdmin } from './apps/admin.js'
 
 console.log('=== QQ音乐插件功能测试 ===\n')
@@ -17,6 +18,7 @@ const modules = [
   { name: '扫码登录', class: qqmusicLogin },
   { name: '解析', class: qqmusicResolve },
   { name: '点歌', class: qqmusicSong },
+  { name: '一起听', class: qqmusicTogether },
   { name: '管理', class: qqmusicAdmin },
 ]
 
@@ -60,6 +62,11 @@ const cases = [
   ['#qqm热搜', 'hotSearch'],
   ['#qqm帮助', 'help'],
   ['#qm帮助', 'help'],
+  // 一起听（全员两条 + 主人探测一条；全员必须排在 master 之前，见 apps/together.js 注释）
+  ['#qqm一起听 1', 'togetherPick'],
+  ['#qqm一起听5', 'togetherPick'],
+  ['#qqm一起听 状态', 'togetherState'],
+  ['#qqm一起听 探测', 'togetherProbe'],
   // 发现
   ['#qqm排行 飙升', 'chart'],
   ['#qqm推荐', 'recommend'],
@@ -110,7 +117,7 @@ const cases = [
 ]
 
 /** 负例：这些不应被任何规则匹配（否则会误触发回复） */
-const negative = ['#qqm点歌', '#qqm听0', '#qqm', '#qqm不存在']
+const negative = ['#qqm点歌', '#qqm听0', '#qqm', '#qqm不存在', '#qqm一起听', '#qqm一起听0', '#qqm一起听 全部']
 
 let routeOk = 0
 let routeBad = 0
@@ -162,6 +169,7 @@ const masterFnc = [
   'forceUpdate',
   'updateLog',
   'listAccounts',
+  'togetherProbe', // 探测会回显群成员 uin 与房间内部 id，必须限主人
 ]
 for (const fnc of masterFnc) {
   const rules = allRules.filter((r) => r.fnc === fnc)
@@ -201,6 +209,22 @@ try {
   const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint } = await import('./utils/api.js')
   const { buildMusicFileName, formatSize } = await import('./utils/send.js')
   const { isPluginCommandMsg } = await import('./utils/common.js')
+  // 一起听：插件侧只剩「协议端识别 + 开关」。
+  // 协议字段、编排、限流、文案全在 API 侧（qqmusic-api-enhanced/scripts/test-together.js 有 48 项单测），
+  // 插件这边如果还残留可复刻的协议实现，就是这套架构白改了。
+  const { togetherAdapter, togetherGate } = await import('./utils/together.js')
+  const mkEvent = (name, { withSendApi = true, group = '100' } = {}) => ({
+    group_id: group,
+    bot: Object.assign(
+      { adapter: { id: 'QQ', name } },
+      withSendApi ? { sendApi: async () => '' } : {}
+    ),
+  })
+  const icqqEv = mkEvent('icqq', { withSendApi: false })
+  const napcatEv = mkEvent('napcat')
+  const snowlumaEv = mkEvent('SnowLuma')
+  const qqbotEv = mkEvent('qqbot', { withSendApi: false })
+  const privateEv = mkEvent('icqq', { withSendApi: false, group: null })
 
   const pure = [
     // 专辑链接三种分享形态都要认得（少一种 = 那类链接用户发了没反应）
@@ -250,6 +274,9 @@ try {
     ['识别 #QMS', isPluginCommandMsg('#QMS'), true],
     ['识别 #QQ状态', isPluginCommandMsg('#QQ状态'), true],
     ['识别 #qqm点歌', isPluginCommandMsg('#qqm点歌 晴天'), true],
+    // 一起听指令若不被识别为自家命令，resolve 守卫会把它当普通消息去抽链接
+    ['识别 #qqm一起听', isPluginCommandMsg('#qqm一起听 1'), true],
+    ['识别 #qqm一起听 探测', isPluginCommandMsg('#qqm一起听 探测'), true],
     ['普通聊天不算命令', isPluginCommandMsg('今天天气不错'), false],
     // DRM 曲目：服务端只说「仅提供加密文件」，此时再追加「需会员播放，请 #qqm登录」是自相矛盾
     [
@@ -298,6 +325,17 @@ try {
       true,
     ],
     ['未登录时不输出续期提示', loginRenewHint({ login: false, hasRefresh: true }), ''],
+    // 一起听：插件侧只剩协议端识别 + 开关。协议字段/编排/限流/文案都在 API 侧
+    // （那边有独立单测）；插件这边若还残留可复刻的协议实现，这套架构就白改了。
+    ['协议端识别：icqq', togetherAdapter(icqqEv), 'icqq'],
+    ['协议端识别：NapCat', togetherAdapter(napcatEv), 'onebot'],
+    ['协议端识别：SnowLuma', togetherAdapter(snowlumaEv), 'onebot'],
+    ['协议端识别：QQBot 官方（无原始发包）', togetherAdapter(qqbotEv), ''],
+    ['开关关着不放行', togetherGate(icqqEv, {}).ok, false],
+    ['  未启用文案', /未启用/.test(togetherGate(icqqEv, {}).reason), true],
+    ['私聊不放行', /仅支持群聊/.test(togetherGate(privateEv, { togetherEnable: true }).reason), true],
+    ['协议端不支持时不放行', /协议端/.test(togetherGate(qqbotEv, { togetherEnable: true }).reason), true],
+    ['能力齐全才放行', togetherGate(icqqEv, { togetherEnable: true }).ok, true],
   ]
 
   for (const [name, got, want] of pure) {
