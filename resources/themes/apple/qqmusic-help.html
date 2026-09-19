@@ -14,7 +14,7 @@
       width: 52px;
       height: 52px;
       border-radius: 14px;
-      background: var(--fill-2);
+      background: var(--glass-3);
       object-fit: contain;
       flex: none;
     }
@@ -64,7 +64,7 @@
       </div>
 
       {{each data.sections section}}
-      <div class="group">
+      <div class="group inset">
         <div class="group-title">
           <span class="t-caption">{{section.title}}</span>
           {{if section.tag}}<span class="pill">{{section.tag}}</span>{{/if}}

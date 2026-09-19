@@ -1,11 +1,11 @@
 {
   "id": "apple",
   "name": "Apple 风",
-  "desc": "对标 iOS：插入式分组列表、克制配色、排印层级；支持深色",
+  "desc": "Liquid Glass 材质：半透明玻璃 + 边缘高光 + 大圆角；支持深色",
   "dark": true,
   "pageBg": {
-    "light": "#F2F2F7",
-    "dark": "#000000"
+    "light": "#e9eefb",
+    "dark": "#0a0d16"
   },
   "viewportWidth": 640
 }

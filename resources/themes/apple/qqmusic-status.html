@@ -16,7 +16,7 @@
       height: 72px;
       flex: none;
       border-radius: 18px;
-      background: var(--fill-2) center/cover no-repeat;
+      background: var(--glass-3) center/cover no-repeat;
       object-fit: cover;
     }
     /* 真头像用圆形（通讯录观感），默认 logo 保持圆角方形 */
@@ -75,7 +75,7 @@
       </div>
 
       {{if data.stats && data.stats.length}}
-      <div class="group">
+      <div class="group inset">
         <div class="group-title"><span class="t-caption">功能</span></div>
         <div class="group-body">
           {{each data.stats item}}
