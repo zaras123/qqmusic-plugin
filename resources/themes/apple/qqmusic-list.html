@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 点歌结果</title>
+  <!-- 主题共享样式：渲染器会把 resources/ 相对路径改写成绝对 file URL -->
+  <link rel="stylesheet" href="resources/themes/apple/_base.css" />
+  <style>
+    /* 列表卡特有：行内小元素 */
+    .song-album {
+      color: var(--label-2);
+    }
+    .cmd-row .row-title {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 15px;
+      letter-spacing: -0.2px;
+    }
+    .cmd-example {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <!-- 卡头 -->
+      <div class="hero">
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music · 点歌</div>
+          <div class="t-hero truncate">{{data.keyword}}</div>
+          <div class="t-sub hero-sub">
+            共 {{data.total}} 首{{if data.singerInfo}} · {{data.singerInfo}}{{/if}}{{if data.albumInfo}} · {{data.albumInfo}}{{/if}}
+          </div>
+        </div>
+      </div>
+
+      <!-- 概览 -->
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-v t-num">{{data.total}}</div>
+          <div class="stat-k">命中</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v">{{data.quality}}</div>
+          <div class="stat-k">最高音质</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v">#qqm听N</div>
+          <div class="stat-k">选曲指令</div>
+        </div>
+      </div>
+
+      <!-- 搜索结果 -->
+      <div class="group">
+        <div class="group-title">
+          <span class="t-caption">搜索结果</span>
+          <span class="t-caption t-num">{{data.total}} 首</span>
+        </div>
+        <div class="group-body">
+          {{each data.songs song}}
+          <div class="row row--thumb">
+            <div class="rank">{{song.index}}</div>
+            {{if song.cover}}
+            <div class="thumb" style="background-image:url('{{song.cover}}')"></div>
+            {{else}}
+            <div class="thumb">♪</div>
+            {{/if}}
+            <div class="row-main">
+              <div class="row-title truncate">{{song.songName}}</div>
+              <div class="row-sub truncate">
+                {{song.singerName}}{{if song.albumName}} · <span class="song-album">{{song.albumName}}</span>{{/if}}
+              </div>
+            </div>
+            <div class="pill-row">
+              {{if song.sourceTag}}<span class="pill">{{song.sourceTag}}</span>{{/if}}
+              {{if song.external}}<span class="pill">{{song.sourceIcon || '外源'}}</span>{{/if}}
+              {{if song.hasMv}}<span class="pill">MV</span>{{/if}}
+              {{if song.payplay}}<span class="pill pill--orange">付费</span>{{/if}}
+              <span class="t-sub t-num">{{song.duration}}</span>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      <!-- 常用指令 -->
+      {{if data.commands && data.commands.length}}
+      <div class="group">
+        <div class="group-title">
+          <span class="t-caption">常用指令</span>
+        </div>
+        <div class="group-body">
+          {{each data.commands cmd}}
+          <div class="row row--plain cmd-row">
+            <div class="row-main">
+              <div class="row-title truncate">{{cmd.name}}</div>
+              <div class="row-sub truncate">{{cmd.desc}}</div>
+            </div>
+            {{if cmd.example}}<span class="pill pill--accent cmd-example">{{cmd.example}}</span>{{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      <div class="foot">
+        <span class="t-foot">{{data.apiHint}}</span>
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

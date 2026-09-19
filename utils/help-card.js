@@ -68,6 +68,7 @@ const SECTIONS = [
       { name: '默认点歌', desc: '接管不加前缀的「#点歌」（默认关）', example: '#qqm 默认点歌 开' },
       { name: '补充曲', desc: '其它平台免费曲补进列表（默认开）', example: '#qqm 补充曲 关' },
       { name: '一起听探测', desc: '只读探测一起听参数（首次启用一起听必须先跑）', example: '#qqm一起听 探测' },
+      { name: '切换界面', desc: '换一套卡片 UI / 深浅色 / 热重载模板', example: '#qqm界面' },
       { name: '连通测试', desc: '探测 API 是否可用', example: '#qqm 测试' },
       { name: '插件更新', desc: 'git 拉取最新代码', example: '#qqm更新' },
       { name: '强制更新', desc: '丢弃本地改动同步远程', example: '#qqm强制更新' },

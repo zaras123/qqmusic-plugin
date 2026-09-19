@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 歌曲详情</title>
+  <link rel="stylesheet" href="resources/themes/apple/_base.css" />
+  <style>
+    .np {
+      padding: var(--pad-card) var(--pad-card) 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .np-cover {
+      width: 148px;
+      height: 148px;
+      border-radius: 18px;
+      background: var(--fill-2) center/cover no-repeat;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      color: var(--label-3);
+      box-shadow: var(--shadow-raise);
+    }
+    html[data-mode="dark"] .np-cover {
+      border: 1px solid var(--hairline);
+    }
+    .np-title {
+      margin-top: 18px;
+      max-width: 100%;
+    }
+    .np-sub {
+      margin-top: 6px;
+      max-width: 100%;
+    }
+    .np-pills {
+      margin-top: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="np">
+        {{if data.cover}}
+        <div class="np-cover" style="background-image:url('{{data.cover}}')"></div>
+        {{else}}
+        <div class="np-cover">♪</div>
+        {{/if}}
+        <div class="t-title np-title truncate">{{data.songName || data.title || '未知歌曲'}}</div>
+        <div class="t-sub np-sub truncate">{{data.singerName || '未知歌手'}}{{if data.albumName}} · {{data.albumName}}{{/if}}</div>
+        <div class="np-pills">
+          {{if data.qualityLabel}}<span class="pill pill--accent">{{data.qualityLabel}}</span>{{/if}}
+          {{if data.source}}<span class="pill">{{data.source}}</span>{{/if}}
+          {{if data.duration}}<span class="pill t-num">{{data.duration}}</span>{{/if}}
+          {{if data.showPay || data.payplay}}<span class="pill pill--orange">付费曲</span>{{/if}}
+        </div>
+      </div>
+
+      <div class="group inset" style="margin-top:20px">
+        <div class="group-body">
+          {{if data.albumName}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">专辑</div></div>
+            <div class="row-value truncate">{{data.albumName}}</div>
+          </div>
+          {{/if}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">歌手</div></div>
+            <div class="row-value truncate">{{data.singerName || '未知'}}</div>
+          </div>
+          {{if data.duration}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">时长</div></div>
+            <div class="row-value t-num">{{data.duration}}</div>
+          </div>
+          {{/if}}
+          {{if data.qualityLabel}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">音质</div></div>
+            <div class="row-value">{{data.qualityLabel}}</div>
+          </div>
+          {{/if}}
+          {{if data.source}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">来源</div></div>
+            <div class="row-value">{{data.source}}</div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      {{if data.tip}}<div class="empty">{{data.tip}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="t-foot">#qqm听序号 播放 · #qqm歌词 看词</span>
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

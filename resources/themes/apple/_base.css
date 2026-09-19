@@ -1,0 +1,420 @@
+/* ============================================================
+ * Apple 风主题 · 设计系统
+ *
+ * 对标 iOS 的三件事：
+ *   1. 排印层级 —— 大标题 / 分组小标题 / 行主次文字，尺寸与字距按 SF 的规则写死
+ *   2. 插入式分组列表（inset grouped）—— 圆角分组、分隔线缩进对齐文字
+ *   3. 克制的用色 —— 中性面为主，彩色只用于强调与状态；深色不提阴影只留描边
+ *
+ * 一份 CSS 服务 8 张卡；卡片模板只写自己特有的排版。
+ * 明暗通过 <html data-mode="dark">（渲染器注入）切换，不依赖 prefers-color-scheme。
+ * ============================================================ */
+
+/* ---------- 设计令牌 ---------- */
+:root {
+  --page-bg: #f2f2f7;
+  --card-bg: #ffffff;
+  --fill-2: #f2f2f7; /* 次级面（缩略图底、输入框） */
+  --fill-3: rgba(118, 118, 128, 0.12); /* 三级填充（进度条底、未选中胶囊） */
+
+  --label: #1c1c1e;
+  --label-2: rgba(60, 60, 67, 0.6);
+  --label-3: rgba(60, 60, 67, 0.3);
+
+  --separator: rgba(60, 60, 67, 0.16);
+  --hairline: transparent; /* 浅色不用描边（靠阴影） */
+
+  --accent: #007aff;
+  --green: #34c759;
+  --orange: #ff9500;
+  --red: #ff3b30;
+  --gold: #c9a227;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+  --shadow-raise: 0 1px 3px rgba(0, 0, 0, 0.08);
+
+  --radius-card: 22px;
+  --radius-group: 18px;
+  --radius-thumb: 10px;
+  --pad-card: 24px;
+
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Noto Sans SC",
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+html[data-mode="dark"] {
+  --page-bg: #000000;
+  --card-bg: #1c1c1e;
+  --fill-2: #2c2c2e;
+  --fill-3: rgba(118, 118, 128, 0.24);
+
+  --label: #ffffff;
+  --label-2: rgba(235, 235, 245, 0.6);
+  --label-3: rgba(235, 235, 245, 0.3);
+
+  --separator: rgba(84, 84, 88, 0.65);
+  --hairline: rgba(255, 255, 255, 0.08);
+
+  --accent: #0a84ff;
+  --green: #30d158;
+  --orange: #ffd60a;
+  --red: #ff453a;
+  --gold: #e5c158;
+
+  /* 深色不提阴影，改用 1px 描边分层 —— 与 iOS 深色观感一致 */
+  --shadow-card: none;
+  --shadow-raise: none;
+}
+
+/* ---------- 基础 ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: fit-content;
+  height: fit-content;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  /* 底色留不透明：QQ 端会把透明 PNG 填成纯白 */
+  background: var(--page-bg) !important;
+  color: var(--label);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-variant-numeric: tabular-nums;
+}
+
+.page {
+  display: block;
+  width: fit-content;
+  padding: 20px;
+  background: var(--page-bg);
+}
+
+.card {
+  width: 600px;
+  background: var(--card-bg);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+/* ---------- 排印层级 ---------- */
+.t-hero {
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+}
+.t-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.t-head {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+.t-body {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 400;
+}
+.t-sub {
+  font-size: 15px;
+  line-height: 20px;
+  color: var(--label-2);
+}
+.t-foot {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--label-2);
+}
+/* iOS 分组小标题：小、灰、字距略开 */
+.t-caption {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--label-2);
+  letter-spacing: 0.4px;
+}
+.t-num {
+  font-variant-numeric: tabular-nums;
+}
+.muted {
+  color: var(--label-2);
+}
+.accent {
+  color: var(--accent);
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 卡头 ---------- */
+.hero {
+  padding: var(--pad-card) var(--pad-card) 20px;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.hero-main {
+  flex: 1;
+  min-width: 0;
+}
+.hero-eyebrow {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  color: var(--label-3);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.hero-sub {
+  margin-top: 6px;
+}
+
+/* 顶部统计（iOS 的「卡片内小结」） */
+.stat-row {
+  display: flex;
+  gap: 10px;
+  padding: 0 var(--pad-card) 20px;
+}
+.stat {
+  flex: 1;
+  background: var(--fill-2);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.stat-v {
+  font-size: 20px;
+  line-height: 24px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+.stat-k {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--label-2);
+}
+
+/* ---------- 分组（inset grouped）---------- */
+.group {
+  margin-top: 26px;
+}
+.group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0 4px 8px;
+}
+.group-body {
+  background: var(--card-bg);
+  border-radius: var(--radius-group);
+}
+.card > .group:first-child,
+.card > .group-title:first-child {
+  margin-top: 0;
+}
+/* 卡片内的分组自带浅底（卡内再套分组时） */
+.inset {
+  margin: 0 var(--pad-card);
+  background: var(--fill-2);
+  border-radius: var(--radius-group);
+}
+
+/* ---------- 行 ---------- */
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 60px;
+  padding: 10px 16px;
+}
+.row + .row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 0;
+  height: 1px;
+  background: var(--separator);
+}
+/* 有缩略图的行：分隔线对齐文字起点 */
+.row--thumb + .row--thumb::before {
+  left: 80px;
+}
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+.row-title {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 500;
+  letter-spacing: -0.1px;
+}
+.row-sub {
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 19px;
+  color: var(--label-2);
+}
+.row-value {
+  font-size: 17px;
+  line-height: 22px;
+  color: var(--label-2);
+  text-align: right;
+  max-width: 260px;
+}
+.row--plain {
+  min-height: 52px;
+}
+.row--link .row-value {
+  color: var(--label-2);
+}
+.chev {
+  flex: none;
+  width: 8px;
+  height: 13px;
+  color: var(--label-3);
+}
+
+/* 行首序号（热搜/列表用数字时） */
+.rank {
+  flex: none;
+  width: 26px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--label-3);
+  font-variant-numeric: tabular-nums;
+}
+.rank--top {
+  color: var(--red);
+}
+
+/* ---------- 缩略图 ---------- */
+.thumb {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--radius-thumb);
+  background: var(--fill-2) center/cover no-repeat;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--label-3);
+}
+.thumb--sm {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+}
+.thumb--lg {
+  width: 132px;
+  height: 132px;
+  border-radius: 16px;
+}
+
+/* ---------- 胶囊 / 徽标 ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 22px;
+  font-weight: 500;
+  background: var(--fill-3);
+  color: var(--label-2);
+  white-space: nowrap;
+}
+.pill--accent {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.pill--green {
+  background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--green);
+}
+.pill--orange {
+  background: color-mix(in srgb, var(--orange) 18%, transparent);
+  color: var(--orange);
+}
+.pill--red {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
+}
+.pill--gold {
+  background: color-mix(in srgb, var(--gold) 16%, transparent);
+  color: var(--gold);
+}
+.pill-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+/* ---------- 进度/热度条 ---------- */
+.bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fill-3);
+  overflow: hidden;
+}
+.bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+}
+.bar--warm > i {
+  background: linear-gradient(90deg, var(--orange), var(--red));
+}
+
+/* ---------- 页脚 ---------- */
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px var(--pad-card) 22px;
+  border-top: 1px solid var(--separator);
+  margin-top: 26px;
+}
+.foot-brand {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: var(--label-2);
+}
+
+/* ---------- 空态 ---------- */
+.empty {
+  padding: 40px var(--pad-card);
+  text-align: center;
+  color: var(--label-2);
+  font-size: 15px;
+  line-height: 20px;
+}

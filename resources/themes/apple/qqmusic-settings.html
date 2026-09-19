@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 设置</title>
+  <link rel="stylesheet" href="resources/themes/apple/_base.css" />
+  <style>
+    /* 开关态胶囊：iOS 的绿色/灰色 */
+    .sw {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 46px;
+      height: 26px;
+      padding: 0 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 26px;
+    }
+    .sw--on {
+      background: var(--green);
+      color: #fff;
+    }
+    .sw--off {
+      background: var(--fill-3);
+      color: var(--label-2);
+    }
+    html[data-mode="dark"] .sw--on {
+      color: #00210c;
+    }
+    .cmd-name {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 15px;
+      letter-spacing: -0.2px;
+    }
+    .cmd-example {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+    /* 值过长时（如发送方式那行）允许换行，别被 max-width 挤爆 */
+    .row--wrap {
+      align-items: flex-start;
+    }
+    .row--wrap .row-value {
+      max-width: 320px;
+      font-size: 15px;
+      line-height: 20px;
+    }
+    /* 底部说明：与内容左对齐（别贴卡片边） */
+    .note {
+      padding: 16px var(--pad-card) 0;
+      font-size: 13px;
+      line-height: 18px;
+      color: var(--label-2);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music · 配置</div>
+          <div class="t-hero">{{data.title || 'QQ音乐设置'}}</div>
+          <div class="t-sub hero-sub">{{data.subtitle || '当前插件运行配置一览'}}</div>
+        </div>
+      </div>
+
+      {{if data.tiles && data.tiles.length}}
+      <div class="group inset" style="margin-top:4px">
+        <div class="group-body">
+          {{each data.tiles tile}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">{{tile.label}}</div></div>
+            <span class="sw {{if tile.on}}sw--on{{else}}sw--off{{/if}}">{{tile.value}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      {{if data.rows && data.rows.length}}
+      <div class="group">
+        <div class="group-title"><span class="t-caption">运行</span></div>
+        <div class="group-body">
+          {{each data.rows row}}
+          <div class="row row--plain row--wrap">
+            <div class="row-main"><div class="row-title">{{row.k}}</div></div>
+            <div class="row-value">{{row.v}}</div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      {{if data.commands && data.commands.length}}
+      <div class="group">
+        <div class="group-title"><span class="t-caption">常用命令</span></div>
+        <div class="group-body">
+          {{each data.commands cmd}}
+          <div class="row row--plain">
+            <div class="row-main">
+              <div class="row-title cmd-name truncate">{{cmd.name}}</div>
+              <div class="row-sub truncate">{{cmd.desc}}</div>
+            </div>
+            {{if cmd.example}}<span class="pill pill--accent cmd-example">{{cmd.example}}</span>{{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      {{if data.tip}}<div class="note">{{data.tip}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="t-foot">{{data.apiHint || data.apiBase}}</span>
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

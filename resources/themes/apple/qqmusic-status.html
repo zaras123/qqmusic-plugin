@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 状态</title>
+  <link rel="stylesheet" href="resources/themes/apple/_base.css" />
+  <style>
+    .profile {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: var(--pad-card);
+    }
+    .avatar {
+      width: 72px;
+      height: 72px;
+      flex: none;
+      border-radius: 18px;
+      background: var(--fill-2) center/cover no-repeat;
+      object-fit: cover;
+    }
+    /* 真头像用圆形（通讯录观感），默认 logo 保持圆角方形 */
+    .avatar--photo {
+      border-radius: 50%;
+    }
+    .vip-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="profile">
+        {{if data.avatarUrl}}
+        <img class="avatar {{if data.avatarIsPhoto}}avatar--photo{{/if}}" src="{{data.avatarUrl}}" alt="avatar" />
+        {{else}}
+        <div class="avatar"></div>
+        {{/if}}
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music · 账号状态</div>
+          <div class="t-title truncate">{{data.nickname || '未登录'}}</div>
+          <div class="t-sub truncate">UIN {{data.uin || '-'}}{{if data.loginTypeText}} · {{data.loginTypeText}}{{/if}}</div>
+          <div class="vip-line">
+            {{if data.loggedIn}}
+              {{if data.vipTitle}}<span class="pill pill--gold">{{data.vipTitle}}</span>{{/if}}
+              <span class="pill {{if data.vipStateText === '生效中'}}pill--green{{/if}}">{{data.vipStateText || '未知'}}</span>
+            {{else}}
+              <span class="pill pill--red">未登录</span>
+            {{/if}}
+          </div>
+        </div>
+      </div>
+
+      <div class="group inset">
+        <div class="group-body">
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">最高音质</div></div>
+            <div class="row-value">{{data.musicQuality || '-'}}</div>
+          </div>
+          {{if data.vipExpireText}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">会员到期</div></div>
+            <div class="row-value">{{data.vipExpireText}}</div>
+          </div>
+          {{/if}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">播放票据</div></div>
+            <div class="row-value">{{data.keyStatus || '-'}}</div>
+          </div>
+        </div>
+      </div>
+
+      {{if data.stats && data.stats.length}}
+      <div class="group">
+        <div class="group-title"><span class="t-caption">功能</span></div>
+        <div class="group-body">
+          {{each data.stats item}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">{{item.label}}</div></div>
+            <div class="row-value">{{item.value}}</div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      {{if !data.loggedIn}}
+      <div class="empty">发送 #qqm登录 扫码绑定后即可播放会员曲</div>
+      {{/if}}
+
+      <div class="foot">
+        <span class="t-foot">{{data.apiBase}}</span>
+        <span class="foot-brand">{{data.footer || 'qqmusic-plugin'}}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

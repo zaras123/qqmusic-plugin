@@ -1,0 +1,11 @@
+{
+  "id": "apple",
+  "name": "Apple 风",
+  "desc": "对标 iOS：插入式分组列表、克制配色、排印层级；支持深色",
+  "dark": true,
+  "pageBg": {
+    "light": "#F2F2F7",
+    "dark": "#000000"
+  },
+  "viewportWidth": 640
+}
