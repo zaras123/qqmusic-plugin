@@ -162,12 +162,15 @@ export async function runTogether(e, action, song) {
 
 /**
  * 自动同步入口（deliverSong 收尾调用）
- * 手动路径允许开房（用户显式意图），自动路径是否开房由 API 侧配置决定
+ *
+ * 必须**同时**满足两个开关：togetherEnable（功能总开关）+ togetherAuto（点歌后自动同步）。
+ * 总开关关着就不该有任何动作 —— 只看 togetherAuto 会让「总开关关、单独开了自动同步」
+ * 的配置仍然发歌进房间。
  */
 export async function autoSyncTogether(e, song, cfg) {
   try {
+    if (!togetherGate(e, cfg).ok) return null
     if (cfg?.togetherAuto !== true) return null
-    if (!e?.group_id) return null
     return await runTogether(e, 'auto', song)
   } catch (err) {
     logInfo(`一起听自动同步异常：${err.message}`)

@@ -192,7 +192,13 @@ cd qqmusic-plugin && pnpm install
 >
 > **架构：协议知识全在 API 侧，插件只做「协议端识别 + 发送」。** 插件把群号/协议端/歌曲交给 API；API 算出「下一步该发什么包」并给出承载通道（`icqq` → `sendUni`，`onebot` → `send_packet`）；插件用自己的协议端会话把包发出去，再把响应原样交回 API，由 API 判定成败并给文案。插件里**不解析包、不做业务判断、没有字段定义**，所以它单独分出去也复刻不了这个功能。
 >
-> 支持的协议端：**ICQQ**，以及带 `send_packet` 扩展动作的 **OneBot**（NapCat、SnowLuma）；LLOneBot / Lagrange 没有该动作，会在首次调用后明确提示并停用。首次使用需在 API 侧探测一次（`POST /together/start {"action":"probe"}`，只读），把 `aio_type`/`media_type` 写进 API 的 `data/together.json`，否则 API 会拒绝加歌。`#qqm一起听 状态` 可随时查看房间当前曲目。
+> 支持的协议端：**ICQQ**，以及带 `send_packet` 扩展动作的 **OneBot**（NapCat、SnowLuma）；LLOneBot / Lagrange 没有该动作，会在首次调用后明确提示并停用。`#qqm一起听 状态` 可随时查看房间当前曲目。
+>
+> **两级开关，默认都是关的**（两处都打开才生效）：
+> 1. 锅巴「启用一起听」`togetherEnable` —— 插件侧总开关，关着时指令不走 API（`#qqm一起听 探测` 除外，它是排障路径）；
+> 2. API 侧 `data/together.json` 的 `enabled`（或 `QQMUSIC_TOGETHER_ENABLED=1`）—— 服务端总开关，关着时除探测外一律拒绝，连老版本插件也塞不进来。
+>
+> 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受上面两个开关限制。
 
 ---
 
@@ -251,7 +257,7 @@ qqmusic-plugin/
 - 一律走主人账号（默认开；主人账号自动取最近扫码登录的账号，所有人点歌都按主人的 ck，锅巴可关）
 - 主人账号手动指定（`publicAccount`，留空=自动；多账号想固定用某一个时才填）
 - 从 API 一键回填登录态
-- 一起听：启用开关 / 点歌后自动同步（协议参数在 API 侧：`data/together.json` 的 `aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`）
+- 一起听：启用开关（默认关）/ 点歌后自动同步（默认关）—— 协议参数与总开关在 API 侧：`data/together.json` 的 `enabled`/`aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`
 
 ---
 

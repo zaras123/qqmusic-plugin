@@ -95,8 +95,13 @@ export class qqmusicTogether extends (await loadPluginBase()) {
     return true
   }
 
-  /** #qqm一起听 状态：只读 */
+  /** #qqm一起听 状态：只读；总开关关着就不到 API 去问 */
   async togetherState(e) {
+    const gate = togetherGate(e, this.cfg())
+    if (!gate.ok) {
+      await e.reply(gate.reason)
+      return true
+    }
     try {
       const res = await runTogether(e, 'state')
       await e.reply(res.message)
@@ -106,7 +111,10 @@ export class qqmusicTogether extends (await loadPluginBase()) {
     return true
   }
 
-  /** #qqm一起听 探测：只读，主人专属（报告含群成员 uin 与房间内部 id） */
+  /**
+   * #qqm一起听 探测：只读，主人专属
+   * 故意**不**受总开关约束 —— 开关关着时它正是排查手段（API 侧同理：探测不受熔断限制）
+   */
   async togetherProbe(e) {
     if (!e.group_id) {
       await e.reply('一起听探测需要在群里执行（私聊的 aio_type 取值未验证）')

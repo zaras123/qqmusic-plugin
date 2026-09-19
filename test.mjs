@@ -212,7 +212,7 @@ try {
   // 一起听：插件侧只剩「协议端识别 + 开关」。
   // 协议字段、编排、限流、文案全在 API 侧（qqmusic-api-enhanced/scripts/test-together.js 有 48 项单测），
   // 插件这边如果还残留可复刻的协议实现，就是这套架构白改了。
-  const { togetherAdapter, togetherGate } = await import('./utils/together.js')
+  const { togetherAdapter, togetherGate, autoSyncTogether } = await import('./utils/together.js')
   const mkEvent = (name, { withSendApi = true, group = '100' } = {}) => ({
     group_id: group,
     bot: Object.assign(
@@ -336,6 +336,19 @@ try {
     ['私聊不放行', /仅支持群聊/.test(togetherGate(privateEv, { togetherEnable: true }).reason), true],
     ['协议端不支持时不放行', /协议端/.test(togetherGate(qqbotEv, { togetherEnable: true }).reason), true],
     ['能力齐全才放行', togetherGate(icqqEv, { togetherEnable: true }).ok, true],
+    // 自动同步必须**同时**满足两个开关。只看 togetherAuto 会让
+    // 「总开关关着、单独开了自动同步」的配置照样把歌发进房间。
+    // （只在返回 null 的路径上断言，避免单测触网）
+    [
+      '自动同步：总开关关着 → 不动作',
+      await autoSyncTogether(icqqEv, { songmid: 'm' }, { togetherEnable: false, togetherAuto: true }),
+      null,
+    ],
+    [
+      '自动同步：自动同步开关关着 → 不动作',
+      await autoSyncTogether(icqqEv, { songmid: 'm' }, { togetherEnable: true, togetherAuto: false }),
+      null,
+    ],
   ]
 
   for (const [name, got, want] of pure) {
