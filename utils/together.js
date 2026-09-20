@@ -12,7 +12,7 @@
  */
 import { request } from './api.js'
 import { detectAdapter } from './adapter.js'
-import { logInfo } from './log.js'
+import { logInfo, logWarn } from './log.js'
 
 /** 能发原始 SSO 包的协议端；返回空串表示不支持（API 侧据此决定 via） */
 export function togetherAdapter(e) {
@@ -50,13 +50,29 @@ async function sendStep(e, step) {
     // signCmd 只是 icqq 实例上的一个数组，运行时加即可，**不用改 icqq 源码**；
     // 命令名由 API 给（协议知识不下放到插件）。签不签得成取决于签名服务认不认这条命令 ——
     // 不认的话 icqq 会返回「签名api异常」的假包，API 侧会识别成 SSO_LOCAL 并如实报错。
-    if (step.sign === true && Array.isArray(bot.signCmd) && !bot.signCmd.includes(step.cmd)) {
-      bot.signCmd.push(step.cmd)
-      // 打出来：不然"签名到底生效没有"只能靠猜（API 侧看到的是同一份日志）
-      logInfo(`一起听：已为 ${step.cmd} 开启签名`)
+    //
+    // 三种情况分别打日志。之前只在「push 成功」时打，于是「命令本来就在白名单里」和
+    // 「bot.signCmd 根本不是数组（= 签名完全没生效）」这两种情况**都是静默的** ——
+    // 2026-09-21 排障时就卡在这片沉默上，只能让用户去翻控制台猜。
+    if (step.sign === true) {
+      if (!Array.isArray(bot.signCmd)) {
+        logWarn(
+          `一起听：bot.signCmd 不是数组（实际是 ${typeof bot.signCmd}）—— 签名没生效，` +
+            `${step.cmd} 将以免签名发出`
+        )
+      } else if (bot.signCmd.includes(step.cmd)) {
+        logInfo(`一起听：${step.cmd} 已在签名白名单里（共 ${bot.signCmd.length} 条）`)
+      } else {
+        bot.signCmd.push(step.cmd)
+        logInfo(`一起听：已为 ${step.cmd} 开启签名（白名单现有 ${bot.signCmd.length} 条）`)
+      }
     }
+    // 计时：签名要 POST 到签名服务，真生效时这一步会多出几百毫秒往返。
+    // 「包到底带没带上签名」在应用层看不出来，耗时是唯一能观察到的旁证。
+    const t0 = Date.now()
     // 显式给超时：icqq 默认只有 5s，开房这类请求容易超
     const raw = await bot.sendUni(step.cmd, body, 15)
+    logInfo(`一起听：${step.cmd} 发包完成，耗时 ${Date.now() - t0}ms`)
     if (!raw || !raw.length) throw new Error('发包后没有响应（可能超时）')
     return Buffer.from(raw).toString('hex')
   }
