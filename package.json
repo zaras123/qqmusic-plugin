@@ -1,6 +1,6 @@
 {
   "name": "qqmusic-plugin",
-  "version": "1.9.5",
+  "version": "1.9.6",
   "description": "TRSS-Yunzai QQ 音乐点歌/解析插件（ICQQ / OneBot WS / QQBot-Plugin），对接 qqmusic-api-enhanced",
   "type": "module",
   "main": "index.js",

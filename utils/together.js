@@ -46,6 +46,13 @@ async function sendStep(e, step) {
     if (typeof bot?.sendUni !== 'function') {
       throw new Error('当前协议端没有 sendUni（与 API 的判断不一致）')
     }
+    // API 标记了这一步要带签名：把这条命令加进 icqq 的签名白名单。
+    // signCmd 只是 icqq 实例上的一个数组，运行时加即可，**不用改 icqq 源码**；
+    // 命令名由 API 给（协议知识不下放到插件）。签不签得成取决于签名服务认不认这条命令 ——
+    // 不认的话 icqq 会返回「签名api异常」的假包，API 侧会识别成 SSO_LOCAL 并如实报错。
+    if (step.sign === true && Array.isArray(bot.signCmd) && !bot.signCmd.includes(step.cmd)) {
+      bot.signCmd.push(step.cmd)
+    }
     // 显式给超时：icqq 默认只有 5s，开房这类请求容易超
     const raw = await bot.sendUni(step.cmd, body, 15)
     if (!raw || !raw.length) throw new Error('发包后没有响应（可能超时）')
