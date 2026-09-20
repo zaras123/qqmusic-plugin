@@ -212,15 +212,15 @@ export const schemas = [
   },
   {
     field: 'togetherEnable',
-    label: '启用一起听',
+    label: '启用一起听（未维护，勿开）',
     bottomHelpMessage:
-      '把点歌结果加进群里的一起听（ICQQ，或带 send_packet 的 OneBot：NapCat / SnowLuma）。首次使用需在 API 侧探测：POST /together/start {action:"probe"}',
+      '⚠️ 未维护，请勿开启（2026-09-21）：加歌会被服务端拒（10003 tmem error），而同一账号在真 QQ 客户端里能加。包体/顺序/参数/账号/签名都排查过，差异只在 icqq 拼的 SSO 信封上。等接入 NTQQ 系协议端（NapCat / SnowLuma）验证后再说',
     component: 'Switch',
   },
   {
     field: 'togetherAuto',
-    label: '点歌后自动同步',
-    bottomHelpMessage: '点歌/播放成功后再把这首歌加进一起听（手动 #qqm一起听 N 不受此开关影响）',
+    label: '点歌后自动同步（未维护，勿开）',
+    bottomHelpMessage: '⚠️ 依赖加歌链路，同上未维护（手动 #qqm一起听 N 不受此开关影响）',
     component: 'Switch',
   },
   {

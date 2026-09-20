@@ -75,9 +75,15 @@ publicAccount: ""
 forceMasterAccount: true
 
 # ————— 一起听（群听歌）—————
-# 把点歌结果加进群里的一起听（走 QQAIOMediaSvc.* 的原始 SSO 包）。
+# ⚠️ 未维护，请勿开启（2026-09-21）
+#   加歌这条链在 icqq 协议端下走不通：服务端对 share_trans（写操作）一律回
+#   `10003 tmem error`，而同一个账号在真 QQ 客户端里能正常加歌（只读的
+#   「#qqm一起听 状态」是好的）。包体/顺序/参数/账号/成员权限/签名都排查过，
+#   差异只在 icqq 自己拼的 SSO 信封上 —— 应用层改不动。
+#   等接了 NTQQ 系协议端（NapCat / SnowLuma，走真内核）验证通过再开。
 # 插件这里只有开关：包怎么拼、是否开房、限流、失败文案都在 API 侧
 # （qqmusic-api-enhanced 的 util/together.js + data/together.json）。
 togetherEnable: false
 # 自动同步：点歌（#qqm听N / #qqm播放 / 解析卡片等所有发歌路径）成功后再把这首歌加进一起听
+# ⚠️ 同上：依赖加歌链路，未维护，勿开
 togetherAuto: false
