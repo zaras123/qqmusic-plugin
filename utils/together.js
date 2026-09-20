@@ -21,6 +21,19 @@ export function togetherAdapter(e) {
   return ''
 }
 
+/**
+ * 取协议端的 web 登录凭证（skey）
+ *
+ * 群音乐 HTTP 接口（H5 页面加歌走的那条）要用它算 g_tk、并作为 cookie 发出去。
+ * **只有插件侧有这个凭证**（api 侧拿不到登录态），所以由这里取出来交给 API。
+ * ⚠️ 这是敏感凭证：**永远不要打日志**、也不要塞进错误信息里。
+ */
+function skeyOf(e) {
+  const bot = e?.bot
+  const skey = bot?.sig?.skey || bot?.skey || ''
+  return String(skey || '')
+}
+
 /** 能不能用一起听（只做本地能力/开关判断，业务判定在 API） */
 export function togetherGate(e, cfg = {}) {
   if (cfg.togetherEnable !== true) {
@@ -132,6 +145,9 @@ export async function runTogether(e, action, song) {
 
   let res
   try {
+    // 写操作时带上 skey：API 会用「群音乐 HTTP 接口」那条路加歌（H5 页面用的就是它，
+    // 而 SSO 的 share_trans 在 icqq 下稳定 tmem error）。state/probe 不需要，就不传。
+    const skey = action === 'manual' || action === 'auto' ? skeyOf(e) : ''
     res = await request(
       '/together/start',
       {
@@ -140,6 +156,7 @@ export async function runTogether(e, action, song) {
         action,
         uin: Number(e.self_id || e.bot?.uin || 0),
         song: songPayload,
+        ...(skey ? { skey } : {}),
       },
       'post'
     )
