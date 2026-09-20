@@ -39,7 +39,7 @@ export class qqmusicTogether extends (await loadPluginBase()) {
           fnc: 'togetherState',
         },
         {
-          reg: '^#?(qq|QQ)m\\s*一起听\\s*探测$',
+          reg: '^#?(qq|QQ)m\\s*一起听\\s*探测(\\s*写入)?$',
           fnc: 'togetherProbe',
           permission: 'master',
         },
@@ -112,16 +112,30 @@ export class qqmusicTogether extends (await loadPluginBase()) {
   }
 
   /**
-   * #qqm一起听 探测：只读，主人专属
-   * 故意**不**受总开关约束 —— 开关关着时它正是排查手段（API 侧同理：探测不受熔断限制）
+   * #qqm一起听 探测        只读：扫 aio_type 候选（需要群里已有房间才有对照）
+   * #qqm一起听 探测 写入   主动开房：对每个候选真的 create_room 再回读状态，不需要群里先有房间
+   *
+   * 主人专属，且故意**不**受总开关约束 —— 开关关着时它正是排查手段
+   * （API 侧同理：探测不受熔断限制）
    */
   async togetherProbe(e) {
     if (!e.group_id) {
       await e.reply('一起听探测需要在群里执行（私聊的 aio_type 取值未验证）')
       return true
     }
+    const write = /写入/.test(String(e.msg || ''))
     try {
-      const res = await runTogether(e, 'probe')
+      let song = null
+      if (write) {
+        // 开房请求自带首曲，所以得有首歌 —— 取点歌列表第一首
+        const { session } = await pickSession(e.group_id, String(e.user_id || ''))
+        song = session?.data?.[0] || null
+        if (!song) {
+          await e.reply('主动开房探测需要一首歌：先 #qqm点歌 关键词，再发 #qqm一起听 探测 写入')
+          return true
+        }
+      }
+      const res = await runTogether(e, write ? 'probe-write' : 'probe', song)
       await e.reply(res.message)
     } catch (err) {
       await e.reply(`探测失败：${err.message}`)

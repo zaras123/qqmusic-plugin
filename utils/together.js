@@ -140,6 +140,10 @@ export async function runTogether(e, action, song) {
     let hex = ''
     let sendError = ''
     try {
+      // API 可以要求"这一步之前等一下"（例如主动开房探测连开三个房间要错开）
+      if (Number(data.step.waitMs) > 0) {
+        await new Promise((r) => setTimeout(r, Number(data.step.waitMs)))
+      }
       hex = await sendStep(e, data.step)
     } catch (err) {
       // 发包失败也要回报给 API：由它决定这算失败还是「可能已生效」并给文案

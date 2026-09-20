@@ -67,7 +67,11 @@ const SECTIONS = [
       { name: '功能开关', desc: '开启或关闭点歌、解析', example: '#qqm 开启点歌' },
       { name: '默认点歌', desc: '接管不加前缀的「#点歌」（默认关）', example: '#qqm 默认点歌 开' },
       { name: '补充曲', desc: '其它平台免费曲补进列表（默认开）', example: '#qqm 补充曲 关' },
-      { name: '一起听探测', desc: '只读探测一起听参数（首次启用一起听必须先跑）', example: '#qqm一起听 探测' },
+      {
+        name: '一起听探测',
+        desc: '探测一起听参数；加「写入」= 主动开房探测（会在本群真的建房间，探到即自动写配置）',
+        example: '#qqm一起听 探测 写入',
+      },
       { name: '切换界面', desc: '换一套卡片 UI / 深浅色 / 热重载模板', example: '#qqm界面' },
       { name: '连通测试', desc: '探测 API 是否可用', example: '#qqm 测试' },
       { name: '插件更新', desc: 'git 拉取最新代码', example: '#qqm更新' },

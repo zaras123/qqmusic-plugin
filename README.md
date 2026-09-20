@@ -195,6 +195,12 @@ cd qqmusic-plugin && pnpm install
 >
 > 支持的协议端：**ICQQ**，以及带 `send_packet` 扩展动作的 **OneBot**（NapCat、SnowLuma）；LLOneBot / Lagrange 没有该动作，会在首次调用后明确提示并停用。`#qqm一起听 状态` 可随时查看房间当前曲目。
 >
+> **首次启用要探测一次**（房间参数 aio_type/media_type 是逆向出来的，必须实测）：
+> - `#qqm一起听 探测` —— **只读**，扫三个候选值。需要一个"对照"：群里得先有一起听房间（手机开一个）才分辨得出哪个对；
+> - `#qqm一起听 探测 写入` —— **主动开房**：拿候选值依次真的 `create_room`、再回读状态看房间有没有建起来，**不需要群里先有房间**。命中后**自动把参数写进 API 的 `data/together.json`**，不用手填；命中即停（不会连开一堆房间）。
+>
+> 注意：写入模式会在群里留下真实房间（可能残留空房间，需要手动结束），**请在测试群跑**。
+>
 > **默认关闭**：锅巴「启用一起听」`togetherEnable` 关着时指令不走 API（`#qqm一起听 探测` 除外，它是排障路径）；「点歌后自动同步」`togetherAuto` 是第二个开关，**要与总开关同时打开**才生效。
 >
 > 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受开关限制。

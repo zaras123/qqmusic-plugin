@@ -113,6 +113,7 @@ const cases = [
   ['#qqm一起听5', 'togetherPick'],
   ['#qqm一起听 状态', 'togetherState'],
   ['#qqm一起听 探测', 'togetherProbe'],
+  ['#qqm一起听 探测 写入', 'togetherProbe'], // 主动开房探测
   // 发现
   ['#qqm排行 飙升', 'chart'],
   ['#qqm推荐', 'recommend'],
