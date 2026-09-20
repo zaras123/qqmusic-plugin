@@ -52,6 +52,8 @@ async function sendStep(e, step) {
     // 不认的话 icqq 会返回「签名api异常」的假包，API 侧会识别成 SSO_LOCAL 并如实报错。
     if (step.sign === true && Array.isArray(bot.signCmd) && !bot.signCmd.includes(step.cmd)) {
       bot.signCmd.push(step.cmd)
+      // 打出来：不然"签名到底生效没有"只能靠猜（API 侧看到的是同一份日志）
+      logInfo(`一起听：已为 ${step.cmd} 开启签名`)
     }
     // 显式给超时：icqq 默认只有 5s，开房这类请求容易超
     const raw = await bot.sendUni(step.cmd, body, 15)
