@@ -34,6 +34,17 @@ function skeyOf(e) {
   return String(skey || '')
 }
 
+/**
+ * 取协议端**实际在用的版本 qua**（`V1_AND_SQ_9.1.70_9896_YYB_D` 这种）。
+ *
+ * 群音乐那个 web 接口的 UA 里的版本段要从它派生 —— 必须和"这个账号实际用的版本"对上，
+ * 否则"9.1.70 登录的账号 + 9.2.66 的浏览器"本身就是个矛盾。（API 侧拿不到 icqq 的 apk 信息）
+ */
+function quaOf(e) {
+  const bot = e?.bot
+  return String(bot?.apk?.qua || '')
+}
+
 /** 能不能用一起听（只做本地能力/开关判断，业务判定在 API） */
 export function togetherGate(e, cfg = {}) {
   if (cfg.togetherEnable !== true) {
@@ -147,7 +158,7 @@ export async function runTogether(e, action, song) {
   try {
     // 写操作时带上 skey：API 会用「群音乐 HTTP 接口」那条路加歌（H5 页面用的就是它，
     // 而 SSO 的 share_trans 在 icqq 下稳定 tmem error）。state/probe 不需要，就不传。
-    const skey = action === 'manual' || action === 'auto' ? skeyOf(e) : ''
+    const creds = action === 'manual' || action === 'auto' ? { skey: skeyOf(e), qua: quaOf(e) } : {}
     res = await request(
       '/together/start',
       {
@@ -156,7 +167,8 @@ export async function runTogether(e, action, song) {
         action,
         uin: Number(e.self_id || e.bot?.uin || 0),
         song: songPayload,
-        ...(skey ? { skey } : {}),
+        ...(creds.skey ? { skey: creds.skey } : {}),
+        ...(creds.qua ? { qua: creds.qua } : {}),
       },
       'post'
     )
