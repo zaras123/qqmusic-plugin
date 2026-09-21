@@ -42,6 +42,11 @@ function skeyOf(e) {
  * `this.g_tk` / `this.cookies`：两者都是基于 `this.pskey` 的 Proxy）。
  * 用 skey 算出来的 g_tk 接口一律不认（实测回一个没有 msg 的 `retcode 100000`）。
  */
+/** QQ 的 uid（不是 uin）—— icqq 拼 cookie 时会带上 `p_uid`，少了可能过不了校验 */
+function uidOf(e) {
+  return String(e?.bot?.uid || '')
+}
+
 function pskeyOf(e) {
   const pskey = e?.bot?.pskey
   const v = pskey && typeof pskey === 'object' ? pskey['qun.qq.com'] : ''
@@ -174,7 +179,7 @@ export async function runTogether(e, action, song) {
     // 而 SSO 的 share_trans 在 icqq 下稳定 tmem error）。state/probe 不需要，就不传。
     const creds =
       action === 'manual' || action === 'auto'
-        ? { skey: skeyOf(e), pskey: pskeyOf(e), qua: quaOf(e) }
+        ? { skey: skeyOf(e), pskey: pskeyOf(e), uid: uidOf(e), qua: quaOf(e) }
         : {}
     res = await request(
       '/together/start',
@@ -186,6 +191,7 @@ export async function runTogether(e, action, song) {
         song: songPayload,
         ...(creds.skey ? { skey: creds.skey } : {}),
         ...(creds.pskey ? { pskey: creds.pskey } : {}),
+        ...(creds.uid ? { uid: creds.uid } : {}),
         ...(creds.qua ? { qua: creds.qua } : {}),
       },
       'post'
