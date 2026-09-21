@@ -35,6 +35,20 @@ function skeyOf(e) {
 }
 
 /**
+ * 取 `qun.qq.com` 这个域的 **p_skey**。
+ *
+ * ⚠️ 别拿 skey 顶替：QQ 的 web 接口（qun.qq.com 这一系）认的是 **p_skey** ——
+ * `g_tk` 要用它算、Cookie 里也要带 `p_uin`/`p_skey`（见 icqq `client.js` 的
+ * `this.g_tk` / `this.cookies`：两者都是基于 `this.pskey` 的 Proxy）。
+ * 用 skey 算出来的 g_tk 接口一律不认（实测回一个没有 msg 的 `retcode 100000`）。
+ */
+function pskeyOf(e) {
+  const pskey = e?.bot?.pskey
+  const v = pskey && typeof pskey === 'object' ? pskey['qun.qq.com'] : ''
+  return String(v || '')
+}
+
+/**
  * 取协议端**实际在用的版本 qua**（`V1_AND_SQ_9.1.70_9896_YYB_D` 这种）。
  *
  * 群音乐那个 web 接口的 UA 里的版本段要从它派生 —— 必须和"这个账号实际用的版本"对上，
@@ -158,7 +172,10 @@ export async function runTogether(e, action, song) {
   try {
     // 写操作时带上 skey：API 会用「群音乐 HTTP 接口」那条路加歌（H5 页面用的就是它，
     // 而 SSO 的 share_trans 在 icqq 下稳定 tmem error）。state/probe 不需要，就不传。
-    const creds = action === 'manual' || action === 'auto' ? { skey: skeyOf(e), qua: quaOf(e) } : {}
+    const creds =
+      action === 'manual' || action === 'auto'
+        ? { skey: skeyOf(e), pskey: pskeyOf(e), qua: quaOf(e) }
+        : {}
     res = await request(
       '/together/start',
       {
@@ -168,6 +185,7 @@ export async function runTogether(e, action, song) {
         uin: Number(e.self_id || e.bot?.uin || 0),
         song: songPayload,
         ...(creds.skey ? { skey: creds.skey } : {}),
+        ...(creds.pskey ? { pskey: creds.pskey } : {}),
         ...(creds.qua ? { qua: creds.qua } : {}),
       },
       'post'
