@@ -21,49 +21,6 @@ export function togetherAdapter(e) {
   return ''
 }
 
-/**
- * 取协议端的 web 登录凭证（skey）
- *
- * 群音乐 HTTP 接口（H5 页面加歌走的那条）要用它算 g_tk、并作为 cookie 发出去。
- * **只有插件侧有这个凭证**（api 侧拿不到登录态），所以由这里取出来交给 API。
- * ⚠️ 这是敏感凭证：**永远不要打日志**、也不要塞进错误信息里。
- */
-function skeyOf(e) {
-  const bot = e?.bot
-  const skey = bot?.sig?.skey || bot?.skey || ''
-  return String(skey || '')
-}
-
-/**
- * 取 `qun.qq.com` 这个域的 **p_skey**。
- *
- * ⚠️ 别拿 skey 顶替：QQ 的 web 接口（qun.qq.com 这一系）认的是 **p_skey** ——
- * `g_tk` 要用它算、Cookie 里也要带 `p_uin`/`p_skey`（见 icqq `client.js` 的
- * `this.g_tk` / `this.cookies`：两者都是基于 `this.pskey` 的 Proxy）。
- * 用 skey 算出来的 g_tk 接口一律不认（实测回一个没有 msg 的 `retcode 100000`）。
- */
-/** QQ 的 uid（不是 uin）—— icqq 拼 cookie 时会带上 `p_uid`，少了可能过不了校验 */
-function uidOf(e) {
-  return String(e?.bot?.uid || '')
-}
-
-function pskeyOf(e) {
-  const pskey = e?.bot?.pskey
-  const v = pskey && typeof pskey === 'object' ? pskey['qun.qq.com'] : ''
-  return String(v || '')
-}
-
-/**
- * 取协议端**实际在用的版本 qua**（`V1_AND_SQ_9.1.70_9896_YYB_D` 这种）。
- *
- * 群音乐那个 web 接口的 UA 里的版本段要从它派生 —— 必须和"这个账号实际用的版本"对上，
- * 否则"9.1.70 登录的账号 + 9.2.66 的浏览器"本身就是个矛盾。（API 侧拿不到 icqq 的 apk 信息）
- */
-function quaOf(e) {
-  const bot = e?.bot
-  return String(bot?.apk?.qua || '')
-}
-
 /** 能不能用一起听（只做本地能力/开关判断，业务判定在 API） */
 export function togetherGate(e, cfg = {}) {
   if (cfg.togetherEnable !== true) {
@@ -91,31 +48,12 @@ async function sendStep(e, step) {
     }
     // API 标记了这一步要带签名：把这条命令加进 icqq 的签名白名单。
     // signCmd 只是 icqq 实例上的一个数组，运行时加即可，**不用改 icqq 源码**；
-    // 命令名由 API 给（协议知识不下放到插件）。签不签得成取决于签名服务认不认这条命令 ——
-    // 不认的话 icqq 会返回「签名api异常」的假包，API 侧会识别成 SSO_LOCAL 并如实报错。
-    //
-    // 三种情况分别打日志。之前只在「push 成功」时打，于是「命令本来就在白名单里」和
-    // 「bot.signCmd 根本不是数组（= 签名完全没生效）」这两种情况**都是静默的** ——
-    // 2026-09-21 排障时就卡在这片沉默上，只能让用户去翻控制台猜。
-    if (step.sign === true) {
-      if (!Array.isArray(bot.signCmd)) {
-        logWarn(
-          `一起听：bot.signCmd 不是数组（实际是 ${typeof bot.signCmd}）—— 签名没生效，` +
-            `${step.cmd} 将以免签名发出`
-        )
-      } else if (bot.signCmd.includes(step.cmd)) {
-        logInfo(`一起听：${step.cmd} 已在签名白名单里（共 ${bot.signCmd.length} 条）`)
-      } else {
-        bot.signCmd.push(step.cmd)
-        logInfo(`一起听：已为 ${step.cmd} 开启签名（白名单现有 ${bot.signCmd.length} 条）`)
-      }
+    // 命令名由 API 给（协议知识不下放到插件）。
+    if (step.sign === true && Array.isArray(bot.signCmd) && !bot.signCmd.includes(step.cmd)) {
+      bot.signCmd.push(step.cmd)
     }
-    // 计时：签名要 POST 到签名服务，真生效时这一步会多出几百毫秒往返。
-    // 「包到底带没带上签名」在应用层看不出来，耗时是唯一能观察到的旁证。
-    const t0 = Date.now()
     // 显式给超时：icqq 默认只有 5s，开房这类请求容易超
     const raw = await bot.sendUni(step.cmd, body, 15)
-    logInfo(`一起听：${step.cmd} 发包完成，耗时 ${Date.now() - t0}ms`)
     if (!raw || !raw.length) throw new Error('发包后没有响应（可能超时）')
     return Buffer.from(raw).toString('hex')
   }
@@ -175,12 +113,6 @@ export async function runTogether(e, action, song) {
 
   let res
   try {
-    // 写操作时带上 skey：API 会用「群音乐 HTTP 接口」那条路加歌（H5 页面用的就是它，
-    // 而 SSO 的 share_trans 在 icqq 下稳定 tmem error）。state/probe 不需要，就不传。
-    const creds =
-      action === 'manual' || action === 'auto'
-        ? { skey: skeyOf(e), pskey: pskeyOf(e), uid: uidOf(e), qua: quaOf(e) }
-        : {}
     res = await request(
       '/together/start',
       {
@@ -189,10 +121,6 @@ export async function runTogether(e, action, song) {
         action,
         uin: Number(e.self_id || e.bot?.uin || 0),
         song: songPayload,
-        ...(creds.skey ? { skey: creds.skey } : {}),
-        ...(creds.pskey ? { pskey: creds.pskey } : {}),
-        ...(creds.uid ? { uid: creds.uid } : {}),
-        ...(creds.qua ? { qua: creds.qua } : {}),
       },
       'post'
     )
