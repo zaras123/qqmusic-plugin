@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 点歌结果</title>
+  <link rel="stylesheet" href="resources/themes/multi/_base.css" />
+  <!--
+    「多平台」点歌列表
+
+    一行 = 一首歌，左侧那条**来源色轨**是这套 UI 的核心：
+      · QQ 曲目 → QQ 绿；网易云 → 红；酷我 → 橙；B站 → 粉；汽水 → 青；酷狗 → 蓝 …
+      · 右边配一个同色 chip（外源写"网易云 · 128k"，QQ 曲只写"QQ"）
+    这样一眼就能看出"列表里哪几条是外源免费曲、来自哪家"，不用去读字。
+    过长的歌名/歌手一律 ellipsis（多平台列表里 UGC 标题可以很长，绝不能撑破卡片）。
+  -->
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="brand-row">
+          {{if data.logo}}<img class="brand-logo" src="{{data.logo}}" alt="logo" />{{/if}}
+          <div style="min-width:0">
+            <div class="hero-eyebrow">点歌结果</div>
+            <div class="t-hero truncate">{{data.keyword}}</div>
+          </div>
+          <div class="ver">{{data.total}} 首</div>
+        </div>
+        <div class="t-sub hero-sub">
+          {{if data.sourceLabel}}{{data.sourceLabel}} · {{/if}}#qqm听序号 播放 · #qqm歌词 序号 看词
+        </div>
+        {{if data.sourceCounts && data.sourceCounts.length}}
+        <div class="pill-row" style="margin-top:10px">
+          {{each data.sourceCounts c}}
+          <span class="src-chip{{if c.on}} on{{/if}}" style="--src:{{c.color}}">{{c.label}} {{c.n}}</span>
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
+
+      <div class="group">
+        <div class="group-body" style="padding:12px var(--pad) 4px">
+          {{each data.songs song}}
+          <div class="row" style="--src:{{song.sourceColor}};padding:8px 10px">
+            <span class="src-rail"></span>
+            <span class="rank">{{song.index}}</span>
+            <div class="row-main">
+              <div class="row-title truncate">{{song.songName}}{{if song.hasMv}} 🎬{{/if}}{{if song.payplay}} <span class="pill pill--gold" style="font-size:10px;padding:1px 6px">会员</span>{{/if}}</div>
+              <div class="row-sub truncate">
+                {{song.singerName}}{{if song.albumName}} · {{song.albumName}}{{/if}}
+              </div>
+            </div>
+            <span class="src-chip" style="--src:{{song.sourceColor}}">{{if song.external}}{{song.sourceShort}} · {{song.sourceTagShort}}{{else}}QQ{{/if}}</span>
+            {{if song.duration}}<span class="row-value">{{song.duration}}</span>{{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      <div class="tip t-foot">
+        🎬 = 有 MV（#qqmMV 播放 序号）· 付费标记 = 需要 QQ 会员登录
+        {{if data.hasExternal}}· 彩色标签 = 其它平台的免费曲（免登录可直接播）{{/if}}
+      </div>
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+        {{if data.apiHint}}<span class="foot-brand">{{data.apiHint}}</span>{{/if}}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

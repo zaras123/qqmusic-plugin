@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 平台登录状态</title>
+  <link rel="stylesheet" href="resources/themes/apple/_base.css" />
+  <!--
+    2.0 平台状态聚合卡（apple 主题）
+
+    为什么 apple 要自己实现这张卡、而不是回落到 classic：回落会把**经典绿皮肤**的卡
+    塞进苹果界面里（两套 UI 拼在一起）—— 这正是 test.mjs 里"内置主题必须实现全部卡片"拦的事。
+
+    牌色只用一个 8px 圆点：苹果的语汇里没有色轨（色轨是星云/多平台那两套 2.0 主题的做法），
+    信息层级靠"分组 + 行 + 胶囊"表达。新增样式一律卡内作用域，不动共享的 _base.css。
+  -->
+  <style>
+    /* 牌色圆点：与**标题行**对齐（.row 是 align-items:center，多行行里会掉到中间去） */
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; align-self: flex-start; margin-top: 8px; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+    .warn { color: var(--orange); }
+    .plats .row { min-height: 0; padding: 13px 18px; }
+    .plats .row-title { font-weight: 500; }
+    .tip { padding: 14px var(--pad) 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music 2.0 · 音源</div>
+          <div class="t-hero">{{data.title || '平台登录状态'}}</div>
+          <div class="t-sub hero-sub">{{data.subtitle}}</div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-v t-num">{{data.readyCount || 0}}/{{data.total || 0}}</div>
+          <div class="stat-k">可用音源</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v t-num">{{data.canQrCount || 0}}</div>
+          <div class="stat-k">可扫码</div>
+        </div>
+      </div>
+
+      <div class="group inset plats">
+        <div class="group-title"><span class="t-caption">音源清单</span></div>
+        <div class="group-body">
+          {{each data.rows row}}
+          <div class="row">
+            <span class="dot" style="background:{{row.color}}"></span>
+            <div class="row-main">
+              <div class="row-title truncate">{{row.label}}</div>
+              <div class="row-sub truncate">{{row.kindText}}{{if row.canQr}} · 可扫码{{/if}}{{if row.detail}} · {{row.detail}}{{/if}}</div>
+              {{if row.action}}<div class="row-sub truncate mono accent">下一步：{{row.action}}</div>{{/if}}
+              {{if row.unreliable}}<div class="row-sub truncate warn">⚠️ {{row.unreliable}}</div>{{/if}}
+            </div>
+            <span class="pill {{if row.ready}}pill--green{{else}}pill--red{{/if}}">{{row.stateText}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      {{if data.tips && data.tips.length}}
+      <div class="tip t-foot">
+        {{each data.tips tip}}
+        <div>· {{tip}}</div>
+        {{/each}}
+      </div>
+      {{/if}}
+
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

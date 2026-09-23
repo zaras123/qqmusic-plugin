@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 平台状态</title>
+  <link rel="stylesheet" href="resources/themes/nebula/_base.css" />
+  <!--
+    「多平台」**单平台**状态卡（#qqm网易状态 / #qqm酷狗状态 …）
+    头部带这家的品牌色（--src），下面三块：状态 / 能力（档位+扫码）/ 这一家的命令清单。
+    与聚合卡共用 platformStatusRow 的口径 —— 同一台机器上两张卡不会说不一样的话。
+  -->
+</head>
+<body>
+  <div class="page">
+    <div class="card" style="--src:{{data.row.color}}">
+      <div class="hero">
+        <div class="brand-row">
+          {{if data.logo}}<img class="brand-logo" src="{{data.logo}}" alt="logo" />{{/if}}
+          <div style="min-width:0">
+            <div class="hero-eyebrow">{{data.row.kindText}} 音源</div>
+            <div class="t-hero truncate">{{data.row.label}} · 平台状态</div>
+          </div>
+          <div class="src-chip" style="--src:{{data.row.color}};font-size:11.5px;padding:4px 10px">{{data.row.stateText}}</div>
+        </div>
+        <div class="t-sub hero-sub">{{data.row.detail || data.row.note}}</div>
+      </div>
+
+      <div class="group">
+        <div class="group-body" style="padding:12px var(--pad) 0">
+          <div class="row" style="--src:{{data.row.color}}">
+            <span class="src-rail"></span>
+            <div class="row-main">
+              <div class="row-title truncate">登录状态</div>
+              <div class="row-sub truncate">{{data.row.stateText}}{{if data.row.sourceText}} · {{data.row.sourceText}}{{/if}}{{if data.row.ownersCount}} · 已有 {{data.row.ownersCount}} 人配了自己那份{{/if}}</div>
+            </div>
+            <span class="pill {{if data.row.ready}}pill--green{{else}}pill--red{{/if}}" style="flex:none">{{if data.row.ready}}已就绪{{else}}待配置{{/if}}</span>
+          </div>
+          <div class="row">
+            <div class="row-main">
+              <div class="row-title truncate">档位</div>
+              <div class="row-sub truncate">{{data.row.quality || '-'}}</div>
+            </div>
+            {{if data.row.canQr}}<span class="pill" style="flex:none;color:var(--accent)">可扫码登录</span>{{/if}}
+          </div>
+          {{if data.row.action}}
+          <div class="row" style="border-color:var(--accent)">
+            <div class="row-main">
+              <div class="row-title truncate" style="color:var(--accent)">下一步</div>
+              <div class="row-sub truncate" style="font-family:var(--mono);color:var(--accent)">{{data.row.action}}</div>
+            </div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-title"><span class="t-caption">这一家的命令</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 var(--pad)">
+          {{each data.commands cmd}}
+          <div class="row" style="flex:1 1 calc(50% - 3px);min-width:0" title="{{cmd.desc}}">
+            <div class="row-main">
+              <div class="row-title truncate">{{cmd.name}}</div>
+              <div class="row-sub truncate" style="font-family:var(--mono);color:var(--accent)">{{cmd.example}}</div>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      <div class="note">
+        {{each data.tips tip}}
+        <div>· {{tip}}</div>
+        {{/each}}
+      </div>
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+        {{if data.apiHint}}<span class="foot-brand">{{data.apiHint}}</span>{{/if}}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

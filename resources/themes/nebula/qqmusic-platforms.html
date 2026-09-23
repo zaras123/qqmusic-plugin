@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 平台登录状态</title>
+  <link rel="stylesheet" href="resources/themes/nebula/_base.css" />
+  <!--
+    「多平台」平台登录状态卡
+
+    一行一个平台，左边色轨是**来源色**（与点歌列表、帮助卡同一套），右边状态胶囊：
+      绿=已登录 / 绿=匿名可用 / 橙=已启用但没账号 / 灰=未配置
+    没配好的那几行**直接给出下一步**（可扫码的给 `#qqm网易登录`，其余给 POST /x/cookies）——
+    状态卡的价值就在于"看完知道该干什么"。
+  -->
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="brand-row">
+          {{if data.logo}}<img class="brand-logo" src="{{data.logo}}" alt="logo" />{{/if}}
+          <div style="min-width:0">
+            <div class="hero-eyebrow">QQ Music Plugin 2.0</div>
+            <div class="t-hero">{{data.title || '平台登录状态'}}</div>
+          </div>
+          <div class="ver">{{data.readyCount}}/{{data.total}}</div>
+        </div>
+        <div class="t-sub hero-sub">{{data.subtitle}}</div>
+      </div>
+
+      <div class="group">
+        <div class="group-body" style="padding:12px var(--pad) 0">
+          {{each data.rows row}}
+          <div class="row" style="--src:{{row.color}};flex-wrap:wrap">
+            <span class="src-rail"></span>
+            <div class="row-main">
+              <div class="row-title truncate">
+                {{row.label}}
+                <span class="pill" style="font-size:10px;padding:1px 6px">{{row.kindText}}</span>
+                {{if row.canQr}}<span class="pill" style="font-size:10px;padding:1px 6px;color:var(--accent)">可扫码</span>{{/if}}
+              </div>
+              <div class="row-sub truncate">
+                {{if row.detail}}{{row.detail}}{{/if}}
+                {{if row.ownersCount}} · 已有 {{row.ownersCount}} 人配了自己那份{{/if}}
+              </div>
+              {{if row.action}}<div class="row-sub truncate" style="color:var(--accent);font-family:var(--mono)">下一步：{{row.action}}</div>{{/if}}
+              {{if row.unreliable}}<div class="row-sub" style="color:var(--orange)">⚠️ {{row.unreliable}}</div>{{/if}}
+            </div>
+            <span class="pill {{if row.ready}}pill--green{{else}}pill--red{{/if}}" style="flex:none">{{row.stateText}}</span>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      <div class="note">
+        {{each data.tips tip}}
+        <div>· {{tip}}</div>
+        {{/each}}
+      </div>
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+        {{if data.apiHint}}<span class="foot-brand">{{data.apiHint}}</span>{{/if}}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

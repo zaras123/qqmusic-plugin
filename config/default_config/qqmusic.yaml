@@ -33,15 +33,21 @@ resolveCards: true
 renderListCard: true
 
 # ————— 界面（多套 UI）—————
-# 卡片主题：resources/themes/ 下的目录名（内置 classic / apple，丢个目录就能加自己的）
+# 卡片主题：resources/themes/ 下的目录名（内置 classic / apple / nebula / multi，丢个目录就能加自己的）
+#   nebula「星云·鎏光」与 multi「多平台」是 2.0 专版，2.0 里由下面的 uiThemeV2 决定用哪套
 # 换主题、改模板文件都是**热更新**，不用重启机器人
 uiTheme: classic
 # 深色：只对声明支持深色的主题生效（apple 支持，classic 不支持）
 #   false = 浅色 / true = 深色 / auto = 跟随时间（夜晚 20:00-5:00 自动切深色）
 uiDark: false
+
+# 2.0（？？？打开后）用的卡片主题：默认 nebula「星云 · 鎏光」——
+#   液态玻璃材质（折射边 + 扫光 + 极光底）+ 香槟金烫字，2.0 的"门面"就是它。
+#   想换：multi「多平台」（每首歌带来源色标）/ classic / apple 都行。
+uiThemeV2: nebula
 # 底色随时段自动换：清晨 5-8 / 白天 8-17 / 黄昏 17-20 / 夜晚 20-5（声明了时段配色的主题才生效）
 uiTimeColor: true
-# 自定义背景（**只有 apple 主题支持**，其余主题忽略）：开启后卡片切成 iOS 液态玻璃
+# 自定义背景（apple / nebula / multi 支持，classic 忽略）：开启后卡片切成 iOS 液态玻璃
 uiBgEnable: false
 # 背景来源，自动识别三种：
 #   本地路径  D:\图片\a.jpg   或  /root/pics/a.jpg
@@ -54,11 +60,28 @@ uiBgCacheMin: 10
 # 其它平台补充曲（默认开）：QQ 音乐没版权的歌，从网易云/酷我补几条免费曲（128k）追加在列表尾部
 extraSources: true
 
+# QQ 音乐音源开关（默认开）。关掉后这个机器人**只用其它平台**：
+#   #qqm点歌 → 直接搜「？？？」里开着的那几家免费曲（QQ 账号相关功能随之用不上）
+# 背景：QQ 只是**其中一家**音源，不是唯一主干 —— 别人开了别的平台就能拿它点歌、补列表。
+qqEnabled: true
+
 # 接管无前缀「#点歌」（默认关）：开启后本插件响应不加 #qqm 前缀的点歌命令
 defaultPickSong: false
 
 # 前缀提示
 identifyPrefix: "识别："
+
+# ————— ？？？（默认关）—————
+# 就是这个键：锅巴里显示成「？？？」。打开后下面那段才生效：
+#   · 多平台点歌（#qqm网易云点歌 / #qqmB站点歌 …）+ 新版帮助 UI
+#   · 锅巴里多出「音源平台」分组
+# 关着时与 1.x **完全一致**：那些命令不响应、帮助还是老那张图。
+# ⚠️ 建议只在锅巴里改（手改本文件后要重启机器人）。
+unlockV2: false
+
+# 各音源平台开关（锅巴 → 音源平台；仅在 ？？？ 打开后可见）
+#   缺省 = 全开；`enabled: false` 关掉某家；`maxList` 留空 = 用上面的点歌列表数量
+platforms: {}
 
 # 扫码登录
 qrLoginEnable: true

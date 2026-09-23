@@ -215,6 +215,7 @@ export async function renderCard(e, data, card = 'qqmusic-status') {
  */
 export function reloadTemplates() {
   invalidateThemeCache()
+  clearGuideCache() // 帮助卡缓存也一起丢（它存的是**图片**，模板改了必须重截）
   try {
     loadArtTemplate().defaults?.caches?.reset?.()
   } catch {
@@ -361,6 +362,51 @@ export async function renderHelpCard(e, data) {
   return renderCard(e, data, 'qqmusic-help')
 }
 
+/**
+ * 2.0 帮助卡（解锁后才走这里；未解锁时老帮助卡一个字都不变）
+ *
+ * 为什么要单独一层缓存：帮助卡的内容**只跟"身份 + 配置"有关** —— 同一群里
+ * 十个人连发 `#qqm帮助` 没必要截十次图（直连 puppeteer 一次 1~2s）。
+ * 缓存键里带上"会改变卡片内容的配置摘要"，所以锅巴改了开关/平台、或换了主题，
+ * 下一次就会重新渲染，**不会发出过期的图**。
+ */
+const guideCache = new Map() // key → { img, at }
+const GUIDE_TTL_MS = 10 * 60 * 1000
+
+/** 缓存键（导出给单测断言"配置变了键就变"） */
+export function guideCacheKey(data, themeId = '') {
+  const cfg = getCfg()
+  return [
+    themeId,
+    cfg.uiTheme || '',
+    String(cfg.uiDark ?? ''),
+    cfg.quality || '',
+    data?.isMaster ? 'master' : 'user',
+    data?.version || '',
+    data?.statPlatforms || '',
+    data?.statCommands || '',
+    data?.statMode || '',
+    (data?.sections || []).map((s) => `${s.title}:${(s.items || []).length}`).join('|'),
+  ].join('\u0000')
+}
+
+export async function renderGuideCard(e, data) {
+  const cfg = getCfg()
+  const theme = resolveTheme(cfg)
+  const key = guideCacheKey(data, theme.id)
+  const hit = guideCache.get(key)
+  if (hit && Date.now() - hit.at < GUIDE_TTL_MS) return hit.img
+
+  const img = await renderCard(e, data, 'qqmusic-guide')
+  if (img) guideCache.set(key, { img, at: Date.now() })
+  return img
+}
+
+/** 清帮助卡缓存（改主题 / 热重载模板时调用） */
+export function clearGuideCache() {
+  guideCache.clear()
+}
+
 export async function renderListCard(e, data) {
   return renderCard(e, data, 'qqmusic-list')
 }
@@ -377,8 +423,18 @@ export async function renderCommentCard(e, data) {
   return renderCard(e, data, 'qqmusic-comment')
 }
 
+/** 单平台状态卡（`#qqm<平台>状态`） */
+export async function renderPlatformCard(e, data) {
+  return renderCard(e, data, 'qqmusic-platform')
+}
+
 export async function renderSettingsCard(e, data) {
   return renderCard(e, data, 'qqmusic-settings')
+}
+
+/** 平台登录状态卡（`#qqm平台状态`） */
+export async function renderPlatformsCard(e, data) {
+  return renderCard(e, data, 'qqmusic-platforms')
 }
 
 export async function renderDetailCard(e, data) {

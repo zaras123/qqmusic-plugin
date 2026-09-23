@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 歌曲详情</title>
+  <link rel="stylesheet" href="resources/themes/multi/_base.css" />
+  <!--
+    「多平台」详情卡：**来源是第一眼信息**
+
+    1.x 的详情卡把"来源"塞在底部一行小字里；多平台之后它是决定性的：
+    同名的《晴天》在 QQ 是付费曲、在网易云/B站是免费曲，用户要知道这张卡点下去
+    会不会真的出声。所以这里把来源做成**顶部大 chip（品牌色）+ 左侧色轨**，
+    音质/是否可播紧随其后。
+  -->
+</head>
+<body>
+  <div class="page">
+    <div class="card" style="--src:{{data.sourceColor}}">
+      <div class="hero">
+        <div class="brand-row">
+          {{if data.cover}}<img class="brand-logo" src="{{data.cover}}" alt="cover" style="border-radius:14px" />{{/if}}
+          <div style="min-width:0">
+            <div class="hero-eyebrow">歌曲详情</div>
+            <div class="t-title truncate">{{data.songName}}</div>
+            <div class="t-sub truncate">{{data.singerName}}</div>
+          </div>
+          <div class="src-chip" style="--src:{{data.sourceColor}};font-size:11.5px;padding:4px 10px">{{data.sourceShort}}</div>
+        </div>
+        <div class="pill-row" style="margin-top:10px">
+          {{if data.qualityLabel}}<span class="pill pill--accent">{{data.qualityLabel}}</span>{{/if}}
+          {{if data.payplay}}<span class="pill pill--gold">{{data.payInfo}}</span>{{else}}<span class="pill pill--green">免费可播</span>{{/if}}
+          {{if data.mvVid}}<span class="pill pill--red">🎬 有 MV</span>{{/if}}
+          <span class="pill">{{data.urlStatus}}</span>
+        </div>
+      </div>
+
+      <div class="group">
+        <div class="group-body" style="padding:12px var(--pad) 0">
+          <div class="row" style="--src:{{data.sourceColor}}">
+            <span class="src-rail"></span>
+            <div class="row-main">
+              <!-- 这一行说的是**音源**，不是触发方式（调用方给的 source 可能是"播放/点歌/链接解析"，
+                   那是动作不是来源 —— 直接显示会让用户以为来源叫"播放"） -->
+              <div class="row-title truncate">{{if data.sourceIsExternal}}{{data.sourceShort}}（其它平台）{{else}}QQ 音乐（你的账号）{{/if}}</div>
+              <div class="row-sub truncate">{{if data.sourceIsExternal}}免登录可直接播{{else}}按你的账号档位取链{{/if}}{{if data.qualityLabel}} · {{data.qualityLabel}}{{/if}}</div>
+            </div>
+          </div>
+          {{if data.albumName}}
+          <div class="row">
+            <div class="row-main">
+              <div class="row-title truncate">专辑</div>
+              <div class="row-sub truncate">{{data.albumName}}</div>
+            </div>
+            {{if data.duration}}<span class="row-value">{{data.duration}}</span>{{/if}}
+          </div>
+          {{/if}}
+          {{if data.songmid}}
+          <div class="row">
+            <div class="row-main">
+              <div class="row-title truncate">曲目 ID</div>
+              <div class="row-sub truncate" style="font-family:var(--mono)">{{data.songmid}}</div>
+            </div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      {{if data.tip}}<div class="note">{{data.tip}}</div>{{/if}}
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+        <span class="foot-brand">{{if data.sourceIsExternal}}外源免费曲{{else}}QQ 曲库{{/if}}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

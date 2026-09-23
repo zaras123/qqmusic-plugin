@@ -1,0 +1,16 @@
+{
+  "id": "multi",
+  "name": "多平台",
+  "desc": "2.0 专版：以音源为中心（每首歌/每个平台都带来源色标），支持深色与时段配色、自定义背景",
+  "dark": true,
+  "bg": true,
+  "pageBg": {
+    "light": "#f2f4f8",
+    "dark": "#0b0e13"
+  },
+  "viewportWidth": 660,
+  "cardWidth": {
+    "qqmusic-status": 600,
+    "qqmusic-detail": 600
+  }
+}

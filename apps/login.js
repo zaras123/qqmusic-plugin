@@ -15,9 +15,31 @@ import { request, pullLoginMeta, refreshLogin, loginRenewHint } from '../utils/a
 import { getTempDir } from '../utils/send.js'
 import { buildQQMusicStatusData } from '../utils/status-card.js'
 import { renderStatusCard, formatStatusText } from '../utils/render.js'
+import { platformAliasPattern, platformOf } from '../utils/platforms.js'
+import { isV2Unlocked, platformEnabled } from '../utils/v2.js'
 
 /** 进行中的扫码任务 user_id -> { qrcodeID, timer, e, stopped } */
 const activeLogins = new Map()
+
+/**
+ * 2.0：可由插件发起**扫码登录**的外部平台（API 侧统一了形状，见下面两个字段）
+ *
+ *   · `start` → 取二维码：`data.{key, img, tip}`（img 是 data URL，直接当图片发）
+ *   · `poll`  → 轮询：`data.{status, tip}`，status ∈ waiting | confirm | success | expired
+ *
+ * ⚠️ 两家的路径**故意不叫** `/x/login/status`：vendor 自己也有 `login_status` 模块，
+ *    而 vendor 路由是先挂的，会把同名路径静默吞掉（实测踩过）。
+ * 汽水的流程与它们不同（token + 自家 status 字段），单独判一次。
+ */
+const QR_PLATFORMS = {
+  netease: { label: '网易云', app: '网易云音乐', start: '/netease/login/qrcode', poll: (k) => `/netease/login/qrcode/check?key=${encodeURIComponent(k)}` },
+  kugou: { label: '酷狗', app: '酷狗音乐', start: '/kugou/login/qrcode', poll: (k) => `/kugou/login/qrcode/check?key=${encodeURIComponent(k)}` },
+  qishui: { label: '汽水', app: '抖音 App（或汽水音乐）', start: '/qishui/login/qrcode', poll: (k) => `/qishui/login/status?token=${encodeURIComponent(k)}`, qishui: true },
+}
+
+/** 扫码登录的轮询节奏：3s 一次、最多 40 次（≈2 分钟，与二维码有效期同量级） */
+const QR_POLL_MS = 3000
+const QR_MAX_TRIES = 40
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -184,6 +206,19 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       priority: 450,
       rule: [
         {
+          /**
+           * 2.0：外部平台扫码登录 `#qqm网易登录` / `#qqm酷狗登录` / `#qqm汽水登录`
+           *
+           * 限主人（与上面三条 QQ 登录一致）：扫码是**账号级**操作，扫完全站音源就换成那个号。
+           * 成员想用自己的账号 → 请主人代为配置，或用 API 的 POST /<平台>/cookies 单独配一份。
+           * 未解锁（？？？关着）时 handler 直接 return false —— 1.9 里没有这些命令。
+           */
+          // 传 RegExp 对象（不是字符串）：Yunzai 会 new RegExp(字符串)，那样 `i` 标志会丢
+          reg: new RegExp(`^#?(?:qq|QQ)m\\s*(?:${platformAliasPattern()})\\s*(?:登录|登陆)$`, 'i'),
+          fnc: 'platformQrLogin',
+          permission: 'master',
+        },
+        {
           // 微信：走「QQ音乐 App 扫码」（MQTT 通道，与 #qqm登录app 同一条）
           //
           // 2026-09-16 改动：原来走 /login/webqr 的 PC 网页流程。换掉的原因不是形状问题
@@ -241,6 +276,134 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         },
       ],
     })
+  }
+
+  /**
+   * 2.0：外部平台扫码登录（网易云 / 酷狗 / 汽水）
+   *
+   * 流程三段，与 QQ 的扫码完全同构，只是上游换成 API 的 `/x/login/qrcode`：
+   *   ① 取码 → 直接把 data URL 当图片发出去（三家上游都直接给图片，不用本地生成）
+   *   ② 轮询 → 只看**状态变化**才回话（待扫 → 已扫码待确认 → 成功/过期），不刷屏
+   *   ③ 成功 → 凭据由 **API 侧**写进存储（主人 = 共享那份，全站可用），这里只回执
+   *
+   * 未解锁时静默放行（return false）：这些命令在 1.9 里不存在。
+   * 权限在 rule 上标了 master（扫码 = 账号级操作，扫完全站音源就换成那个号）。
+   */
+  async platformQrLogin(e) {
+    // ⚠️ login.js 里**没有** cfg() 方法（song.js 才有）——统一走 Config.getConfig
+    const cfg = Config.getConfig('qqmusic') || {}
+    if (!cfg.enable) return false
+    if (!isV2Unlocked(cfg)) return false
+
+    const msg = String(e.msg || '').trim()
+    const m = msg.match(new RegExp(`^#?(?:qq|QQ)m\\s*(?:(${platformAliasPattern()}))\\s*(?:登录|登陆)$`, 'i'))
+    const p = platformOf(m?.[1])
+    if (!p) return false
+    const spec = QR_PLATFORMS[p.id]
+    if (!spec) {
+      await e.reply(`${p.label} 没有扫码登录通道：它不需要账号（匿名音源）。要配凭据请用 POST /${p.id}/cookies`)
+      return true
+    }
+    if (!platformEnabled(cfg, p.id)) {
+      await e.reply(`${p.label} 音源已被关闭（锅巴 → 音源平台）`)
+      return true
+    }
+
+    const userKey = String(e.user_id || '')
+    this.stopPoll(userKey) // 同一人重复发命令：先掐掉上一轮
+    const task = { stopped: false, timer: null }
+    activeLogins.set(userKey, task)
+
+    let data
+    let body = null
+    try {
+      body = await request(spec.start, {}, 'get', userKey)
+      data = body?.data || body
+    } catch (err) {
+      activeLogins.delete(userKey)
+      await e.reply(`获取${p.label}二维码失败：${err.message}`)
+      return true
+    }
+    const key = String(data?.key || data?.token || '')
+    const img = String(data?.img || data?.qrcode || '')
+    if (!key || !img) {
+      activeLogins.delete(userKey)
+      await e.reply(`获取${p.label}二维码失败：${body?.errMsg || '上游没返回二维码'}`)
+      return true
+    }
+
+    // ① 发二维码（data URL 直接转图片；统一走 adapter，免得某个协议端不认 base64）
+    try {
+      const base64 = img.replace(/^data:image\/\w+;base64,/, '')
+      const file = await saveQrImage(base64)
+      const sent = await sendImage(e, file)
+      if (!sent) await e.reply(`请打开二维码链接扫码：${data?.scanUrl || '(图片发送失败)'}`)
+    } catch (err) {
+      await e.reply(`二维码发送失败：${err.message}`)
+    }
+    await e.reply(
+      [
+        `请用「${spec.app}」扫码登录 ${p.label}（${QR_MAX_TRIES * (QR_POLL_MS / 1000) / 60} 分钟内有效）`,
+        spec.qishui ? '扫完在手机上确认；若提示需要安全验证，请改用 POST /qishui/cookies 粘贴' : '扫完在手机上点一次确认',
+        '登录成功后：这份凭据会写进**共享那份**，全站都能用（成员想用自己账号请单独配 POST /<平台>/cookies）',
+      ].join('\n')
+    )
+
+    // ② 轮询（只在状态变化时回话）
+    let last = ''
+    // ⚠️ 循环变量别用 `i`：本文件其它 handler 也裸用 i（作用域检查会把它当跨函数引用），
+    //    用一个专属名字就互不干扰
+    for (let tick = 0; tick < QR_MAX_TRIES; tick += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await sleep(QR_POLL_MS)
+      if (task.stopped) return true
+      let st = ''
+      let tip = ''
+      let errMsg = ''
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const body = await request(spec.poll(key), {}, 'get', userKey)
+        const d = body?.data || body || {}
+        st = String(d.status || '')
+        tip = String(d.tip || d.message || '')
+        if (spec.qishui) {
+          // 汽水的状态词不同：new/waiting → 待扫；scanned/confirmed → 待确认；success → 成功
+          if (d.loggedIn === true || st === 'success') st = 'success'
+          else if (d.needVerify === true || st === 'verify_required') st = 'verify'
+          else if (d.scanned === true || st === 'confirmed') st = 'confirm'
+          else st = 'waiting'
+        }
+      } catch (err) {
+        errMsg = err.message
+      }
+      if (errMsg) {
+        activeLogins.delete(userKey)
+        await e.reply(`查询${p.label}扫码状态失败：${errMsg}`)
+        return true
+      }
+      if (st === 'success') {
+        activeLogins.delete(userKey)
+        await e.reply(`✅ ${p.label} 登录成功（凭据已写入共享那份，全站可用）\n换号/登出：重新发 #qqm${p.label}登录，或清 POST /${p.id}/cookies/clear`)
+        return true
+      }
+      if (st === 'verify') {
+        activeLogins.delete(userKey)
+        await e.reply(`${p.label} 提示需要安全验证，扫码这条路走不通：请改用 POST /${p.id}/cookies 粘贴 cookie`)
+        return true
+      }
+      if (st === 'expired') {
+        activeLogins.delete(userKey)
+        await e.reply(`${p.label} 二维码已过期，重新发一次 #qqm${p.label}登录`)
+        return true
+      }
+      if (st && st !== last) {
+        last = st
+        if (st === 'confirm') await e.reply(`已扫码，请在手机上点「确认登录」（${p.label}）`)
+      }
+    }
+    activeLogins.delete(userKey)
+    await e.reply(`${p.label} 扫码超时（没等到确认），重新发一次 #qqm${p.label}登录`)
+    return true
   }
 
   async startQrLogin(e) {

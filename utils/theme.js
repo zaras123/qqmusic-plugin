@@ -11,13 +11,19 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { pluginPath } from './path.js'
+import { isV2Unlocked } from './v2.js'
 
 export const THEMES_DIR = path.join(pluginPath, 'resources', 'themes')
 export const DEFAULT_THEME = 'classic'
+/** 2.0（？？？打开后）的默认主题：「星云」版（multi 仍可选） */
+export const DEFAULT_THEME_V2 = 'nebula'
 
 /** 插件全部卡片（模板文件名 = 卡片名） */
 export const CARDS = [
   'qqmusic-help',
+  'qqmusic-guide',
+  'qqmusic-platform',
+  'qqmusic-platforms',
   'qqmusic-list',
   'qqmusic-detail',
   'qqmusic-lyric',
@@ -124,7 +130,19 @@ export function darkPrefOf(v) {
  * @returns {{id, requested, fallback, dir, manifest, period, darkPref, dark}}
  */
 export function resolveTheme(cfg = {}, opts = {}) {
-  const requested = String(cfg.uiTheme || '').trim() || DEFAULT_THEME
+  /**
+   * 用哪套主题：
+   *   · ？？？关着 → **老主题**（`uiTheme`，默认 classic）—— 1.9 原样，一个字都不变
+   *   · ？？？打开 → **2.0 主题**（`uiThemeV2`，默认新增的 `multi` 多平台版）
+   *
+   * 为什么不直接把默认 uiTheme 改成 multi：老用户的配置里写着 classic，
+   * 换了默认他们也会跟着变 —— 需求要的是"没开就与 1.9 一致"。
+   * 想在新版里继续用老皮肤：把 uiThemeV2 设成 classic / apple 即可。
+   */
+  const wanted = isV2Unlocked(cfg)
+    ? String(cfg.uiThemeV2 || '').trim() || DEFAULT_THEME_V2
+    : String(cfg.uiTheme || '').trim() || DEFAULT_THEME
+  const requested = wanted
   const ids = listThemeIds()
   const id = ids.includes(requested) ? requested : DEFAULT_THEME
   const manifest = loadManifest(id) || loadManifest(DEFAULT_THEME) || normalizeManifest(id, {})
@@ -204,6 +222,8 @@ export function describeThemes() {
       dark: m?.dark === true,
       bg: m?.bg === true,
       cards: CARDS.filter((c) => fs.existsSync(path.join(THEMES_DIR, id, `${c}.html`))).length,
+      // 卡片总数（分母）：从 8 涨到 11 后，任何写死 "/8" 的文案都会说谎，所以由这里给出
+      cardsTotal: CARDS.length,
     }
   })
 }

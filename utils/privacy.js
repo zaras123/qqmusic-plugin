@@ -16,8 +16,15 @@ export function maskApiBase(url) {
     const parsed = new URL(u)
     const host = parsed.hostname || ''
     let maskedHost = '***'
-    const lastDot = host.lastIndexOf('.')
-    if (lastDot > 0) maskedHost = '***' + host.slice(lastDot)
+    if (/^(127\.0\.0\.1|localhost|::1|0\.0\.0\.0)$/i.test(host)) {
+      // 本机地址没必要打码 —— 打出来是 "***.1:3300" 这种谁都看不懂的东西
+      maskedHost = '本机'
+    } else if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+      maskedHost = `***.***.***.${host.split('.').pop()}` // 保留最后一段，便于区分是哪台机器
+    } else {
+      const lastDot = host.lastIndexOf('.')
+      if (lastDot > 0) maskedHost = '***' + host.slice(lastDot)
+    }
     const port = parsed.port ? `:${parsed.port}` : ''
     const pathPart = parsed.pathname && parsed.pathname !== '/' ? parsed.pathname : ''
     return `${parsed.protocol}//${maskedHost}${port}${pathPart}`

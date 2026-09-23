@@ -205,14 +205,14 @@ cd qqmusic-plugin && pnpm install
 >
 > 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受开关限制。
 
-> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置两套：`classic`（原始界面，默认）与 `apple`（排印对齐 apple.com.cn 的实测值：近白底 + 白玻璃卡 + 蓝色小标；支持深色与时段配色）。主人发 `#qqm界面` 查看与切换，深浅色支持「浅色 / 深色 / 跟随时间（夜晚自动深色）」，锅巴里都有。
+> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置四套：`classic`（原始界面，1.x 默认）、`apple`（排印对齐 apple.com.cn 的实测值：近白底 + 白玻璃卡 + 蓝色小标），以及 **2.0 专版**的 `nebula`「星云 · 鎏光」（液态玻璃材质 + 香槟金烫字，2.0 的默认主题）与 `multi`「多平台」（每首歌/每个平台都带来源色标）。四套都支持深色与时段配色。主人发 `#qqm界面` 查看与切换，深浅色支持「浅色 / 深色 / 跟随时间（夜晚自动深色）」，锅巴里都有。
 >
 > **换主题、改模板、改 `theme.json` 都是热更新** —— 不用重启机器人（渲染前比对文件 mtime，变了就让 art-template 重新编译；它默认按文件名永久缓存，这正是以前改模板必须重启的原因）。批量改动后想强制重来：`#qqm界面 重载`。
 >
-> 📌 **自定义背景（仅 apple 主题）**：`#qqm界面 背景 <路径或链接>`（锅巴里也能设）。三种来源**自动识别**：服务器本地路径（`D:\图片\a.jpg` / `/root/pics/a.jpg`）、图片直链、图片 API（返回 JSON 里有图片地址，或直接返回图片）。开启后卡片材质自动切成 **iOS 液态玻璃**（半透明 + 强模糊 + 边缘高光）。
+> 📌 **自定义背景（apple / nebula / multi 三套支持，classic 忽略）**：`#qqm界面 背景 <路径或链接>`（锅巴里也能设）。三种来源**自动识别**：服务器本地路径（`D:\图片\a.jpg` / `/root/pics/a.jpg`）、图片直链、图片 API（返回 JSON 里有图片地址，或直接返回图片）。开启后卡片材质自动切成 **iOS 液态玻璃**（半透明 + 强模糊 + 边缘高光）；2.0 的星云/多平台本来就是玻璃材质，背景图直接当"玻璃后面的那张墙纸"。
 > 远端图**由插件侧取回并缓存成本地文件**（不让浏览器去拉）—— 否则每次渲染都要等远端图，慢图/挂掉的图会把整张卡拖死；缓存时长锅巴可调（`0` = 每次渲染都换）。取不到图时**自动回落主题自带底色**，不影响发卡（日志里有原因）。
 >
-> 主题可以只实现部分卡片，缺的自动回落到 `classic`。本地预览（不进机器人）：`node scripts/preview-cards.mjs`，产出 `temp/preview/<主题>[-dark]/<卡>.png`，走的与生产同一条渲染路径。
+> 主题可以只实现部分卡片，缺的自动回落到 `classic`（**内置的四套必须实现全** —— 缺一张就会出现"内容是这套主题的、皮肤是经典绿"的拼接感，`test.mjs` 会拦）。本地预览（不进机器人）：`node scripts/preview-cards.mjs`，产出 `temp/preview/<主题>[-dark]/<卡>.png`，走的与生产同一条渲染路径。
 
 ---
 
@@ -261,6 +261,9 @@ qqmusic-plugin/
 
 安装 [Guoba-Plugin](https://github.com/guoba-yunzai/guoba-plugin) 后可在网页配置：
 
+> 配置项按**三大组**折叠（① 基础设置 / ② 界面与外观 / ③ 发送与下载，写法与 R 插件的
+> `SOFT_GROUP_BEGIN` 一致）：字段与键名一个都没变，只是不用在一页里翻半天了。
+
 - API 地址 / Token
 - 插件、点歌、解析、扫码登录命令开关
 - 点歌结果图片卡片开关（关闭回退纯文本）
@@ -274,7 +277,7 @@ qqmusic-plugin/
 - 主人账号手动指定（`publicAccount`，留空=自动；多账号想固定用某一个时才填）
 - 从 API 一键回填登录态
 - 一起听：启用开关（默认关）/ 点歌后自动同步（默认关，需总开关同时打开）—— 协议参数在 API 侧：`data/together.json` 的 `aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`
-- 界面：卡片主题（`resources/themes/` 下的目录名，内置 classic / apple）、深浅色（浅色 / 深色 / 跟随时间）、底色跟随时段、自定义背景（开关 + 来源 + 缓存分钟数，仅 apple 主题支持）
+- 界面：卡片主题（`resources/themes/` 下的目录名，内置 classic / apple / nebula / multi；2.0 打开后走 `uiThemeV2`，默认 nebula）、深浅色（浅色 / 深色 / 跟随时间）、底色跟随时段、自定义背景（开关 + 来源 + 缓存分钟数，仅 apple 主题支持）
 
 ---
 

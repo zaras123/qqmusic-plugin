@@ -1,0 +1,16 @@
+{
+  "id": "nebula",
+  "name": "星云 · 鎏光",
+  "desc": "2.0 专版：**液态玻璃**材质（边缘折射 + 内壁细环 + 45° 扫光）+ 香槟金烫字，借鉴各大手机厂商旗舰 UI；每首歌带来源色标；支持深色、时段配色与自定义背景",
+  "dark": true,
+  "bg": true,
+  "pageBg": {
+    "light": "#f2f0ff",
+    "dark": "#0b0a18"
+  },
+  "viewportWidth": 660,
+  "cardWidth": {
+    "qqmusic-status": 600,
+    "qqmusic-detail": 600
+  }
+}

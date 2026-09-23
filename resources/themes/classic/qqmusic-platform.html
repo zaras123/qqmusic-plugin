@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 平台状态</title>
+  <!-- classic 兜底版：自带样式（不依赖 _base.css），视觉与经典绿卡一致 -->
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: fit-content; background: #e6f6ee !important; color: #143528; font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; }
+    .page { padding: 16px; }
+    .card { width: 600px; border-radius: 24px; overflow: hidden; background: linear-gradient(168deg, #f7fcf9, #eef8f3 40%, #e3f4eb); border: 1px solid rgba(49,194,124,0.18); box-shadow: 0 14px 28px rgba(20,90,58,0.12); }
+    .hero { padding: 20px; color: #fff; background: linear-gradient(135deg, #36c580, #2ab06f 55%, #1fa968); }
+    .hero h1 { font-size: 21px; font-weight: 800; }
+    .hero p { margin-top: 4px; font-size: 12px; opacity: 0.92; }
+    .rows { padding: 12px 16px 4px; }
+    .row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px 11px; margin-bottom: 6px; border-radius: 12px; background: rgba(255,255,255,0.72); border: 1px solid rgba(31,90,64,0.10); }
+    .rail { width: 3px; align-self: stretch; border-radius: 999px; background: var(--src, #31c27c); flex: none; }
+    .main { flex: 1 1 auto; min-width: 0; }
+    .name { font-size: 13.5px; font-weight: 700; }
+    .sub { margin-top: 2px; font-size: 11.5px; color: #6b8a7c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sub.act { color: #17835a; font-family: ui-monospace, Consolas, monospace; }
+    .tag { flex: none; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background: #8aa79a; }
+    .tag.on { background: #1aa76a; } .tag.off { background: #d92d20; }
+    .tip { padding: 8px 20px 14px; font-size: 11.5px; color: #6b8a7c; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card" style="--src:{{data.row.color}}">
+      <div class="hero">
+        <h1>{{data.row.label}} · 平台状态</h1>
+        <p>{{data.subtitle}}{{if data.row.detail}} · {{data.row.detail}}{{/if}}</p>
+      </div>
+      <div class="rows">
+        <div class="row"><span class="rail"></span><div class="main"><div class="name">登录状态</div><div class="sub">{{data.row.stateText}}{{if data.row.sourceText}} · {{data.row.sourceText}}{{/if}}</div></div><span class="tag {{if data.row.ready}}on{{else}}off{{/if}}">{{data.row.stateText}}</span></div>
+        <div class="row"><div class="main"><div class="name">档位</div><div class="sub">{{data.row.quality || '-'}}</div></div>{{if data.row.canQr}}<span class="tag">可扫码</span>{{/if}}</div>
+        {{if data.row.action}}
+        <div class="row"><div class="main"><div class="name" style="color:#17835a">下一步</div><div class="sub act">{{data.row.action}}</div></div></div>
+        {{/if}}
+        {{each data.commands cmd}}
+        <div class="row"><div class="main"><div class="name">{{cmd.name}}</div><div class="sub act">{{cmd.example}}</div></div></div>
+        {{/each}}
+      </div>
+      <div class="tip">
+        {{each data.tips tip}}
+        <div>· {{tip}}</div>
+        {{/each}}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

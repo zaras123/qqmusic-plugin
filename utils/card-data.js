@@ -4,10 +4,13 @@
 import Config from '../components/Config.js'
 import { QUALITY_LABEL } from './quality.js'
 import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
+// 「多平台」主题要按来源上色：色值/短名从注册表取（单一事实来源）
+import { platformColor, platformShort, platformOf, platformIdOf, platformQualities } from './platforms.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
 import { resolveTheme, TIME_LABEL } from './theme.js'
 import { describeBackground } from './background.js'
+import { enabledPlatforms } from './v2.js'
 
 /** 点歌列表卡片 - 统一风格模板，用于歌手/专辑/歌单/排行 */
 export function buildListCardData(keyword, songs, options = {}) {
@@ -39,7 +42,34 @@ export function buildListCardData(keyword, songs, options = {}) {
     example: '#qqm点歌 关键词',
   })
   return {
-    keyword: keyword || '歌曲列表',
+    // options.title：2.0 的单平台点歌（"网易云 点歌结果"）用它，QQ 点歌不传 → 一个字都不变
+    keyword: options.title || keyword || '歌曲列表',
+    // 卡片副标题/页脚可显示"本列表来自哪个平台"
+    sourceLabel: options.sourceLabel || '',
+    /**
+     * 「多平台」主题用：按来源统计条数（列表头部那排彩色 chip）
+     * 例：QQ 6 · 网易云 2 · B站 2 —— 一眼看出这次搜索里每家占了几条
+     */
+    sourceCounts: (() => {
+      const byId = new Map()
+      for (const s of songs) {
+        const id = s.source || 'qq'
+        const cur = byId.get(id) || { id, label: id === 'qq' ? 'QQ' : SOURCE_LABEL[id] || id, color: id === 'qq' ? '#31c27c' : platformColor(id), n: 0 }
+        cur.n += 1
+        byId.set(id, cur)
+      }
+      const list = [...byId.values()]
+      /**
+       * 「多平台」主题把这一排画成 **iOS 分段控制器**（一条胶囊底 + 发丝分隔）。
+       * 控制器总得有一段是"选中"的 —— 选条数最多的那家（并列取先出现的，
+       * 保证同一份数据每次渲染选中的都是同一段，否则卡片会闪）。
+       */
+      let top = null
+      for (const c of list) if (!top || c.n > top.n) top = c
+      if (top) top.on = true
+      return list
+    })(),
+    hasExternal: songs.some((s) => s.source),
     total: songs.length,
     logo: logoUrl,
     quality: String(cfg.quality || 'auto').toUpperCase(),
@@ -59,6 +89,12 @@ export function buildListCardData(keyword, songs, options = {}) {
       sourceTag: s.source ? `${SOURCE_LABEL[s.source] || s.source} · ${s.quality || '128k'}` : '',
       sourceIcon: sourceIconOf(s.source),
       external: Boolean(s.external),
+      // 多平台主题用：来源 id / 品牌色 / 短名（QQ 曲目 source 为空 → 走默认绿）
+      sourceId: s.source || '',
+      sourceColor: s.source ? platformColor(s.source) : '#31c27c',
+      sourceShort: s.source ? platformShort(s.source) : 'QQ',
+      // 只带档位（不带平台名）——「多平台」主题的 chip 自己会显示平台名
+      sourceTagShort: s.source ? String(s.quality || '128k') : '',
     })),
     hasMv,
     commands,
@@ -190,6 +226,155 @@ export function buildLyricCardData({
 }
 
 /**
+ * 平台登录状态卡（`#qqm平台状态`）
+ *
+ * 数据来自 API 的 `GET /platforms`（聚合了 QQ / 网易云 / 酷狗 / 汽水 / 酷我 / Apple / 匿名音源），
+ * 这里只做**展示层**的归一：状态词、来源词、能不能扫码、没配好时给哪条命令。
+ *
+ * 三种 kind 的语义差别必须体现在卡上（否则用户会拿"匿名可用"当"已登录"）：
+ *   · account   —— 账号级（QQ）：登录了才有无损/付费曲
+ *   · credential—— 凭据级（网易云/酷狗/汽水/酷我）：自己那份 / 共享那份 / 未配置
+ *   · anonymous —— 匿名即可（B站/咪咕/YouTube/JioSaavn）：**不需要登录**，只报档位
+ */
+
+/**
+ * 平台状态行（**聚合卡与单平台卡共用**，别两处各算一遍 —— 状态词/来源词/下一步
+ * 的口径必须一致，否则同一台机器上两张卡会说不一样的话）
+ */
+function platformStatusRow(p) {
+  const known = platformOf(p.name)
+  const short = known ? platformShort(p.name) : p.name === 'qq' ? 'QQ' : p.name
+  const color = known ? platformColor(p.name) : p.name === 'qq' ? '#31c27c' : '#8a8a8e'
+  const anonymous = p.kind === 'anonymous'
+  const apple = p.kind === 'apple'
+  const ready = anonymous ? true : apple ? Boolean(p.configured) : Boolean(p.loggedIn)
+  const stateText = anonymous ? '匿名可用' : apple ? (p.configured ? '已启用' : '未启用') : p.loggedIn ? '已登录' : '未配置'
+  // QQ 是账号级音源，档位由你的会员决定（不是"免登录档位"），这里写它实际能到的顶
+  const quality = p.quality || (p.name === 'qq' ? '无损 / Hi-Res（看会员）' : '')
+  const srcText = p.sourceText && p.sourceText !== '未配置' ? `来源：${p.sourceText}` : ''
+  return {
+    name: p.name,
+    label: p.label || p.name,
+    short,
+    color,
+    kindText: { account: '账号', credential: '凭据', apple: '音源', anonymous: '匿名' }[p.kind] || p.kind || '',
+    ready,
+    stateText,
+    sourceText: p.sourceText || '',
+    quality,
+    canQr: Boolean(p.canQr),
+    ownersCount: Array.isArray(p.owners) ? p.owners.length : 0,
+    unreliable: p.unreliable || '',
+    note: p.note || '',
+    // 该做什么（可操作的一步）：能扫码给命令，凭据级给接口，匿名/已就绪给空
+    action: !ready && p.canQr ? `#qqm${short}登录` : !ready && p.kind === 'credential' ? `POST /${p.name}/cookies` : '',
+    // ⚠️ 用上面算好的 quality/srcText —— 直接读 p.quality 会让 QQ 那行（API 不给 quality）
+    //    明明有档位却显示空（实测踩过）
+    detail: [srcText, quality ? `档位：${quality}` : ''].filter(Boolean).join(' · '),
+  }
+}
+
+/**
+ * **单平台**状态卡（`#qqm网易状态` / `#qqm酷狗状态` …）
+ *
+ * 与聚合卡（`#qqm平台状态`）同一份数据源 `GET /platforms`（10s 缓存），
+ * 这里只挑出那一家，再把它的**命令清单**补齐 —— 卡的价值是"这一家怎么用、缺什么、下一步点哪"。
+ */
+export function buildPlatformCardData(status = {}, platformId = '') {
+  const id = platformIdOf(platformId) || String(platformId || '').toLowerCase()
+  const list = Array.isArray(status.list) ? status.list : []
+  const hit = list.find((x) => x.name === id)
+  if (!hit) return null
+  const row = platformStatusRow(hit)
+  const short = row.short
+  const isQq = id === 'qq'
+  const commands = [
+    { name: '点歌', example: isQq ? '#qqm点歌 关键词' : `#qqm${short} 关键词`, desc: isQq ? 'QQ 曲库（结果尾部自动补其它平台免费曲）' : `只在 ${row.label} 里搜（免登录 ${row.quality || '-'}）` },
+    { name: '播放', example: isQq ? '#qqm播放 关键词' : `#qqm${short}播放 关键词`, desc: '搜第一条直接播' },
+    { name: '歌词', example: isQq ? '#qqm歌词 关键词' : `#qqm${short}歌词 关键词`, desc: '按歌取词（也可 #qqm歌词 序号）' },
+  ]
+  if (!isQq) commands.push({ name: '设为当前音源', example: `#qqm源 ${short}`, desc: '设一次，之后 #qqm点歌 默认走它（主人=全群、成员=只对自己）' })
+  if (row.canQr) commands.push({ name: '扫码登录', example: `#qqm${short}登录`, desc: '主人扫码（凭据写共享那份，全站可用）' })
+  commands.push({ name: '看全部平台', example: '#qqm平台状态', desc: '10 家音源的登录状态一览' })
+
+  const cfg = Config.getConfig('qqmusic') || {}
+  return {
+    title: `${row.label} · 平台状态`,
+    subtitle: `${row.kindText}音源 · ${row.stateText}`,
+    logo: logoUrl,
+    apiHint: apiHintFor(),
+    themeText: resolveTheme(cfg).manifest.name,
+    row,
+    commands,
+    qualities: platformQualities(id),
+    tips: [
+      row.ready
+        ? (row.detail || '已就绪，可直接用上面的命令')
+        : `下一步：${row.action || (row.kindText === '匿名' ? '无需配置（匿名可用）' : '见上方说明')}`,
+      row.unreliable ? `⚠️ ${row.unreliable}` : '',
+      row.ownersCount ? `已有 ${row.ownersCount} 人配了自己那份（他们各自用自己的）` : '',
+    ].filter(Boolean),
+  }
+}
+
+/** 单平台卡的纯文本兜底 */
+export function formatPlatformCardText(data) {
+  const r = data.row || {}
+  return [
+    `【${data.title}${r.ready ? ' ✅' : ' ⬜'}】${data.subtitle}`,
+    r.detail || '',
+    ...((data.commands || []).map((c) => `${c.example}   →  ${c.desc}`)),
+    ...(data.tips || []),
+  ].filter(Boolean).join('\n')
+}
+
+export function buildPlatformsCardData(status = {}) {
+  const cfg = Config.getConfig('qqmusic') || {}
+  const list = Array.isArray(status.list) ? status.list : []
+  const kindText = { account: '账号', credential: '凭据', apple: '音源', anonymous: '匿名' }
+
+  const rows = list.map(platformStatusRow)
+
+  const total = rows.length
+  const readyCount = rows.filter((r) => r.ready).length
+  const needCred = rows.filter((r) => r.kindText === '凭据' && !r.ready)
+
+  return {
+    title: '平台登录状态',
+    subtitle: `${readyCount}/${total} 可用 · 点歌会用到下面这些音源`,
+    logo: logoUrl,
+    apiHint: apiHintFor(),
+    total,
+    readyCount,
+    canQrCount: rows.filter((r) => r.canQr).length,
+    themeText: resolveTheme(cfg).manifest.name,
+    rows,
+    tips: [
+      '「匿名可用」= 不需要登录就能取链（B站/咪咕/YouTube 这类）',
+      '「已登录」= 有账号凭据，能拿更高档位或 VIP 曲',
+      needCred.length ? `还没配的：${needCred.map((r) => r.label).join(' / ')} —— 可扫码的发 #qqm<平台>登录，其余用 POST /<平台>/cookies` : '所有凭据类平台都配好了 🎉',
+    ],
+  }
+}
+
+/** 平台状态卡的纯文本兜底（图渲染失败时用） */
+export function formatPlatformsText(data = {}) {
+  const rows = data.rows || []
+  return [
+    `【${data.title || '平台登录状态'}】${data.readyCount}/${data.total} 可用`,
+    ...rows.map(
+      (r) =>
+        `${r.ready ? '✅' : '⬜'} ${r.label}（${r.kindText}）${r.stateText}` +
+        (r.detail ? ` · ${r.detail}` : '') +
+        (r.canQr ? ` · 可扫码：#qqm${r.short}登录` : '') +
+        (r.unreliable ? `\n     ⚠️ ${r.unreliable}` : '')
+    ),
+    '',
+    '（这张卡只在 2.0 里可用；细节看 #qqm平台）',
+  ].join('\n')
+}
+
+/**
  * 设置卡片（含登录/适配器探测）
  * @param {object} e 消息事件（可选，用于适配器识别）
  */
@@ -280,6 +465,12 @@ export async function buildSettingsCardData(e = null) {
         ? `${publicAccount} · 所有人点歌一律走此号${autoTag}`
         : `${publicAccount} · 未登录者点歌回落${autoTag}`
 
+  // 2.0：解锁后统计"开了几家外部音源"（未解锁恒为 0 → 设置卡与 1.x 完全一致）
+  const platformCount = enabledPlatforms(c).length
+  const platformText = platformCount
+    ? `已开启 ${platformCount} 家：${enabledPlatforms(c).map((p) => p.label).join(' / ')}`
+    : ''
+
   return {
     title: 'QQ音乐设置',
     subtitle: '当前插件运行配置一览',
@@ -308,6 +499,8 @@ export async function buildSettingsCardData(e = null) {
     adapterKind: adapter.kind,
     adapterId: adapter.id,
     togetherText,
+    platformCount,
+    platformText,
     themeText,
     tiles: [
       { label: '点歌', value: onOff(c.enableSongRequest), on: c.enableSongRequest !== false },
@@ -317,6 +510,8 @@ export async function buildSettingsCardData(e = null) {
       { label: '群文件', value: onOff(c.uploadFile), on: c.uploadFile !== false },
       { label: '降级', value: onOff(c.qualityFallback), on: c.qualityFallback !== false },
       { label: '一起听', value: onOff(c.togetherEnable), on: togetherOn },
+      // 2.0：「音源平台」只在解锁后出现（未解锁时与 1.x 的卡片一模一样）
+      ...(platformCount > 0 ? [{ label: '音源平台', value: `${platformCount} 家`, on: true }] : []),
     ],
     rows: [
       { k: '登录', v: login.text },
@@ -381,6 +576,8 @@ export function formatSettingsText(data) {
     `原生卡: ${data.sendNativeCard}  自定义卡: ${data.sendCustomCard}`,
     `界面: ${data.themeText || 'classic'}`,
     `一起听: ${data.togetherText || '关闭'}`,
+    // 2.0 解锁后才有内容（未解锁是空串 → 文本与 1.x 完全一致）
+    ...(data.platformText ? [`音源平台: ${data.platformText}`] : []),
     '',
     '主人命令：',
     '#qqm登录 / #qqm状态 / #qqm 音质 flac',
@@ -449,6 +646,11 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
     payInfo,
     urlStatus,
     source: sourceText,
+    // 多平台主题用：来源 id / 品牌色 / 短名
+    sourceId: song.source || '',
+    sourceColor: song.source ? platformColor(song.source) : '#31c27c',
+    sourceShort: song.source ? platformShort(song.source) : 'QQ',
+    sourceIsExternal: Boolean(song.source),
     tip: baseTip + mvHint,
     mvVid: mvVid || '',
   }

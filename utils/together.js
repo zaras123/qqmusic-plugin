@@ -12,7 +12,7 @@
  */
 import { request } from './api.js'
 import { detectAdapter } from './adapter.js'
-import { logInfo, logWarn } from './log.js'
+import { logInfo } from './log.js'
 
 /** 能发原始 SSO 包的协议端；返回空串表示不支持（API 侧据此决定 via） */
 export function togetherAdapter(e) {

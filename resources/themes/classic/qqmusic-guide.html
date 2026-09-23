@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QQ音乐 · 2.0 帮助</title>
+  <!--
+    2.0 帮助卡（classic 主题）
+
+    设计目标：**一屏看完、渲染更快**。
+      · 全卡只有 logo 一张远程图（其余全是 CSS/SVG），不拉封面 → 截图不用等网络
+      · 段落用两列紧凑网格，同样信息量比老卡少约 40% 的 DOM 节点
+      · 平台那一行按品牌色上色，一眼看出"这台机器接了哪几家"
+    ⚠️ 未解锁 2.0 时**不会**渲染这张卡（走的是 qqmusic-help.html），所以这里可以放开设计。
+  -->
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --qm: #31c27c;
+      --qm-deep: #17835a;
+      --ink: #10291f;
+      --muted: #6b8a7c;
+      --line: rgba(31, 90, 64, 0.12);
+      --card: rgba(255, 255, 255, 0.72);
+    }
+    html, body {
+      width: fit-content; height: fit-content;
+      background: #e6f6ee !important;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+    .page { padding: 16px; background: #e6f6ee; }
+    .card {
+      width: 620px; border-radius: 24px; overflow: hidden;
+      background: linear-gradient(168deg, #f8fdfa 0%, #eef8f3 55%, #e2f3ea 100%);
+      border: 1px solid rgba(49, 194, 124, 0.18);
+      box-shadow: 0 1px 0 rgba(255,255,255,0.9) inset, 0 14px 30px rgba(18, 84, 55, 0.13);
+    }
+
+    /* ── 头部 ── */
+    .hero {
+      position: relative; padding: 22px 22px 18px; color: #fff;
+      background:
+        radial-gradient(circle at 86% 12%, rgba(255,255,255,0.3) 0%, transparent 45%),
+        linear-gradient(120deg, #34c882 0%, #22a9a0 55%, #178f86 100%);
+    }
+    .hero-top { display: flex; align-items: center; gap: 14px; }
+    .logo {
+      width: 46px; height: 46px; border-radius: 14px; flex: none; object-fit: cover;
+      background: rgba(255,255,255,0.22); border: 1px solid rgba(255,255,255,0.34);
+    }
+    .hero-title { font-size: 25px; font-weight: 800; letter-spacing: 0.2px; line-height: 1.15; }
+    .hero-sub { margin-top: 4px; font-size: 12.5px; opacity: 0.92; }
+    .ver {
+      margin-left: auto; flex: none; font-size: 12px; font-weight: 700;
+      padding: 5px 11px; border-radius: 999px;
+      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.32);
+    }
+    .stats { display: flex; gap: 8px; margin-top: 16px; }
+    .stat {
+      flex: 1; padding: 9px 10px; border-radius: 14px; text-align: center;
+      background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.22);
+    }
+    .stat b { display: block; font-size: 17px; font-weight: 800; line-height: 1.2; }
+    .stat span { font-size: 10.5px; opacity: 0.88; }
+
+    /* ── 段落 ── */
+    .body { padding: 14px 14px 4px; }
+    .sec { margin-bottom: 12px; }
+    .sec-head { display: flex; align-items: center; gap: 8px; padding: 0 6px 7px; }
+    .sec-head h3 { font-size: 13.5px; font-weight: 800; letter-spacing: 0.3px; }
+    .sec-head .line { flex: 1; height: 1px; background: var(--line); }
+    .sec-head .tag {
+      font-size: 10.5px; font-weight: 700; color: var(--qm-deep);
+      background: rgba(49,194,124,0.12); border: 1px solid rgba(49,194,124,0.22);
+      padding: 2px 8px; border-radius: 999px;
+    }
+    .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .item {
+      width: calc(50% - 4px); padding: 9px 11px; border-radius: 13px;
+      background: var(--card); border: 1px solid var(--line);
+      display: flex; align-items: center; gap: 9px;
+    }
+    .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--qm); }
+    .item-body { min-width: 0; flex: 1; }
+    .item-name { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .item-desc { margin-top: 2px; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ex {
+      flex: none; font-size: 10.5px; font-weight: 700; color: var(--qm-deep);
+      font-family: ui-monospace, Consolas, monospace;
+      background: rgba(49,194,124,0.1); border-radius: 8px; padding: 3px 7px;
+      max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* ── 平台彩条（第一段专用） ── */
+    .plats { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 6px; }
+    .plat {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 11px 5px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.78); border: 1px solid var(--line);
+      font-size: 11.5px; font-weight: 700;
+    }
+    .plat i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+    .plat em { font-style: normal; font-weight: 600; color: var(--muted); font-size: 10.5px; }
+
+    /* ── 页脚 ── */
+    .foot { padding: 10px 20px 16px; font-size: 11px; color: var(--muted); line-height: 1.6; }
+    .foot .api { margin-top: 3px; opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-top">
+          {{if data.logo}}<img class="logo" src="{{data.logo}}" alt="logo" />{{/if}}
+          <div style="min-width:0">
+            <div class="hero-title">{{data.title || '2.0 帮助'}}</div>
+            <div class="hero-sub">{{data.subtitle || '点歌 · 解析 · 卡片'}}</div>
+          </div>
+          <div class="ver">{{data.version}}</div>
+        </div>
+        <div class="stats">
+          <div class="stat"><b>{{data.statPlatforms || 0}}</b><span>音源平台</span></div>
+          <div class="stat"><b>{{data.statCommands}}</b><span>指令</span></div>
+          <div class="stat"><b>{{data.statQuality}}</b><span>最高音质</span></div>
+          <div class="stat"><b>{{data.statMode}}</b><span>运行模式</span></div>
+        </div>
+      </div>
+
+      <div class="body">
+        {{each data.sections section index}}
+          {{if index === 0}}
+            <!-- 第一段是"多平台音源"：这里渲染成彩色平台条，比条目行更好扫 -->
+            <div class="sec">
+              <div class="sec-head">
+                <h3>{{section.title}}</h3>
+                <div class="line"></div>
+                {{if section.tag}}<span class="tag">{{section.tag}}</span>{{/if}}
+              </div>
+              <div class="plats">
+                <div class="plat" style="border-color:rgba(49,194,124,0.35)">
+                  <i style="background:#31c27c"></i>QQ音乐<em>曲库最全 · 320k+</em>
+                </div>
+                {{each section.platforms platform}}
+                <div class="plat">
+                  <i style="background:{{platform.color}}"></i>{{platform.label}}<em>{{platform.quality}}</em>
+                </div>
+                {{/each}}
+              </div>
+            </div>
+          {{else}}
+            <div class="sec">
+              <div class="sec-head">
+                <h3>{{section.title}}</h3>
+                <div class="line"></div>
+                {{if section.tag}}<span class="tag">{{section.tag}}</span>{{/if}}
+              </div>
+              <div class="grid">
+                {{each section.items item}}
+                <div class="item">
+                  <span class="dot"></span>
+                  <div class="item-body">
+                    <div class="item-name">{{item.name}}</div>
+                    <div class="item-desc">{{item.desc}}</div>
+                  </div>
+                  {{if item.example}}<span class="ex">{{item.example}}</span>{{/if}}
+                </div>
+                {{/each}}
+              </div>
+            </div>
+          {{/if}}
+        {{/each}}
+      </div>
+
+      <div class="foot">
+        {{if data.tip}}{{data.tip}}{{/if}}
+        {{if data.apiHint}}<div class="api">{{data.apiHint}}</div>{{/if}}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

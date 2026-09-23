@@ -1,0 +1,856 @@
+/* ============================================================
+ * 「多平台」主题 · 2.0 专版设计系统
+ *
+ * 为什么要另开一套：1.x 的卡片是"QQ 音乐为主 + 补几条外源"的视觉
+ * （绿色 + 底部一个来源标签）。2.0 之后**音源本身就是一等公民** ——
+ * 一次列表里可能同时有网易云、B 站、汽水的歌，"这首歌来自哪家、什么档位、
+ * 能不能播"成了主要信息。所以这套 UI 的核心是**来源色标**：
+ *   · 每首歌/每个平台都带 `--src`（品牌色），左边缘一条 3px 色轨 + 一个色块 chip
+ *   · 中性底色 + 一个强调色（靛蓝），让各家品牌色在卡里"跳"出来
+ *
+ * 结构约束（踩过的坑，写死在样式里）：
+ *   · 所有横向容器一律 `min-width: 0` + `overflow: hidden` —— 上一版用
+ *     `grid-template-columns: 1fr 1fr` 让长命令把列顶宽，内容被卡片边缘裁掉
+ *   · 文本一律"能截断就截断"（ellipsis），不让任何一段长文案撑破卡片
+ *
+ * 类名与 apple 主题保持同一套（t-hero/row/pill/group…），
+ * 所以 status/lyric/hot/comment/settings 五张卡直接复用，不用重写。
+ * ============================================================ */
+
+/* `--src`（来源品牌色）注册成**有类型**的自定义属性：模板里
+ * `style="--src:{{song.sourceColor}}"` 在数据缺色时会写出空值 `--src:;`，
+ * 而未注册的属性允许空值 —— 它会顶掉 :root 的兜底，色轨与 chip 一起变透明
+ * （浅色下就是一行看不见的"QQ"幽灵字，预览里真实出现过）。
+ * 注册成 <color> 后空值算非法，自动回落到 initial-value，色标永远有颜色。 */
+@property --src {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: #31c27c;
+}
+
+:root {
+  --label: #12151b;
+  --label-2: #545d6c;
+  --label-3: #7d8794;
+  --divider: rgba(18, 21, 27, 0.08);
+  --fill-2: rgba(18, 21, 27, 0.035);
+  --fill-3: rgba(18, 21, 27, 0.06);
+  --stroke: rgba(18, 21, 27, 0.09);
+
+  --accent: #4f6bff;
+  --green: #1aa76a;
+  --orange: #c2560f;
+  --red: #d92d20;
+  --gold: #8a6a12;
+
+  /* 卡片与玻璃（2.0 液态玻璃：与「星云」同一套光学，只是换成冷色靛蓝） */
+  --card: #ffffff;
+  --card-2: #f7f8fb;
+  --glass: rgba(255, 255, 255, 0.5);
+  --rim: rgba(255, 255, 255, 0.9);
+  /* blur 30 → 22：30px 把极光的色团糊平，玻璃后面"什么都没有"，折射无从谈起 */
+  --blur: 22px;
+  /* 钢蓝"箔光"：眉标/数字用渐变字（冷色版的烫金） */
+  --foil: linear-gradient(96deg, #2f4bd8 0%, #7a93ff 42%, #3853d0 72%, #a9b8ff 100%);
+  --foil-soft: linear-gradient(96deg, #3a58e0 0%, #7e93ff 50%, #3a58e0 100%);
+  /* 玻璃填充：半透明才透得出极光（不透明 = 又变回白纸，第一版就栽在这）
+   * 二轮回访（"液态玻璃不明显"）再压一档：0.36/0.18/0.26 → 0.22/0.08/0.14 */
+  --glass-fill: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(248, 250, 255, 0.08) 42%,
+    rgba(248, 250, 255, 0.14) 100%
+  );
+  --glass-fill-2: rgba(255, 255, 255, 0.26);
+  /* 折射描边：上左亮、下右回光（中段从 0.08 提到 0.20：玻璃的边要**整圈都在**） */
+  --rim-gradient: linear-gradient(
+    152deg,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 255, 255, 0.60) 22%,
+    rgba(255, 255, 255, 0.20) 48%,
+    rgba(255, 255, 255, 0.50) 76%,
+    rgba(255, 255, 255, 0.90) 100%
+  );
+  /* 子元素（面板/行/胶囊/统计块/底条）用的**半档折射边**：同一套渐变、整体压暗。
+   * 子元素是压在卡片身上的，各来一圈 1.0 的白边叠起来就是"贴了一圈高光贴纸"，
+   * 浅色下面板会看着像白板。用法见下方那条"统一降档"的选择器清单。 */
+  --rim-soft: linear-gradient(
+    152deg,
+    rgba(255, 255, 255, 0.58) 0%,
+    rgba(255, 255, 255, 0.30) 22%,
+    rgba(255, 255, 255, 0.10) 48%,
+    rgba(255, 255, 255, 0.24) 76%,
+    rgba(255, 255, 255, 0.50) 100%
+  );
+
+  --radius-card: 26px;
+  --radius-group: 20px;
+  --radius-row: 15px;
+  --radius-thumb: 13px;
+  --pad: 18px;
+
+  /* 一圈**靛蓝发丝外描边**（原来是白色的：白边挨着浅色极光=看不见，卡片没轮廓） */
+  --shadow: 0 32px 60px -32px rgba(14, 26, 60, 0.44), 0 10px 22px -14px rgba(14, 26, 60, 0.22),
+    0 0 0 1px rgba(58, 82, 150, 0.12);
+
+  /* 极光底：靛蓝/青/银灰（冷色版的"玻璃后面有东西"）。
+   * 角上四团负责边缘有戏，最后那条 133° 斜洗负责**卡心不空**（少了它就一片死白）。 */
+  /* 二轮补：**暗角**（没有暗，玻璃的亮边就没有对照）+ 卡心两团 + 两颗光斑
+   * —— 与「星云」同一套光学，只是色相换成靛蓝/紫/青。 */
+  --aurora: radial-gradient(128% 108% at 50% 42%, rgba(16, 26, 60, 0) 44%, rgba(16, 26, 60, 0.16) 100%),
+    /* 两道低饱和斜光带：玻璃后面必须有"边界"，纯渐变透过去永远是平的 */
+    linear-gradient(112deg, rgba(120, 152, 255, 0) 22%, rgba(120, 152, 255, 0.34) 38%, rgba(120, 152, 255, 0) 52%),
+    linear-gradient(24deg, rgba(120, 200, 190, 0) 58%, rgba(120, 200, 190, 0.28) 72%, rgba(120, 200, 190, 0) 86%),
+    /* 色团**落在卡片投影范围内**（摆在页面角上会被卡片切掉一大半，卡心就只剩平滑底色） */
+    radial-gradient(52% 42% at 20% 12%, rgba(112, 140, 255, 0.80) 0%, transparent 70%),
+    radial-gradient(46% 38% at 96% 30%, rgba(146, 116, 228, 0.52) 0%, transparent 72%),
+    radial-gradient(54% 44% at 92% 88%, rgba(84, 172, 214, 0.54) 0%, transparent 72%),
+    radial-gradient(50% 44% at 10% 84%, rgba(98, 202, 170, 0.48) 0%, transparent 70%),
+    radial-gradient(38% 30% at 56% 46%, rgba(120, 132, 240, 0.44) 0%, transparent 70%),
+    radial-gradient(34% 26% at 74% 62%, rgba(86, 178, 190, 0.42) 0%, transparent 72%),
+    /* 小 + 亮 = 透过玻璃化成柔光点（这是磨砂玻璃最不带歧义的特征） */
+    radial-gradient(3% 2.2% at 28% 30%, rgba(244, 248, 255, 0.95) 0%, transparent 72%),
+    radial-gradient(2.4% 1.8% at 70% 18%, rgba(238, 244, 255, 0.90) 0%, transparent 72%),
+    radial-gradient(2.6% 2% at 84% 66%, rgba(236, 246, 255, 0.92) 0%, transparent 74%),
+    radial-gradient(2% 1.6% at 42% 74%, rgba(240, 246, 255, 0.88) 0%, transparent 74%),
+    linear-gradient(133deg, rgba(196, 208, 246, 0.52) 0%, rgba(206, 200, 244, 0.34) 34%, rgba(190, 214, 240, 0.32) 68%, rgba(190, 232, 222, 0.36) 100%);
+  /* 底色比上一轮深一档：白玻璃要有"底"才透得出来，底色太接近白就与白纸无异 */
+  --aurora-base: linear-gradient(176deg, #e8eefb 0%, #e6e9f6 48%, #e0efef 100%);
+
+  /* 一天四段的底色：只在极浅范围内变冷暖，别抢内容 */
+  --bg-dawn: linear-gradient(178deg, #fdf7f3 0%, #f3f2f8 100%);
+  --bg-day: linear-gradient(178deg, #f5f7fb 0%, #eff2f8 100%);
+  --bg-dusk: linear-gradient(178deg, #fdf6ee 0%, #f2f1f7 100%);
+  --bg-night: linear-gradient(178deg, #eef1f7 0%, #e8ecf4 100%);
+
+  /* 多平台语义：默认 QQ 绿，模板按需覆盖成各家品牌色 */
+  --src: #31c27c;
+  --src-soft: rgba(49, 194, 124, 0.12);
+
+  --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+}
+
+html[data-mode="dark"] {
+  --label: #eef1f6;
+  --label-2: #9aa4b2;
+  --label-3: #78828f;
+  --divider: rgba(255, 255, 255, 0.1);
+  --fill-2: rgba(255, 255, 255, 0.05);
+  --fill-3: rgba(255, 255, 255, 0.09);
+  --stroke: rgba(255, 255, 255, 0.1);
+
+  --accent: #7c8cff;
+  --green: #34d17f;
+  --orange: #ff9f45;
+  --red: #ff6b5e;
+  --gold: #e0bd6a;
+
+  --card: #171b22;
+  --card-2: #1d222b;
+  --glass: rgba(23, 27, 34, 0.44);
+  --rim: rgba(255, 255, 255, 0.12);
+
+  --foil: linear-gradient(96deg, #7c8cff 0%, #b9c6ff 42%, #7c8cff 72%, #dbe3ff 100%);
+  --foil-soft: linear-gradient(96deg, #8b9aff 0%, #c4cfff 50%, #8b9aff 100%);
+  --glass-fill: linear-gradient(
+    165deg,
+    rgba(36, 42, 56, 0.50) 0%,
+    rgba(16, 20, 28, 0.34) 42%,
+    rgba(18, 22, 30, 0.42) 100%
+  );
+  --glass-fill-2: rgba(16, 20, 28, 0.34);
+  --rim-gradient: linear-gradient(
+    152deg,
+    rgba(255, 255, 255, 0.40) 0%,
+    rgba(255, 255, 255, 0.16) 24%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.14) 76%,
+    rgba(255, 255, 255, 0.30) 100%
+  );
+  --rim-soft: linear-gradient(
+    152deg,
+    rgba(255, 255, 255, 0.20) 0%,
+    rgba(255, 255, 255, 0.09) 24%,
+    rgba(255, 255, 255, 0.04) 50%,
+    rgba(255, 255, 255, 0.08) 76%,
+    rgba(255, 255, 255, 0.16) 100%
+  );
+
+  --shadow: 0 38px 72px -34px rgba(0, 0, 0, 0.80), 0 10px 22px -14px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+
+  --aurora: radial-gradient(130% 110% at 50% 40%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.46) 100%),
+    /* 色团位置、斜光带、小光斑与浅色**一一对应**（同一套光学，只换明度） */
+    linear-gradient(112deg, rgba(88, 116, 220, 0) 22%, rgba(88, 116, 220, 0.28) 38%, rgba(88, 116, 220, 0) 52%),
+    linear-gradient(24deg, rgba(52, 150, 150, 0) 58%, rgba(52, 150, 150, 0.24) 72%, rgba(52, 150, 150, 0) 86%),
+    radial-gradient(52% 42% at 20% 12%, rgba(96, 118, 220, 0.60) 0%, transparent 70%),
+    radial-gradient(46% 38% at 96% 30%, rgba(120, 92, 200, 0.50) 0%, transparent 72%),
+    radial-gradient(54% 44% at 92% 88%, rgba(56, 118, 168, 0.52) 0%, transparent 72%),
+    radial-gradient(50% 44% at 10% 84%, rgba(44, 138, 118, 0.46) 0%, transparent 70%),
+    radial-gradient(38% 30% at 56% 46%, rgba(88, 84, 180, 0.42) 0%, transparent 68%),
+    radial-gradient(34% 26% at 74% 62%, rgba(48, 108, 138, 0.44) 0%, transparent 70%),
+    radial-gradient(3% 2.2% at 28% 30%, rgba(198, 216, 255, 0.52) 0%, transparent 72%),
+    radial-gradient(2.4% 1.8% at 70% 18%, rgba(190, 210, 255, 0.46) 0%, transparent 72%),
+    radial-gradient(2.6% 2% at 84% 66%, rgba(190, 220, 255, 0.46) 0%, transparent 74%),
+    radial-gradient(2% 1.6% at 42% 74%, rgba(196, 214, 255, 0.42) 0%, transparent 74%),
+    linear-gradient(133deg, rgba(60, 74, 128, 0.38) 0%, rgba(74, 62, 122, 0.36) 34%, rgba(44, 74, 112, 0.36) 68%, rgba(38, 96, 88, 0.38) 100%);
+  --aurora-base: linear-gradient(176deg, #131826 0%, #0e111c 48%, #0c1414 100%);
+
+  --bg-dawn: linear-gradient(178deg, #14100f 0%, #17131a 100%);
+  --bg-day: linear-gradient(178deg, #0c0f14 0%, #101520 100%);
+  --bg-dusk: linear-gradient(178deg, #14100d 0%, #15121a 100%);
+  --bg-night: linear-gradient(178deg, #090b0f 0%, #0d1119 100%);
+}
+
+/* ---------- 折射边统一降档：子元素一律用 --rim-soft ----------
+ * 用"在元素上重新赋值 --rim-gradient"的办法成批降档，而不是去改十几个 call site 的
+ * background-image —— 变量覆盖是局部的、可逆的，模板新增的卡片也不会漏。
+ * ⚠️ 这里**不能**把 .card 写进来：卡片贴着极光，必须保留满档白边。 */
+.stat,
+.group-body,
+.row,
+.pill,
+.hero .pill-row,
+.plat {
+  --rim-gradient: var(--rim-soft);
+}
+
+/* ---------- 基础 ---------- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: fit-content;
+  height: fit-content;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: #f2f4f8 !important;
+  color: var(--label);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 22px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+  font-variant-numeric: tabular-nums;
+}
+
+.page {
+  display: block;
+  width: fit-content;
+  /* 内边距 22 → 34：卡片几乎盖满页面时，玻璃外面只剩一条缝，观感是"白纸铺满屏幕" */
+  padding: 34px;
+  position: relative;
+  background: var(--aurora-base);
+}
+/* 极光底 + 颗粒：玻璃后面必须先"有东西"，backdrop-filter 才谈得上折射。
+ * ⚠️ 这两层必须画在 .card **下面**（z-index 0 且卡片在后），改顺序玻璃立刻失效。 */
+.page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--aurora);
+}
+.page::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.04;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+}
+html[data-mode="dark"] .page::after { mix-blend-mode: screen; opacity: 0.05; }
+html[data-time="dawn"] .page { background: var(--bg-dawn); }
+html[data-time="dusk"] .page { background: var(--bg-dusk); }
+html[data-time="night"] .page { background: var(--bg-night); }
+
+.card {
+  width: 620px;
+  z-index: 1;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  position: relative;
+  isolation: isolate;
+  /* 双层 background + 双 clip = 渐变折射描边（上左亮、下右回光） */
+  border: 1px solid transparent;
+  background-image: var(--glass-fill), var(--rim-gradient);
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  /* 饱和度 180% → 220%：玻璃要把身后的颜色"吸"到面前来（iOS 液态玻璃的做法） */
+  backdrop-filter: blur(var(--blur)) saturate(220%) brightness(1.03) contrast(1.03);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(220%) brightness(1.03) contrast(1.03);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 40px 58px -46px rgba(255, 255, 255, 1), inset 0 -22px 38px -26px rgba(86, 116, 200, 0.40),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.42), var(--shadow);
+}
+html[data-mode="dark"] .card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 1px 1px rgba(255, 255, 255, 0.16),
+    inset 0 40px 58px -46px rgba(255, 255, 255, 0.22), inset 0 -22px 38px -26px rgba(120, 150, 240, 0.22),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.08), var(--shadow);
+}
+/* **折射环**：把同一份极光放大 134% + 模糊 + 遮罩只留边，画在玻璃填充之上、正文之下
+ *   · `z-index: -1`：卡片是 stacking context，负层级 = 夹在"白底"与"内容"之间
+ *   · `mask` 掏空中间：中间照旧"透"，只有边上有位移与亮度堆积 = 折射
+ * （与「星云」同一套做法；开了自定义背景时不画，那时 ::before 被拿去当第二层模糊） */
+html:not([data-bg="1"]) .card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: inherit;
+  /* 第 1 层：放大后的极光（推移 + 堆亮 = 结构折射）
+   * 第 2 层：一圈**冷→暖的光谱洗色**，与极光共用同一个遮罩 —— 真玻璃的边会把光拆成色，
+   *         这一层就是"液态"与"磨砂"的分界（压到 .4 上下，浓了立刻变糖果边）。 */
+  background-image: var(--aurora),
+    linear-gradient(118deg, rgba(150, 186, 255, 0.44) 0%, rgba(226, 200, 255, 0.30) 46%, rgba(150, 240, 220, 0.36) 100%);
+  background-size: 140% 140%, 118% 118%;
+  background-position: center center, center center;
+  background-repeat: no-repeat, no-repeat;
+  filter: blur(11px) saturate(1.35);
+  opacity: 0.62;
+  /* 遮罩带 38%~72% → 34%~68%：折射带要**有厚度**才像透镜，细成一条线就只是描边 */
+  -webkit-mask-image: radial-gradient(128% 106% at 50% 50%, rgba(0, 0, 0, 0) 34%, #000 68%);
+  mask-image: radial-gradient(128% 106% at 50% 50%, rgba(0, 0, 0, 0) 34%, #000 68%);
+}
+html[data-mode="dark"]:not([data-bg="1"]) .card::before {
+  opacity: 0.66;
+  background-image: var(--aurora),
+    linear-gradient(118deg, rgba(140, 170, 255, 0.28) 0%, rgba(200, 170, 255, 0.22) 46%, rgba(130, 220, 200, 0.24) 100%);
+}
+/* 抛光面 + 45° 扫光 + 内衬钢蓝细线（这一层只做"光"不做"色"） */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: radial-gradient(52% 34% at 6% -12%, rgba(255, 255, 255, 0.76) 0%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(48% 32% at 100% 108%, rgba(226, 234, 255, 0.50) 0%, rgba(226, 234, 255, 0) 64%),
+    linear-gradient(
+      133deg,
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.04) 9%,
+      rgba(255, 255, 255, 0) 42%,
+      rgba(255, 255, 255, 0) 68%,
+      rgba(255, 255, 255, 0.03) 88%,
+      rgba(255, 255, 255, 0.34) 100%
+    );
+  outline: 1px solid rgba(79, 107, 255, 0.14);
+  outline-offset: -10px;
+}
+html[data-mode="dark"] .card::after {
+  background-image: radial-gradient(52% 34% at 6% -12%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 62%),
+    radial-gradient(48% 32% at 100% 108%, rgba(124, 140, 255, 0.16) 0%, rgba(124, 140, 255, 0) 64%),
+    linear-gradient(
+      133deg,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.02) 18%,
+      rgba(255, 255, 255, 0) 44%,
+      rgba(255, 255, 255, 0) 66%,
+      rgba(255, 255, 255, 0.03) 86%,
+      rgba(255, 255, 255, 0.09) 100%
+    );
+  outline-color: rgba(124, 140, 255, 0.14);
+}
+
+/* 自定义背景（锅巴开了 uiBgEnable 且主题支持时）——液态玻璃 */
+html[data-bg="1"] .card {
+  background-image: var(--bg-image), var(--rim-gradient);
+  background-size: cover, auto;
+  background-position: center, center;
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+}
+html[data-bg="1"] .card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--glass);
+  backdrop-filter: blur(var(--blur)) saturate(180%);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(180%);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.55),
+    inset -1px -1px 0 rgba(255, 255, 255, 0.3),
+    inset 0 0 0 1px var(--rim);
+  z-index: -1;
+}
+
+/* ---------- 排印 ---------- */
+.t-hero { font-size: 26px; font-weight: 800; letter-spacing: -0.4px; line-height: 1.18; }
+.t-title { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+.t-sub { font-size: 13px; font-weight: 500; color: var(--label-2); }
+.t-num { font-variant-numeric: tabular-nums; font-weight: 800; }
+.t-caption { font-size: 12px; font-weight: 700; color: var(--label-2); letter-spacing: 0.3px; }
+.t-foot { font-size: 11.5px; font-weight: 500; color: var(--label-3); line-height: 1.6; }
+.truncate { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- 头部 ---------- */
+.hero {
+  position: relative;
+  padding: 20px var(--pad) 16px;
+  color: var(--label);
+  background:
+    radial-gradient(120% 110% at 88% -16%, rgba(79, 107, 255, 0.26) 0%, transparent 58%),
+    radial-gradient(90% 96% at -10% 116%, rgba(150, 110, 220, 0.18) 0%, transparent 62%),
+    radial-gradient(70% 60% at 40% -10%, rgba(56, 178, 190, 0.14) 0%, transparent 62%);
+  border-bottom: 1px solid var(--divider);
+}
+/* 顶部镜面反光（玻璃最上面那条高光边） */
+.hero::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.85) 30%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.7) 70%, transparent);
+}
+html[data-mode="dark"] .hero::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.20) 30%, rgba(255, 255, 255, 0.28) 50%, rgba(255, 255, 255, 0.16) 70%, transparent);
+}
+/* 底部一道钢蓝细线（冷色版的"流金"） */
+.hero::after {
+  content: ""; position: absolute; left: var(--pad); right: var(--pad); bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.65;
+}
+.hero-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hero-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2.6px;
+  text-transform: uppercase;
+  background: var(--foil);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-sub { color: var(--label-2); }
+.brand-row { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  flex: none;
+  object-fit: contain;
+  background: var(--fill-3);
+  border: 1px solid rgba(79, 107, 255, 0.30);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 12px 22px -14px rgba(14, 26, 60, 0.5);
+}
+html[data-mode="dark"] .brand-logo {
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 12px 22px -14px rgba(0, 0, 0, 0.7);
+}
+.ver {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--accent);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.30));
+  border: 1px solid rgba(79, 107, 255, 0.26);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 8px 16px -12px rgba(14, 26, 60, 0.6);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+html[data-mode="dark"] .ver {
+  color: #a9b8ff;
+  border-color: rgba(124, 140, 255, 0.30);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.03));
+}
+
+/* 统计：OriginOS 式"浮岛"（四块悬浮小玻璃） */
+.stat-row { display: flex; gap: 8px; margin-top: 14px; }
+.stat {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 11px 10px 9px;
+  border-radius: 16px;
+  /* 原子浮岛：填充更透 + 同一套折射边 + 投影更沉（"浮"靠这三件事） */
+  border: 1px solid transparent;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.10)),
+    var(--rim-gradient);
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  backdrop-filter: blur(12px) saturate(190%);
+  -webkit-backdrop-filter: blur(12px) saturate(190%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62), 0 20px 30px -20px rgba(14, 26, 60, 0.66),
+    0 4px 10px -8px rgba(14, 26, 60, 0.5);
+  text-align: center;
+}
+/* 顶部一道靛蓝发丝（冷色版的"金线"） */
+.stat::after {
+  content: ""; position: absolute; left: 12px; right: 12px; top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(79, 107, 255, 0.5), transparent);
+}
+html[data-mode="dark"] .stat {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02)),
+    var(--rim-gradient);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 20px 30px -20px rgba(0, 0, 0, 0.85);
+}
+html[data-mode="dark"] .stat::after { background: linear-gradient(90deg, transparent, rgba(124, 140, 255, 0.42), transparent); }
+.stat-v {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.25;
+  background: var(--foil-soft);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.stat-k { margin-top: 3px; font-size: 9.5px; font-weight: 700; color: var(--label-3); letter-spacing: 1.6px; text-transform: uppercase; }
+
+/* ---------- 分组与原子的行 ---------- */
+.group { margin-top: 12px; }
+/**
+ * `.group.inset` = iOS 那种"卡片内成组列表"：
+ * 组本身是一块浅色圆角面，行是**透明的**，靠行间细线分隔。
+ * ⚠️ 不这么写会出现"飘着的字"——状态/设置卡的行全是 `.row--plain`（我把它设成透明），
+ * 再没有这层底就直接变成白底黑字、看着像没样式（第一版就是这样）。
+ */
+.group.inset { padding: 0 var(--pad); }
+.group.inset > .group-body {
+  /* 小号液态玻璃板：与卡片同一套折射边，只是更薄（填充 0.46/0.24 → 0.34/0.13，
+   * 两层玻璃的透明度必须拉开，否则叠在一起就是"一块白"） */
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.08) 26%, rgba(255, 255, 255, 0.05) 100%),
+    var(--rim-gradient);
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  border: 1px solid transparent;
+  border-radius: var(--radius-group);
+  padding: 2px 14px;
+  overflow: hidden;
+  backdrop-filter: blur(14px) saturate(190%);
+  -webkit-backdrop-filter: blur(14px) saturate(190%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42), inset 0 -18px 30px -26px rgba(86, 116, 200, 0.30),
+    0 18px 32px -26px rgba(14, 26, 60, 0.64);
+}
+html[data-mode="dark"] .group.inset > .group-body {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.03) 26%, rgba(255, 255, 255, 0.02) 100%),
+    var(--rim-gradient);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), inset 0 -18px 30px -26px rgba(124, 140, 255, 0.16),
+    0 18px 32px -26px rgba(0, 0, 0, 0.8);
+}
+.group.inset .row,
+.group.inset .row--plain {
+  background: transparent;
+  background-image: none;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.group.inset .row + .row { border-top: 1px solid var(--divider); }
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--pad) 8px;
+  min-width: 0;
+}
+.group.inset .group-title { padding: 0 0 8px; }
+.group-title .t-caption { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 段落标题前的靛蓝小菱形（排版记号） */
+.group-title .t-caption::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-right: 8px;
+  vertical-align: 1px;
+  transform: rotate(45deg);
+  background: var(--foil-soft);
+  box-shadow: 0 0 0 2px rgba(79, 107, 255, 0.10);
+}
+.group-body { display: flex; flex-direction: column; gap: 6px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0; /* 关键：不让长命令把容器顶宽（上一版就是这么被裁的） */
+  padding: 9px 12px;
+  border-radius: var(--radius-row);
+  /* 小玻璃片：与卡片同一套渐变描边，填充压到 0.12/0.03 —— 行要"透"，不能是白药丸 */
+  border: 1px solid transparent;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03)),
+    var(--rim-gradient);
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  backdrop-filter: blur(10px) saturate(170%);
+  -webkit-backdrop-filter: blur(10px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), inset 0 -1px 0 rgba(14, 26, 60, 0.04),
+    0 12px 22px -20px rgba(14, 26, 60, 0.8);
+}
+html[data-mode="dark"] .row {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02)),
+    var(--rim-gradient);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+.row--plain { background: transparent; border-color: transparent; box-shadow: none; padding: 6px 2px; }
+.row-main { flex: 1 1 auto; min-width: 0; }
+.row-title { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+.row-sub { margin-top: 2px; font-size: 11.5px; font-weight: 500; color: var(--label-2); line-height: 1.35; }
+.row-value { flex: none; font-size: 12px; font-weight: 700; color: var(--label-2); }
+.row--wrap { flex-wrap: wrap; }
+.row--thumb { gap: 12px; }
+.thumb {
+  width: 46px;
+  height: 46px;
+  border-radius: var(--radius-thumb);
+  flex: none;
+  object-fit: cover;
+  background: var(--fill-3);
+}
+
+/* ---------- 胶囊与标签 ---------- */
+.pill-row { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--label-2);
+  border: 1px solid transparent;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.40), rgba(255, 255, 255, 0.16)),
+    var(--rim-gradient);
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+html[data-mode="dark"] .pill {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    var(--rim-gradient);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+/* 语义胶囊（已登录 / 未配置 …）：收敛成同色玻璃 —— 实心糖果色是 1.x 的语言，
+ * 摆在这套玻璃卡上会显得廉价（状态照样一眼可读：色相还在，只是不再"喊"）。 */
+.pill--accent,
+.pill--green,
+.pill--orange,
+.pill--red,
+.pill--gold {
+  --tone: var(--accent);
+  color: color-mix(in srgb, var(--tone) 84%, #101726);
+  background: color-mix(in srgb, var(--tone) 14%, rgba(255, 255, 255, 0.40));
+  border-color: color-mix(in srgb, var(--tone) 30%, rgba(255, 255, 255, 0.55));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.pill--green { --tone: var(--green); }
+.pill--orange { --tone: var(--orange); }
+.pill--red { --tone: var(--red); }
+.pill--gold { --tone: var(--gold); }
+html[data-mode="dark"] .pill--accent,
+html[data-mode="dark"] .pill--green,
+html[data-mode="dark"] .pill--orange,
+html[data-mode="dark"] .pill--red,
+html[data-mode="dark"] .pill--gold {
+  color: color-mix(in srgb, var(--tone) 78%, #eef1f6);
+  background: color-mix(in srgb, var(--tone) 22%, rgba(16, 20, 28, 0.30));
+  border-color: color-mix(in srgb, var(--tone) 36%, rgba(255, 255, 255, 0.10));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+/* ---------- 多平台专属控件 ---------- */
+/* 平台条：左边色点 + 平台名 + 最短命令 + 档位徽标 */
+.plats { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 var(--pad); }
+.plat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 5px 10px 5px 8px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.14)),
+    var(--rim-gradient);
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 700;
+}
+html[data-mode="dark"] .plat {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+    var(--rim-gradient);
+}
+/* 品牌色点带一圈光晕（平台色标是 2.0 的身份，别省这道光） */
+.plat i {
+  width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--src);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--src) 22%, transparent);
+}
+.plat em { font-style: normal; font-weight: 600; font-size: 11px; color: var(--label-3); }
+.plat .cmd { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--accent); }
+
+/* 来源色轨：列表每一行左侧那条竖线 —— 一眼看出这首歌来自哪家 */
+/* 色轨 + 一圈同色光晕（品牌色要在周围"发光"，一眼就知道这家是哪家） */
+.src-rail {
+  width: 3px; border-radius: 999px; align-self: stretch; flex: none; background: var(--src);
+  box-shadow: 0 0 12px 1px color-mix(in srgb, var(--src) 44%, transparent);
+}
+/* 来源 chip：色块 + 白字（QQ 绿 / 网易红 / B站粉 …） */
+.src-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--src);
+  white-space: nowrap;
+}
+.src-chip.soft { color: var(--src); background: var(--src-soft); }
+.src-rail.soft { background: var(--src); opacity: 0.55; }
+/* 头部那排来源计数里**条数最多的那家** = 选中态：白圈 + 投影。
+ * 这套 UI 的语言是"实心品牌色"，所以选中态不用白滑块（会跟实心 chip 打架），
+ * 改用一圈白环 —— 分段控制器该有的"当前项"一眼还是认得出。 */
+.hero .pill-row > .src-chip.on {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9), 0 6px 14px -6px rgba(14, 26, 60, 0.55);
+}
+html[data-mode="dark"] .hero .pill-row > .src-chip.on {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.30), 0 6px 14px -6px rgba(0, 0, 0, 0.7);
+}
+
+/* 列表条目 */
+.sw { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.item { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* ---------- 空态 / 页脚 ---------- */
+.empty, .blank {
+  padding: 26px var(--pad);
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--label-3);
+}
+/* 底部提示条：压扁的玻璃条（不是一段裸文案贴在卡底） */
+.tip {
+  display: block;
+  margin: 14px var(--pad) 0; padding: 11px 13px;
+  border-radius: 15px;
+  border: 1px solid transparent;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.10)),
+    var(--rim-gradient);
+  background-origin: border-box, border-box;
+  background-clip: padding-box, border-box;
+  backdrop-filter: blur(10px) saturate(170%);
+  -webkit-backdrop-filter: blur(10px) saturate(170%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  color: var(--label-2);
+}
+html[data-mode="dark"] .tip {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    var(--rim-gradient);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.note { padding: 10px var(--pad) 0; font-size: 11.5px; color: var(--label-3); line-height: 1.55; }
+.foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 12px var(--pad) 16px;
+  border-top: 1px solid var(--divider);
+  min-width: 0;
+}
+.foot-brand { font-size: 11.5px; font-weight: 700; color: var(--label-3); }
+
+/* ---------- 复用卡（status / lyric / hot / comment / settings）需要的小件 ---------- */
+.profile { padding: 4px var(--pad) 0; }
+.head-cover {
+  width: 100%;
+  height: 132px;
+  object-fit: cover;
+  border-radius: var(--radius-group);
+  background: var(--fill-3);
+}
+.vip-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bar { flex: 1 1 auto; min-width: 0; height: 6px; border-radius: 999px; background: var(--fill-3); overflow: hidden; }
+/* 榜单/热度条：模板里既有 <span> 也有 <i>（历史上两种都写过），两个都认，
+   否则换成这套 CSS 之后会出现"条是空的"（实测：热搜第 4 条就没有填充色） */
+.bar > span,
+.bar > i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.bar--warm > span,
+.bar--warm > i { background: var(--orange); }
+.tiles { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 var(--pad); }
+.tile {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.24));
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+html[data-mode="dark"] .tile {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  border-color: rgba(255, 255, 255, 0.10);
+}
+.rank { flex: none; width: 22px; font-size: 12px; font-weight: 800; color: var(--label-3); }
+.rank--1 { color: #d92d20; }
+.rank--2 { color: #c2560f; }
+.rank--3 { color: #8a6a12; }
+.hot-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 0; }
+.hot-word { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; }
+.hot-val { flex: none; font-size: 11.5px; font-weight: 700; color: var(--label-3); }
+.hot-line { display: flex; align-items: center; gap: 10px; }
+
+.c-row { display: flex; gap: 10px; min-width: 0; padding: 9px 0; border-top: 1px solid var(--divider); }
+.c-row:first-child { border-top: 0; }
+.c-avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; object-fit: cover; background: var(--fill-3); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--fill-3); }
+.c-main { flex: 1 1 auto; min-width: 0; }
+.c-nick { font-size: 12.5px; font-weight: 700; }
+.c-time { margin-left: 8px; font-size: 11px; font-weight: 500; color: var(--label-3); }
+.c-body { margin-top: 3px; font-size: 12.5px; line-height: 1.5; color: var(--label); word-break: break-word; }
+.c-foot { margin-top: 5px; display: flex; gap: 10px; font-size: 11px; color: var(--label-3); }
+.c-meta { display: flex; align-items: center; min-width: 0; }
+.cmd-name { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+.cmd-example { font-family: var(--mono); font-size: 11px; }
+.cmd-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* 歌词卡 */
+.lyric { padding: 4px var(--pad) 0; }
+.np { display: flex; gap: 12px; align-items: center; min-width: 0; }
+.np-cover { width: 54px; height: 54px; border-radius: var(--radius-thumb); flex: none; object-fit: cover; background: var(--fill-3); }
+.np-title { font-size: 15px; font-weight: 700; }
+.np-sub { margin-top: 2px; font-size: 11.5px; color: var(--label-2); }
+.np-pills { margin-top: 6px; }
+
+/* 开关（设置卡） */
+.sw--on { color: #fff; background: var(--green); }
+.sw--off { color: var(--label-2); background: var(--fill-3); }
+
+/* 榜单 / 封面等杂项 */
+.song-album { font-size: 11.5px; color: var(--label-3); }
+.avatar--photo { object-fit: cover; }

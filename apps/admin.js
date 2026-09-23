@@ -11,9 +11,11 @@ import { request, listAccounts, normalizeApiBase } from '../utils/api.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
-import { updatePlugin, getUpdateLog, getLocalVersion } from '../utils/update.js'
+// displayVersion：解锁？？？后一切"当前版本"文案显示 2.0 专属版；未解锁与 2.0 之前一致
+import { updatePlugin, getUpdateLog, displayVersion } from '../utils/update.js'
 import { listThemeIds, describeThemes, resolveTheme, TIME_LABEL } from '../utils/theme.js'
 import { describeBackground } from '../utils/background.js'
+import { isV2Unlocked } from '../utils/v2.js'
 
 export class qqmusicAdmin extends (await loadPluginBase()) {
   constructor() {
@@ -163,7 +165,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         '#qqm一起听 探测      只读探测一起听参数（首次启用必须先跑）',
         '#qqm 音质 flac',
         '#qqm 测试',
-        `#qqm更新          拉取最新代码（当前 v${getLocalVersion()}）`,
+        `#qqm更新          拉取最新代码（当前 ${displayVersion()}）`,
         '#qqm强制更新      丢弃本地改动并同步远程',
         '#qqm更新日志      最近提交',
       ].join('\n')
@@ -247,13 +249,17 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       .trim()
     const current = resolveTheme(cfg)
     const presentTimeColor = current.useTimeColor !== false
+    const themes = describeThemes()
+    // 声明了"支持自定义背景"的主题（apple / nebula / multi）—— 别在文案里写死 apple：
+    // 2.0 的两套主题同样支持，写死会让用户以为切了主题背景就废了（2026-09-23 修）
+    const bgIds = themes.filter((t) => t.bg).map((t) => t.id).join(' / ') || '（无）'
 
     if (!arg) {
-      const lines = describeThemes().map((t) => {
+      const lines = themes.map((t) => {
         const mark = t.id === current.id ? '▶' : '　'
         const darkTag = t.dark ? ' · 支持深色' : ''
         const bgTag = t.bg ? ' · 支持自定义背景' : ''
-        const coverTag = t.cards < 8 ? ` · 已实现 ${t.cards}/8 张卡` : ''
+        const coverTag = t.cards < t.cardsTotal ? ` · 已实现 ${t.cards}/${t.cardsTotal} 张卡` : ''
         return `${mark} ${t.id} — ${t.name}${darkTag}${bgTag}${coverTag}${t.desc ? `\n      ${t.desc}` : ''}`
       })
       await e.reply(
@@ -262,7 +268,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
             presentTimeColor ? `${TIME_LABEL[current.period] || current.period}配色` : '固定配色'
           } · ${current.dark ? '深色' : '浅色'}${current.darkPref === 'auto' ? '（跟随时间）' : ''}`,
           `背景：${describeBackground(cfg)}${
-            current.manifest.bg === true ? '' : '（当前主题不支持自定义背景，仅 apple 支持）'
+            current.manifest.bg === true ? '' : `（当前主题不支持自定义背景；支持的是 ${bgIds}）`
           }`,
           '',
           '可用主题：',
@@ -293,7 +299,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
             '  · 图片直链  https://example.com/a.jpg',
             '  · 图片 API  https://api.example.com/random（JSON 里有图片地址，或直接返回图片）',
             '远端图会缓存到本地（锅巴可调分钟数，0=每次都换）；取不到时自动回落主题底色。',
-            '仅 apple 主题支持，其余主题忽略此设置。',
+            `支持自定义背景的主题：${bgIds}（其余主题忽略此设置）。`,
           ].join('\n')
         )
         return true
@@ -310,7 +316,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
           `背景已设为：${value}`,
           okTheme
             ? '卡片将使用 iOS 液态玻璃；取图失败会自动回落主题底色（日志里有原因）'
-            : `⚠️ 当前主题「${current.manifest.name}」不支持自定义背景，切到 apple 才看得到效果`,
+            : `⚠️ 当前主题「${current.manifest.name}」不支持自定义背景，切到 ${bgIds} 才看得到效果`,
         ].join('\n')
       )
       return true
@@ -361,10 +367,17 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
       await e.reply(`没有主题「${arg}」。可用：${ids.join(' / ') || '（无）'}\n自定义主题：在 resources/themes/ 下丢一个带 theme.json 的目录`)
       return true
     }
-    Config.mergeConfig('qqmusic', { uiTheme: arg })
-    const next = resolveTheme({ ...cfg, uiTheme: arg })
+    /**
+     * 写哪个键要看当前是哪一代界面：
+     *   · ？？？关着 → 老界面，写 `uiTheme`
+     *   · ？？？打开 → 2.0 界面，写 `uiThemeV2`
+     * 只写一个键的话，会出现"回话说切好了、实际没变"（2.0 下改 uiTheme 不影响生效主题）。
+     */
+    const key = isV2Unlocked(cfg) ? 'uiThemeV2' : 'uiTheme'
+    Config.mergeConfig('qqmusic', { [key]: arg })
+    const next = resolveTheme({ ...cfg, [key]: arg })
     await e.reply(
-      `界面已切到「${next.manifest.name}」${next.manifest.dark ? (next.dark ? '（深色）' : '（浅色）') : '（该主题只有浅色）'}\n立即生效，无需重启；发 #qqm点歌 / #qqm帮助 就能看到新界面`
+      `界面已切到「${next.manifest.name}」${next.manifest.dark ? (next.dark ? '（深色）' : '（浅色）') : '（该主题只有浅色）'}${isV2Unlocked(cfg) ? `（2.0 主题 ${key}）` : ''}\n立即生效，无需重启；发 #qqm点歌 / #qqm帮助 就能看到新界面`
     )
     return true
   }
@@ -413,7 +426,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
   }
 
   async update(e) {
-    await e.reply(`开始更新 qqmusic-plugin（v${getLocalVersion()}）…`)
+    await e.reply(`开始更新 qqmusic-plugin（${displayVersion()}）…`)
     const ret = await updatePlugin({ force: false })
     await e.reply(ret.message || (ret.ok ? '更新完成' : '更新失败'))
     return true
@@ -421,7 +434,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
 
   async forceUpdate(e) {
     await e.reply(
-      `开始强制更新 qqmusic-plugin（v${getLocalVersion()}）…\n将丢弃插件目录内未提交的本地修改（保留 config/config 用户配置）`
+      `开始强制更新 qqmusic-plugin（${displayVersion()}）…\n将丢弃插件目录内未提交的本地修改（保留 config/config 用户配置）`
     )
     const ret = await updatePlugin({ force: true })
     await e.reply(ret.message || (ret.ok ? '强制更新完成' : '强制更新失败'))

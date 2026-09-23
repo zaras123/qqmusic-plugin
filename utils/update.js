@@ -8,6 +8,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pluginPath, pluginName } from './path.js'
 import { logInfo, logWarn, logError } from './log.js'
+// 版本号要受「？？？」闸门影响（未解锁时必须逐字还是 1.9.x），判定只有 utils/v2.js 那一处
+import { isV2Unlocked } from './v2.js'
 
 const execFileAsync = promisify(execFile)
 let updating = false
@@ -27,6 +29,35 @@ export function getLocalVersion() {
   } catch {
     return '?'
   }
+}
+
+/**
+ * 2.0 专属版本号（**只在？？？打开时对外显示**）
+ *
+ * 需求原话：「版本也变，这个是 2.0 专属的，没开？？？之前和 2.0 之前一样」。
+ *
+ * 为什么不直接改 package.json：
+ *   · package.json 的 version 是**更新器**的判据（git pull 前后比版本），
+ *     本地写 2.0.0 而远程还是 1.9.14 时，拉完会报"v2.0.0 → v1.9.14"这种倒退的鬼话；
+ *   · 2.0 还压在闸门后面（没解锁的人看到的必须逐字是 1.9.x），
+ *     所以 2.0 的版本是**展示层**的事，不是包的事。
+ *
+ * 正式发版那天把 package.json 升到 2.x，这里会自动改用真实版本号（见下）。
+ */
+export const V2_DISPLAY_VERSION = '2.0.0'
+
+/**
+ * 对外展示的版本号：解锁 = 2.0 专属版；未解锁 = 老的 v1.9.x（与 2.0 之前逐字一致）
+ *
+ * @param {object} [cfg] 配置（不给就现读 qqmusic 配置）
+ * @returns {string} 形如 `v2.0.0` / `v1.9.14`
+ */
+export function displayVersion(cfg = null) {
+  const local = getLocalVersion()
+  if (!isV2Unlocked(cfg)) return `v${local}`
+  // package.json 已经进 2.x（真发版了）→ 用真实版本，不再顶着占位号
+  const major = Number(String(local).split('.')[0])
+  return Number.isFinite(major) && major >= 2 ? `v${local}` : `v${V2_DISPLAY_VERSION}`
 }
 
 async function git(args, { timeout = 120000 } = {}) {
@@ -257,7 +288,8 @@ export async function updatePlugin({ force = false } = {}) {
       already || (oldCommit && oldCommit === newCommit)
         ? '已是最新'
         : '更新成功',
-      `版本: v${oldVersion}${oldVersion !== newVersion ? ` → v${newVersion}` : ''}`,
+      // 这一行说的是**仓库包版本**（git pull 前后的 package.json），不是界面上那个展示版本
+      `包版本: v${oldVersion}${oldVersion !== newVersion ? ` → v${newVersion}` : ''}`,
       `提交: ${oldCommit || '-'}${oldCommit !== newCommit ? ` → ${newCommit || '-'}` : ''}`,
       time ? `时间: ${time}` : '',
       branch ? `分支: ${branch}` : '',
@@ -322,7 +354,7 @@ export async function getUpdateLog({ since = '', limit = 15 } = {}) {
     lines.push(`${date || ''} ${subject}`.trim())
   }
 
-  const version = getLocalVersion()
+  const version = displayVersion().replace(/^v/, '')
   const commit = await getCommitShort()
   const remoteUrl = await getRemoteUrl()
   const header = [

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 平台状态</title>
+  <link rel="stylesheet" href="resources/themes/apple/_base.css" />
+  <!--
+    2.0 单平台状态卡（apple 主题）：这一家怎么用、缺什么、下一步点哪
+
+    与聚合卡同一套数据源（`GET /platforms`），只是挑出那一家并把命令清单摊开。
+    苹果语汇：分组标题 + 行（左标题右值）+ 胶囊，不用色轨、不用彩色 hero。
+  -->
+  <style>
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+    .warn { color: var(--orange); }
+    .pill-row { margin-top: 10px; }
+    .tip { padding: 14px var(--pad) 0; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music 2.0 · 音源</div>
+          <div class="t-title truncate">{{data.title || '平台状态'}}</div>
+          <div class="t-sub truncate">{{data.subtitle}}</div>
+          <div class="pill-row">
+            <span class="pill {{if data.row.ready}}pill--green{{else}}pill--red{{/if}}">{{data.row.stateText}}</span>
+            <span class="pill">{{data.row.kindText}}</span>
+            {{if data.row.canQr}}<span class="pill pill--accent">可扫码</span>{{/if}}
+          </div>
+        </div>
+      </div>
+
+      <div class="group inset">
+        <div class="group-body">
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">登录状态</div></div>
+            <div class="row-value">{{data.row.stateText}}{{if data.row.sourceText}} · {{data.row.sourceText}}{{/if}}</div>
+          </div>
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">档位</div></div>
+            <div class="row-value">{{data.row.quality || '-'}}</div>
+          </div>
+          {{if data.row.action}}
+          <div class="row row--plain">
+            <div class="row-main">
+              <div class="row-title">下一步</div>
+              <div class="row-sub mono accent truncate">{{data.row.action}}</div>
+            </div>
+          </div>
+          {{/if}}
+          {{if data.row.unreliable}}
+          <div class="row row--plain">
+            <div class="row-main">
+              <div class="row-title warn">⚠️ 注意</div>
+              <div class="row-sub warn">{{data.row.unreliable}}</div>
+            </div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      {{if data.commands && data.commands.length}}
+      <div class="group inset">
+        <div class="group-title">
+          <span class="t-caption">怎么用</span>
+          <span class="pill">{{data.commands.length}} 条</span>
+        </div>
+        <div class="group-body">
+          {{each data.commands cmd}}
+          <div class="row row--plain">
+            <div class="row-main">
+              <div class="row-title">{{cmd.name}}</div>
+              {{if cmd.desc}}<div class="row-sub truncate">{{cmd.desc}}</div>{{/if}}
+              {{if cmd.example}}<div class="row-sub mono accent truncate">{{cmd.example}}</div>{{/if}}
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      {{if data.tips && data.tips.length}}
+      <div class="tip t-foot">
+        {{each data.tips tip}}
+        <div>· {{tip}}</div>
+        {{/each}}
+      </div>
+      {{/if}}
+
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

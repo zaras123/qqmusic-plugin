@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 2.0 帮助</title>
+  <link rel="stylesheet" href="resources/themes/multi/_base.css" />
+  <!--
+    「多平台」2.0 帮助卡
+
+    与 1.x 帮助卡的设计差别（这就是"重新设计一套"的理由）：
+      · **音源区放在最前，且一行一个平台**：色轨 + 平台名 + 最短命令 + 档位 +（要凭据的标⚠️）
+        —— 多平台之后，"这台机器能用哪几家、怎么最快地点到"比"QQ 有哪些命令"更该先看到
+      · 命令区改用**两列紧凑格**（名称 + 最短示例），描述移到 title 提示里
+        —— 解决上一版"示例 pill 挤掉描述、一到主人视角就 5000px 长"的问题
+      · 每条命令给的都是**最短写法**（`#qqm网易 关键词`），不再展示冗长的全称版
+  -->
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="brand-row">
+          {{if data.logo}}<img class="brand-logo" src="{{data.logo}}" alt="logo" />{{/if}}
+          <div style="min-width:0">
+            <div class="hero-eyebrow">QQ Music Plugin 2.0</div>
+            <div class="t-hero">{{data.title || '帮助'}}</div>
+          </div>
+          <div class="ver">{{data.version}}</div>
+        </div>
+        <div class="t-sub hero-sub">{{data.subtitle || '多平台点歌 · 解析 · 卡片'}}</div>
+        <div class="stat-row">
+          <div class="stat"><div class="stat-v t-num">{{data.statPlatformsTotal || data.statPlatforms}}</div><div class="stat-k">可用音源</div></div>
+          <div class="stat"><div class="stat-v t-num">{{data.statCommands}}</div><div class="stat-k">指令</div></div>
+          <div class="stat"><div class="stat-v">{{data.statQuality}}</div><div class="stat-k">最高音质</div></div>
+          <div class="stat"><div class="stat-v">{{data.statMode}}</div><div class="stat-k">运行模式</div></div>
+        </div>
+      </div>
+
+      <!-- ① 音源：一行一个，带品牌色轨与最短命令 -->
+      {{if data.sources && data.sources.length}}
+      <div class="group">
+        <div class="group-title">
+          <span class="t-caption">可用音源（{{data.sources.length}} 家外源 + QQ）</span>
+          <span class="pill">{{data.currentSource || 'QQ 曲库'}}</span>
+        </div>
+        <div class="group-body" style="padding:0 var(--pad)">
+          <!-- 一行一个平台，但**只占一行高**（平台名 + 档位 + 最短命令）——
+               9 个平台如果每个两行，整张卡会长到 7000px，QQ 里会被压得看不清 -->
+          <div class="row" style="--src:#31c27c;padding:6px 10px">
+            <span class="src-rail"></span>
+            <span class="row-title">QQ 音乐</span>
+            <span class="pill" style="margin-left:auto">无损 / Hi-Res</span>
+            <span class="cmd-name" style="color:var(--accent);flex:none">#qqm点歌</span>
+          </div>
+          {{each data.sources p}}
+          <div class="row" style="--src:{{p.color}};padding:6px 10px">
+            <span class="src-rail"></span>
+            <span class="row-title truncate">{{p.label}}</span>
+            {{if p.needsCredential}}<span class="pill pill--orange" style="flex:none">需配凭据</span>{{/if}}
+            <span class="pill" style="margin-left:auto;flex:none">{{p.quality}}</span>
+            <span class="cmd-name" style="color:var(--accent);flex:none">#qqm{{p.short}}</span>
+          </div>
+          {{/each}}
+        </div>
+        <div class="note">每个音源都能单独点歌：<b>#qqm&lt;平台&gt; 关键词</b>（加「播放」= 搜第一条直接播）；<b>#qqm源 网易</b> 设一次当前音源，之后 <b>#qqm点歌 关键词</b> 就走它（切回：<b>#qqm源 默认</b>）。</div>
+      </div>
+      {{/if}}
+
+      <!-- ② 其余命令：两列紧凑格（示例即最短写法；描述放 title 悬停看） -->
+      {{each data.sections section index}}
+        {{if index > 0}}
+        <div class="group">
+          <div class="group-title">
+            <span class="t-caption">{{section.title}}</span>
+            {{if section.tag}}<span class="pill">{{section.tag}}</span>{{/if}}
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;padding:0 var(--pad)">
+            <!-- 主人管理项很多（12 条），只列最常用的 8 条，其余引导到 #qqm设置 —— 
+                 否则整张帮助卡会长到 7000px+，QQ 里压成一条就没人看得清了 -->
+            {{each section.items item index}}
+            {{if data.full || index < 8}}
+            <div class="row" style="flex:1 1 calc(50% - 3px);min-width:0" title="{{item.desc}}">
+              <div class="row-main">
+                <div class="row-title truncate">{{item.name}}</div>
+                <div class="row-sub truncate" style="font-family:var(--mono);color:var(--accent)">{{item.example}}</div>
+              </div>
+            </div>
+            {{/if}}
+            {{/each}}
+            {{if !data.full && section.items.length > 8}}
+            <div class="row" style="flex:1 1 100%;min-width:0">
+              <div class="row-main"><div class="row-sub">还有 {{section.items.length - 8}} 条 · #qqm帮助 全部 看完整清单</div></div>
+            </div>
+            {{/if}}
+          </div>
+        </div>
+        {{/if}}
+      {{/each}}
+
+      {{if data.tip}}<div class="tip t-foot">{{data.tip}}</div>{{/if}}
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+        {{if data.apiHint}}<span class="foot-brand">{{data.apiHint}}</span>{{/if}}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

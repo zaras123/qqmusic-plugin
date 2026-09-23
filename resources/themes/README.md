@@ -5,8 +5,14 @@
 ```
 resources/themes/
 ├── classic/     # 内置：插件的原始界面（默认，浅色）
-└── apple/       # 内置：对标 iOS 的分组列表风格（浅色 + 深色）
+├── apple/       # 内置：对标 iOS 的分组列表风格（浅色 + 深色 + 自定义背景）
+├── nebula/      # 内置：2.0 专版「星云 · 鎏光」—— 液态玻璃材质 + 香槟金烫字（2.0 的默认主题）
+└── multi/       # 内置：2.0 专版「多平台」—— 每首歌/每个平台都带来源色标
 ```
+
+> 内置主题里的 `nebula` / `multi` 是 **2.0 专版**：它们只在配置打开 `？？？`（键名 `unlockV2`）
+> 之后才会被渲染（2.0 默认走 `nebula`，见 `theme.json` 与 `utils/theme.js`）。没解锁时插件
+> 用的还是 `uiTheme`，看到的东西与 2.0 之前逐字一致。
 
 ## 加一套自己的主题
 
@@ -35,7 +41,38 @@ resources/themes/
 
 3. 放卡片模板 `<卡片名>.html`，**只实现你想改的那几张也行**，缺的会自动回落到 `classic` 的同名模板。
 
-可用的卡片名：`qqmusic-help`、`qqmusic-list`、`qqmusic-detail`、`qqmusic-lyric`、`qqmusic-hot`、`qqmusic-comment`、`qqmusic-status`、`qqmusic-settings`。
+   > ⚠️ **跟插件一起分发的那几套内置主题必须把卡片实现全**：缺一张就回落 `classic`，
+   > 于是"内容是这套主题的、皮肤是经典绿"，看着像两套 UI 拼在一起（2026-09-23 实测：
+   > `apple` 少了 `qqmusic-platform` / `qqmusic-platforms` 两张 2.0 卡，2.0 下用苹果皮肤时
+   > 平台卡整套变成经典绿）。`test.mjs` 里有这条断言，它**只查内置的四套** ——
+   > 你自己加的主题按上面这条契约可以只实现部分卡片。
+
+可用的卡片名：`qqmusic-help`、`qqmusic-guide`、`qqmusic-platform`、`qqmusic-platforms`、`qqmusic-list`、`qqmusic-detail`、`qqmusic-lyric`、`qqmusic-hot`、`qqmusic-comment`、`qqmusic-status`、`qqmusic-settings`。
+
+## 2.0 专用的三张卡
+
+`？？？` 打开后插件会多渲染三张卡。文件名与其它卡一样，只是 `data` 的形状不同
+（都出自 `utils/card-data.js`，模板只负责画，别自己算）：
+
+| 卡片 | 什么时候发 | `data` 上有什么 |
+|---|---|---|
+| `qqmusic-guide` | `#qqm帮助`（2.0 打开时） | `version`/`logo`/`title`/`subtitle`、统计（`statPlatforms`/`statPlatformsTotal`/`statCommands`/`statQuality`/`statMode`）、`sources[]`、`sections[]`、`tip` |
+| `qqmusic-platform` | `#qqm<平台>状态`（如 `#qqm网易状态`） | `title`/`subtitle`/`logo`、`row`（单行，见下）、`commands[]`（`name`/`example`/`desc`）、`tips[]` |
+| `qqmusic-platforms` | `#qqm平台状态` | `title`/`subtitle`、`total`/`readyCount`/`canQrCount`、`rows[]`、`tips[]` |
+
+`row` 就是"一个平台一行"，`utils/card-data.js` 的 `platformStatusRow()` 产出：
+
+```
+label  short  color  kindText(账号/凭据/音源/匿名)  ready  stateText  quality
+sourceText  detail  canQr  ownersCount  unreliable  note  action(下一步该发什么)
+```
+
+- `ready` = 能不能用（匿名音源恒真、Apple 看有没有启用、其余看登录态），`stateText` 是给人看的说法
+- `action` 是**可操作的那一步**（能扫码的给 `#qqm<平台>登录`，凭据级给 `POST /<平台>/cookies`），没得做就是空串
+- 帮助卡的音源清单**同时给两种形状**：`sources[]`（新的，多带 `short`/`needsCredential`）与
+  `sections[0].platforms[]`（老的）。老主题继续读 `sections`，2.0 主题读 `sources`，两边模板都不用改 ——
+  **写预览样例时也要两份都给**，只给老的那份的话，2.0 帮助卡里"一行一个音源"那整段在预览里会缺席
+  （`scripts/preview-cards.mjs` 已经按这个来了）。
 
 ## 模板约定
 

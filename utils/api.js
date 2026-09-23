@@ -9,6 +9,7 @@ import {
   summarizeFileSizes,
 } from './quality.js'
 import { logInfo, logWarn } from './log.js'
+import { platformIcon, platformIdOf, platformLabel, isExternalMid as isExternalPlatformMid } from './platforms.js'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -258,9 +259,21 @@ export async function listAccounts() {
   return body?.data?.accounts || []
 }
 
+/**
+ * 各家平台的**登录状态**（一次拿全，给"平台状态卡"用）
+ *
+ * API 侧聚合了 QQ / 网易云 / 酷狗 / 汽水 / 酷我 / Apple / 匿名音源 ——
+ * 一次请求就够了（原来是 6 次：`/login/status` + 4 个 `/x/status` + `/apple/status`）。
+ * 返回值里**没有凭据内容**，只有"配没配、从哪来、能不能扫码"。
+ */
+export async function platformsStatus(userKey = '') {
+  const body = await request('/platforms', {}, 'get', userKey)
+  return body?.data || { list: [], counts: {} }
+}
+
 export async function searchSongs(
   keyword,
-  { pageNo = 1, pageSize = 10, userKey = '', fill = false, fillLimit = 5 } = {}
+  { pageNo = 1, pageSize = 10, userKey = '', fill = false, fillLimit = 5, fillSources = null } = {}
 ) {
   // fill：让 API 在 QQ 结果尾部追加其它平台的免费可播曲（拿不到链的不会返回）。
   // 默认关 —— 只有点歌列表需要它；直接播放/歌词/链接解析只取首条，带了只是白等一轮
@@ -270,48 +283,99 @@ export async function searchSongs(
     params.fillLimit = fillLimit
   }
   const body = await request('/search', params, 'get', userKey)
-  return (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
+  const list = (body?.data?.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
+  /**
+   * 2.0：按"这家参与跨平台补歌吗"过滤补充曲
+   *
+   * `fillSources` 为 null/未传 = **不过滤**（1.x 行为，一个字都不变）。
+   * 传了数组 = 只保留这些来源的补充曲（QQ 本体没有 source 字段，永远保留）。
+   * 过滤放在客户端：补歌是并行搜的，少一家不会更快，但能少打一次上游；
+   * 真要省上游调用得在 API 侧加 fillSources 参数，那是下一步的事。
+   */
+  if (fill && Array.isArray(fillSources)) {
+    const keep = new Set(fillSources.map((x) => String(x).toLowerCase()))
+    return list.filter((s) => !s.source || keep.has(String(s.source).toLowerCase()))
+  }
+  return list
 }
 
 /**
- * 外部平台来源 → 展示名 + app 图标
- * 图标用 QQ互联 的官方应用图标（与卡片里封面图一样走远程加载）
+ * **只搜某一个平台**（2.0：`#qqm网易云点歌` 这类指令用）
+ *
+ * 与 `searchSongs({fill:true})` 的区别：fill 是"QQ 为主 + 其它平台追加几条"，
+ * 按平台筛完常常只剩 0~1 条；这里直接走 API 的 `?source=<平台>`，不进 QQ 搜索。
+ *
+ * API 侧会**先取链验证**再返回（"点了播不了"最伤体验），所以这里拿到的都是能播的候选。
+ * 空结果时 API 会带 `unavailable`（"这家没配好" vs "这家真没有"），原样交给上层提示。
+ *
+ * @returns {Promise<{list:Array, source:string, label:string, unavailable:string, tried:string[], error:string}>}
  */
-export const SOURCE_META = {
-  netease: {
-    label: '网易云',
-    icon: 'https://i.gtimg.cn/open/app_icon/00/49/50/85/100495085_100_m.png',
-    color: '#c62f2f',
-  },
-  kuwo: {
-    label: '酷我',
-    icon: 'https://p.qpic.cn/qqconnect/0/app_100243533_1636374695/100',
-    color: '#ffb500',
-  },
-  kugou: {
-    label: '酷狗',
-    icon: 'https://open.gtimg.cn/open/app_icon/00/20/51/41/205141_100_m.png',
-    color: '#0ea0e8',
-  },
-  bilibili: {
-    label: 'B站',
-    icon: 'https://i.gtimg.cn/open/app_icon/00/95/17/76/100951776_100_m.png',
-    color: '#fb7299',
-  },
-  qq: {
-    label: 'QQ音乐',
-    icon: 'https://p.qpic.cn/qqconnect/0/app_100497308_1626060999/100',
-    color: '#31c27c',
-  },
+export async function searchPlatformSongs(keyword, platform, { pageSize = 8, userKey = '' } = {}) {
+  // 平台名 → 真实 id（支持中文别名，如 "网易云"/"B站"）
+  const id = platformIdOf(platform) || String(platform || '').trim().toLowerCase()
+  const out = { list: [], source: id, label: platformLabel(id), unavailable: '', tried: [], error: '' }
+  if (!id) return { ...out, error: '平台名不能为空' }
+
+  let body
+  try {
+    body = await request('/search', { key: keyword, t: 0, source: id, limit: pageSize }, 'get', userKey)
+  } catch (e) {
+    // 上游 5xx/超时：把服务端给的可读原因带出去（别只说"失败了"）
+    const msg = e?.payload?.errMsg || e?.response?.data?.errMsg || e.message || '请求失败'
+    return { ...out, error: msg }
+  }
+
+  const data = body?.data || {}
+  const list = (data.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean)
+  return {
+    ...out,
+    list,
+    label: data.sourceLabel || out.label,
+    unavailable: String(data.unavailable || ''),
+    tried: Array.isArray(data.tried) ? data.tried : [],
+  }
 }
 
-export const SOURCE_LABEL = Object.fromEntries(
-  Object.entries(SOURCE_META).map(([k, v]) => [k, v.label])
-)
+/**
+ * **一次搜多家外部平台**（2.0：QQ 关掉 / QQ 搜不出来时，用免费曲顶列表）
+ *
+ * 走 API 的 `?sources=a,b,c`：服务端把这几个平台一起搜、去重、**逐条验证可播**，
+ * 再按平台交错返回 —— 所以这里拿到的每一条都是能播的（点了不会空）。
+ *
+ * @param {string[]} sources 平台 id 数组（顺序即注册表顺序；空数组 = 直接放弃）
+ */
+export async function searchMultiSongs(keyword, sources, { pageSize = 10, userKey = '' } = {}) {
+  const ids = [...new Set((Array.isArray(sources) ? sources : []).map((s) => platformIdOf(s) || String(s || '').trim().toLowerCase()).filter(Boolean))]
+  const out = { list: [], sources: ids, unavailable: '', tried: [], error: '' }
+  if (!ids.length) return { ...out, error: '没有可用的平台' }
+  let body
+  try {
+    body = await request('/search', { key: keyword, t: 0, sources: ids.join(','), limit: pageSize }, 'get', userKey)
+  } catch (e) {
+    const msg = e?.payload?.errMsg || e?.response?.data?.errMsg || e.message || '请求失败'
+    return { ...out, error: msg }
+  }
+  const data = body?.data || {}
+  return {
+    ...out,
+    list: (data.list || []).map((item, idx) => normalizeSearchItem(item, idx)).filter(Boolean),
+    sources: Array.isArray(data.sources) && data.sources.length ? data.sources : ids,
+    unavailable: String(data.unavailable || ''),
+    tried: Array.isArray(data.tried) ? data.tried : [],
+  }
+}
 
-/** 取来源图标 URL（未知来源返回空串） */
+/**
+ * 外部平台来源 → 展示名 + 图标 + 颜色
+ *
+ * ⚠️ 定义已**搬到 utils/platforms.js**（单一事实来源，那里还带别名/音质/命令用正则片段）。
+ * 这里保留同名导出，老调用方（卡片、锅巴、解析）不用改。
+ */
+export { SOURCE_META, SOURCE_LABEL } from './platforms.js'
+
+/** 取来源图标 URL（未知来源返回空串；模板据此走文字标签） */
 export function sourceIconOf(source) {
-  return SOURCE_META[source]?.icon || ''
+  return platformIcon(source)
 }
 
 /** 统一歌曲对象归一化：兼容 /data 包裹、/track_info 包裹、扁平结构 */
@@ -544,8 +608,10 @@ export async function songUrlBest(
   let realMedia = mediaId || songmid
   let mvVid = ''
 
-  // 补充曲（ne_/kw_/bi_ 前缀）走外部平台：没有音质阶梯
-  const isExternalMid = /^(ne|kw|bi)_/.test(String(songmid))
+  // 补充曲（ne_/kw_/bi_/qs_/ku_/mg_/yt_/ap_/js_ 前缀）走外部平台：没有 QQ 的音质阶梯
+  // ⚠️ 前缀判断走注册表（platforms.js），别再手写 `^(ne|kw|bi)_` —— 那会漏掉汽水/酷狗/咪咕/
+  //    YouTube/Apple，漏了的后果是外源曲被当 QQ 曲处理（多一次详情请求 + 套错档位阶梯）
+  const isExternalMid = isExternalPlatformMid(songmid)
   if (!isExternalMid) {
     try {
       const detail = await songDetail(songmid, userKey)
@@ -1098,6 +1164,8 @@ export async function songInfoBatch(ids = [], { userKey = '' } = {}) {
 
 export default {
   searchSongs,
+  searchPlatformSongs,
+  searchMultiSongs,
   songDetail,
   songUrl,
   songUrlBest,

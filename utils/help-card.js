@@ -7,8 +7,11 @@
  */
 import Config from '../components/Config.js'
 import { apiHintFor } from './privacy.js'
-import { getLocalVersion } from './update.js'
+// 版本徽标走 displayVersion：解锁显示 2.0 专属版，未解锁与 2.0 之前逐字一致
+import { displayVersion } from './update.js'
 import { logoUrl } from './path.js'
+import { enabledPlatforms } from './v2.js'
+import { QUALITY_LABEL } from './quality.js'
 
 /** 全部帮助条目；master: true = 仅主人渲染（与 rule 的 permission: 'master' 对应） */
 const SECTIONS = [
@@ -89,6 +92,19 @@ const SECTIONS = [
   },
 ]
 
+/** 按身份筛出可见的段与条目（老帮助卡与 2.0 帮助卡**共用**，避免两处各筛一遍走样） */
+function visibleSections(isMaster, base = SECTIONS) {
+  return base
+    .filter((s) => isMaster || !s.master)
+    .map(({ master, items, ...section }) => ({
+      ...section,
+      items: items
+        .filter((it) => isMaster || !it.master)
+        .map(({ master: _m, ...item }) => item), // 不把内部标记带进模板
+    }))
+    .filter((s) => s.items.length > 0)
+}
+
 /**
  * @param {object} [e] 消息事件；e.isMaster 为真时渲染主人相关条目
  */
@@ -98,21 +114,12 @@ export function buildHelpCardData(e) {
   const songOn = cfg.enableSongRequest !== false
   const resolveOn = cfg.enableResolve !== false
   const isMaster = e?.isMaster === true
-
-  const sections = SECTIONS
-    .filter((s) => isMaster || !s.master)
-    .map(({ master, items, ...section }) => ({
-      ...section,
-      items: items
-        .filter((it) => isMaster || !it.master)
-        .map(({ master: _m, ...item }) => item), // 不把内部标记带进模板
-    }))
-    .filter((s) => s.items.length > 0)
+  const sections = visibleSections(isMaster)
 
   const cmdCount = sections.reduce((n, s) => n + s.items.length, 0)
 
   return {
-    version: `v${getLocalVersion()}`,
+    version: displayVersion(cfg),
     logo: logoUrl,
     statCommands: `${cmdCount}+`,
     statQuality: quality,
@@ -122,4 +129,127 @@ export function buildHelpCardData(e) {
     tip: '付费曲需主人扫码登录；指令统一 #qqm 前缀；#听序号 取自己最近一次列表（同群，人多的群不会串）；分享 QQ 音乐卡片/链接可自动解析。',
     sections,
   }
+}
+
+/**
+ * 2.0 帮助卡数据（**只在解锁时用**，见 apps/song.js 的 help）
+ *
+ * 与老卡的差别：
+ *   · 第一段是**动态的多平台清单**（当前开着哪几家、各自的命令与免登录档位）
+ *   · 头部统计换成"平台数 / 最高音质 / 运行模式"，让一眼看出 2.0 在跑
+ *   · 其余段落直接复用老卡的分组（不重复维护两份文案）
+ */
+export function buildGuideCardData(e, { currentSource = '', full = false } = {}) {
+  const cfg = Config.getConfig('qqmusic') || {}
+  const isMaster = e?.isMaster === true
+  const plats = enabledPlatforms(cfg)
+  // "自动" 别再 toUpperCase 成 "AUTO"（用户看到的应该是一个看得懂的档位）
+  const q = String(cfg.quality || 'auto').toLowerCase()
+  const quality = q === 'auto' || !q ? '自动' : QUALITY_LABEL[q] || q.toUpperCase()
+  const songOn = cfg.enableSongRequest !== false
+  const resolveOn = cfg.enableResolve !== false
+
+  const multiPlatform = {
+    title: '多平台音源',
+    tag: plats.length ? `${plats.length} 家` : '未启用',
+    // classic 主题的 2.0 帮助卡把这一段渲染成**彩色平台条**（label + 品牌色 + 档位）
+    platforms: plats.map((p) => ({ id: p.id, label: p.label, color: p.color, quality: p.quality })),
+    items: plats.length
+      ? [
+          { name: '跨平台补歌', desc: 'QQ 结果尾部自动追加这些平台的可播曲（哪几家参与由锅巴决定）', example: '#qqm点歌 关键词' },
+          ...plats.map((p) => ({
+            name: `${p.label} 点歌 / 播放`,
+            desc: `只在 ${p.label} 里搜（免登录 ${p.quality}）`,
+            // 给**最短写法**：动词可以省（平台名 + 空格 + 关键词）
+            example: `#qqm${p.short || p.label} 关键词`,
+          })),
+          { name: '当前音源', desc: '设一次就好：之后 #qqm点歌 默认走它（切回 QQ：#qqm源 默认）', example: '#qqm源 网易' },
+          // 只有支持扫码的平台才列这条（事实来自 platforms.js 的 qrLogin）
+          ...(plats.some((p) => p.qrLogin === true)
+            ? [
+                {
+                  name: '扫码登录（主人）',
+                  desc: `用手机 App 扫，凭据写进共享那份（全站可用）；支持：${plats.filter((p) => p.qrLogin).map((p) => p.label).join(' / ')}`,
+                  example: `#qqm${(plats.find((p) => p.qrLogin) || {}).short || '网易'}登录`,
+                },
+              ]
+            : []),
+          { name: '平台清单', desc: '列出现在开着的平台与最短写法', example: '#qqm平台' },
+          { name: '平台登录状态', desc: '各家配没配、什么来源、下一步该做什么（一张卡看全）', example: '#qqm平台状态' },
+        ]
+      : [
+          { name: '没有开启外部平台', desc: '锅巴 → 音源平台 里打开后，这一段会列出各自的命令', example: '#qqm点歌 关键词' },
+        ],
+  }
+
+  const sections = [multiPlatform, ...visibleSections(isMaster)]
+  const cmdCount = sections.reduce((n, s) => n + s.items.length, 0)
+
+  return {
+    version: displayVersion(cfg),
+    logo: logoUrl,
+    title: '2.0 帮助',
+    subtitle: plats.length ? `${plats.length} 家音源 · 点歌 / 解析 / 卡片` : '点歌 / 解析 / 卡片',
+    /**
+     * 音源清单（「多平台」主题的帮助卡"一行一个平台"用它）
+     * ⚠️ 与 `sections[0].platforms` 是同一份数据的两种形状：老主题（classic/apple）
+     * 吃的是 sections 里的那个数组，这里单独给一份带 needsCredential/short 的，
+     * 免得为了新主题去改老模板的取值路径。
+     */
+    sources: plats.map((p) => ({
+      id: p.id,
+      label: p.label,
+      short: p.short || p.label,
+      color: p.color,
+      quality: p.quality,
+      needsCredential: p.needsCredential === true,
+    })),
+    statPlatformsTotal: String(plats.length + 1), // 含 QQ 本体（老模板的 statPlatforms 仍是"外源家数"）
+    platformsText: plats.length ? `${plats.length} 家` : '未启用',
+    currentSource,
+    /**
+     * 是否展开全部条目
+     *   false（默认）：每段最多 8 条 —— 51 条全铺开卡片会长到 3400px，
+     *                  QQ 里会被压成一条看不清；压缩后约 1800px，手机上还能读。
+     *   true（`#qqm帮助 全部`）：完整清单，给需要"查手册"的人。
+     */
+    full: full === true,
+    statCommands: `${cmdCount}+`,
+    statQuality: quality,
+    statPlatforms: String(plats.length),
+    statMode: songOn && resolveOn ? '全开' : songOn ? '点歌' : resolveOn ? '解析' : '待机',
+    apiHint: apiHintFor(),
+    isMaster,
+    tip: '外源曲免登录可直接播（档位看标签）；QQ 音乐付费曲仍需主人扫码登录。',
+    sections,
+  }
+}
+
+/**
+ * 2.0 帮助的纯文本兜底（渲染失败时用）
+ *
+ * ⚠️ 只在解锁后才会被调用 —— 未解锁走的是老的那段文本，别把两段混起来。
+ */
+export function formatGuideText(e) {
+  const cfg = Config.getConfig('qqmusic') || {}
+  const plats = enabledPlatforms(cfg)
+  const isMaster = e?.isMaster === true
+  return [
+    '【QQ音乐插件 2.0 帮助】',
+    '— 点歌 —',
+    '#qqm点歌 七里香        （QQ 曲库；列表尾部自动补其它平台的免费曲）',
+    // 与卡片一致：教**最短写法**（动词可省），不再演示冗长的全称版
+    ...plats.map((p) => `#qqm${p.short || p.label} 关键词`.padEnd(20) + `（只在 ${p.label} 搜，免登录 ${p.quality}）`),
+    '#qqm听1 / #qqm播放 关键词 / #qqm歌词 关键词 / #qqm热搜 / #qqm平台',
+    plats.length
+      ? `不想每次都带平台：给自己设一个 #qqm源 ${plats[0].short || plats[0].label}（#qqm源 默认 切回 QQ${isMaster ? '；主人设的是全群默认' : ''}）`
+      : '',
+    '— 状态 —',
+    isMaster ? '#qqm登录 / #qqm状态 / #qms / #qqm登出' : '#qqm状态 / #qms',
+    ...(isMaster ? ['— 管理（主人）—', '#qqm设置 / #qqm 音质 flac / #qqm 测试'] : []),
+    '— 解析 —',
+    '分享 QQ 音乐卡片或 y.qq.com 链接自动解析',
+  ]
+    .filter(Boolean)
+    .join('\n')
 }

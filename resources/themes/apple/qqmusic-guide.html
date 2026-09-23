@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 2.0 帮助</title>
+  <link rel="stylesheet" href="resources/themes/apple/_base.css" />
+  <!--
+    2.0 帮助卡（apple 主题，复用 _base.css 的变量与 .group/.row/.pill）
+    与 classic 版同结构：头部统计 + 平台彩条 + 两列紧凑条目。
+    只有 logo 一张远程图，其余全 CSS —— 截图不等网络。
+  -->
+  <style>
+    .brand-row { display: flex; align-items: center; gap: 14px; }
+    .brand-logo {
+      width: 50px; height: 50px; border-radius: 14px; flex: none;
+      background: var(--fill-3); object-fit: contain;
+    }
+    .ver { margin-left: auto; font-size: 12px; font-weight: 700; }
+    .plats { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px var(--pad) 0; }
+    .plat {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 11px 5px 8px; border-radius: 999px;
+      background: var(--fill-3); font-size: 11.5px; font-weight: 700;
+    }
+    .plat i { width: 8px; height: 8px; border-radius: 50%; display: block; }
+    .plat em { font-style: normal; font-weight: 600; opacity: 0.62; font-size: 10.5px; }
+    .cmd-name {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 14px; letter-spacing: -0.2px;
+    }
+    .cmd-example {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 11.5px;
+    }
+    .tip { padding: 14px var(--pad) 0; }
+    /* 只有这张卡用两列（其余卡保持 _base.css 的列表行样式）——
+       作用域限定在 .guide 里，别去改共享的 _base.css */
+    .guide .group-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .guide .row { padding: 8px 10px; border-radius: 12px; background: var(--fill-3); }
+    .guide .row-title { font-size: 13px; line-height: 1.25; }
+    .guide .row-sub { font-size: 11px; }
+    .guide .pill--accent { font-size: 11px; padding: 3px 8px; }
+  </style>
+</head>
+<body>
+  <div class="page guide">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-main">
+          <div class="brand-row">
+            {{if data.logo}}<img class="brand-logo" src="{{data.logo}}" alt="logo" />{{/if}}
+            <div style="min-width:0">
+              <div class="hero-eyebrow">QQ Music Plugin 2.0</div>
+              <div class="t-hero">{{data.title || '帮助'}}</div>
+            </div>
+            <div class="ver t-caption">{{data.version}}</div>
+          </div>
+          <div class="t-sub hero-sub">{{data.subtitle || '点歌 · 解析 · 卡片'}}</div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-v t-num">{{data.statPlatforms || 0}}</div>
+          <div class="stat-k">音源平台</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v t-num">{{data.statCommands}}</div>
+          <div class="stat-k">指令</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v">{{data.statQuality}}</div>
+          <div class="stat-k">最高音质</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v">{{data.statMode}}</div>
+          <div class="stat-k">运行模式</div>
+        </div>
+      </div>
+
+      {{each data.sections section index}}
+        {{if index === 0}}
+        <div class="group">
+          <div class="group-title">
+            <span class="t-caption">{{section.title}}</span>
+            {{if section.tag}}<span class="pill">{{section.tag}}</span>{{/if}}
+          </div>
+        </div>
+        <div class="plats">
+          <div class="plat"><i style="background:#31c27c"></i>QQ音乐<em>曲库最全 · 320k+</em></div>
+          {{each section.platforms platform}}
+          <div class="plat"><i style="background:{{platform.color}}"></i>{{platform.label}}<em>{{platform.quality}}</em></div>
+          {{/each}}
+        </div>
+        {{else}}
+        <div class="group inset">
+          <div class="group-title">
+            <span class="t-caption">{{section.title}}</span>
+            {{if section.tag}}<span class="pill">{{section.tag}}</span>{{/if}}
+          </div>
+          <div class="group-body">
+            {{each section.items item}}
+            <div class="row row--plain">
+              <div class="row-main">
+                <div class="row-title cmd-name truncate">{{item.name}}</div>
+                <div class="row-sub truncate">{{item.desc}}</div>
+              </div>
+              {{if item.example}}<span class="pill pill--accent cmd-example">{{item.example}}</span>{{/if}}
+            </div>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+      {{/each}}
+
+      {{if data.tip}}<div class="tip t-foot">{{data.tip}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
