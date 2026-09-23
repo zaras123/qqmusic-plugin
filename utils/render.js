@@ -337,7 +337,11 @@ export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg =
     })
     return Buffer.isBuffer(buff) ? buff : Buffer.from(buff)
   } finally {
-    await browser.close().catch(() => {})
+    try {
+      await browser.close()
+    } catch {
+      /* 关不掉就算了，别盖住真正的截图错误 */
+    }
   }
 }
 

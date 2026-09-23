@@ -13,6 +13,7 @@ import { deliverSong } from '../utils/send.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 import { formatSongList } from '../utils/format.js'
+import { replySafe } from '../utils/async.js'
 
 export class qqmusicChart extends (await loadPluginBase()) {
   constructor() {
@@ -356,10 +357,16 @@ export class qqmusicChart extends (await loadPluginBase()) {
     const m = String(e.msg || '').trim().match(/^#?(qq|QQ)m\s*(MV|mv)\s*(.*)$/)
     const rest = (m?.[3] || '').trim()
 
-    const sendVideo = (videoFile, title) => {
+    /**
+     * 发 MV 视频。
+     * ⚠️ 不能写成 `e.reply(...).then(...)`：`e.reply` 的返回值形态两边框架不一致
+     * （可能同步 false，也可能 Promise），挂 `.then` 会报 `.then is not a function`。
+     * 统一走 replySafe —— 永远返回 Promise、永远不抛，发失败返回 false 让调用方落文本兜底。
+     */
+    const sendVideo = async (videoFile, title) => {
       const seg = global.segment
-      if (seg?.video) return e.reply(seg.video(videoFile, `${title}.mp4`)).then(() => true)
-      return Promise.resolve(false)
+      if (!seg?.video) return false
+      return replySafe(e, seg.video(videoFile, `${title}.mp4`), { tag: 'MV 视频' })
     }
 
     // 播放/下载/搜索 前缀分发（兼容紧凑写法：播放1 / 搜索周杰伦）

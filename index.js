@@ -7,6 +7,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pluginPath } from './utils/path.js'
 import { ensureSegment } from './utils/adapter.js'
+import { hardenPlugin } from './utils/async.js'
 import Config from './components/Config.js'
 
 const log = global.logger || console
@@ -35,7 +36,10 @@ for (let i = 0; i < files.length; i++) {
   }
   const mod = ret[i].value
   const key = Object.keys(mod).find((k) => typeof mod[k] === 'function') || Object.keys(mod)[0]
-  apps[name] = mod[key]
+  // 异步护栏（utils/async.js）：处理函数返回值统一成 Promise 且永不 reject，
+  // 并在事件进业务代码前补好回复通道。两套框架都优先拿本文件当入口，
+  // 所以这里是「一处上锁、两边生效」的唯一位置。
+  apps[name] = hardenPlugin(mod[key], name)
 }
 
 const msg = `qqmusic-plugin 已加载（${Object.keys(apps).length} 个模块 · ICQQ/OneBot/QQBot）`

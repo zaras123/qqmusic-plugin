@@ -45,6 +45,26 @@ if (syntaxBad) {
 }
 console.log(`✅ ${collectJsFiles(pluginRoot).length} 个文件全部通过\n`)
 
+// ──────────── 异步用法静态体检 ────────────
+// 与语法闸同理，纯静态、不 import 业务模块，先跑：不过就没必要看后面的功能用例。
+// 钉的是两套框架异步约定不一致带来的坑（详见 utils/async.js 顶部与 scripts/check-async.mjs）。
+console.log('=== 异步兼容体检（裸 then/catch、异步定时器）===\n')
+let asyncGateOk = true
+try {
+  const out = execFileSync(
+    process.execPath,
+    [path.join(pluginRoot, 'scripts/check-async.mjs'), pluginRoot],
+    { encoding: 'utf8' }
+  )
+  console.log(out.trimEnd())
+} catch (err) {
+  asyncGateOk = false
+  console.log(String(err.stdout || '').trimEnd())
+  const detail = String(err.stderr || '').trim()
+  if (detail) console.log(detail)
+}
+console.log('')
+
 import { loadPluginBase } from './utils/plugin-base.js'
 await loadPluginBase()
 
@@ -68,7 +88,7 @@ const modules = [
   { name: '管理', class: qqmusicAdmin },
 ]
 
-let allPassed = true
+let allPassed = asyncGateOk
 /** 实例化后的规则总表：{ plugin, reg(RegExp), fnc, permission } */
 const allRules = []
 
@@ -751,6 +771,131 @@ console.log('\n=== 命令解析（点歌/播放/平台前缀）===\n')
   if (!lbad) console.log(`✅ 歌词解析 ${lok}/${lyricCases.length} 符合预期`)
   routeOk += lok
   routeBad += lbad
+}
+
+// ──────────── 异步兼容层（utils/async.js · plugin-base 并发去重 · index.js 护栏）────────────
+// 起因：同一个插件要在 TRSS-Yunzai 和 Miao-Yunzai 上跑，但两边对「异步」的约定并不一致 ——
+//  ① TRSS 在「适配器没给 reply」时**压根不装** e.reply（lib/plugins/loader.js:416 直接 return），
+//     `await e.reply(...)` 会 TypeError，用户端一条反馈都收不到；
+//  ② 插件基类的 reply() 在空消息时**同步**返回 false → `.then` 随时可能是 undefined；
+//  ③ setTimeout(async 回调) 抛错 → unhandledRejection，业务侧既看不到也补不了。
+console.log('\n=== 异步兼容层 ===\n')
+let asyncOk = 0
+let asyncBad = 0
+function asyncCheck(name, got, want) {
+  if (JSON.stringify(got) === JSON.stringify(want)) {
+    asyncOk++
+    console.log(`✅ ${name}`)
+  } else {
+    asyncBad++
+    allPassed = false
+    console.log(`❌ ${name} → 期望 ${JSON.stringify(want)}，实际 ${JSON.stringify(got)}`)
+  }
+}
+
+{
+  const A = await import('./utils/async.js')
+  const PB = await import('./utils/plugin-base.js')
+
+  // ── 归一化：同步值 / Promise / 同步抛，一律能当 Promise 用 ──
+  asyncCheck('isThenable：Promise 是、同步值不是', [A.isThenable(Promise.resolve(1)), A.isThenable(false), A.isThenable(undefined), A.isThenable('x')].join(','), 'true,false,false,false')
+  asyncCheck('isThenable：类 Promise 对象也算（不只是 instanceof Promise）', A.isThenable({ then() {} }), true)
+  asyncCheck('toPromise：同步值也变 Promise', A.toPromise(123) instanceof Promise, true)
+  asyncCheck('toPromise：Promise 被吸收', await A.toPromise(Promise.resolve('ok')), 'ok')
+  asyncCheck('thenSafe：挂同步值不炸', await A.thenSafe(false, (v) => `got:${v}`), 'got:false')
+  asyncCheck('thenSafe：reject 走 onRejected', await A.thenSafe(Promise.reject(new Error('x')), null, () => 'caught'), 'caught')
+  asyncCheck('invoke：函数不存在 → reject（不是同步抛）', await A.invoke(undefined, null).then(() => 'resolve', (e) => `reject:${e instanceof TypeError}`), 'reject:true')
+  asyncCheck('invoke：函数同步抛 → reject', await A.invoke(() => { throw new Error('sync') }, null).then(() => 'resolve', (e) => `reject:${e.message}`), 'reject:sync')
+  asyncCheck('invoke：正常返回照样透传', await A.invoke(async () => 7, null), 7)
+
+  // ── 回复通道：缺 reply 时按适配器能力退化，且永远不抛 ──
+  const sentTo = (bucket) => ({ sendMsg: (msg) => { bucket.push(msg); return Promise.resolve({ message_id: 1 }) } })
+  const bucket = []
+  const eNoReply = { group_id: 123, user_id: 456, group: sentTo(bucket) }
+  const patched = A.ensureReply(eNoReply)
+  asyncCheck('ensureReply：装完 e.reply 是函数且返回 Promise', [typeof patched.reply, patched.reply('hi') instanceof Promise].join(','), 'function,true')
+  await new Promise((r) => setTimeout(r, 10))
+  asyncCheck('ensureReply：真的退化到 group.sendMsg', bucket.join('|'), 'hi')
+  asyncCheck('ensureReply：幂等（不重复包装）', A.ensureReply(eNoReply).reply === patched.reply, true)
+  const keepOrig = () => 1
+  const eHasReply = { group_id: 1, reply: keepOrig }
+  A.ensureReply(eHasReply)
+  asyncCheck('ensureReply：本来有 reply 的事件不动它', eHasReply.reply === keepOrig, true)
+
+  asyncCheck('replySafe：没通道 → false，且不抛', await A.replySafe({ group_id: 1, user_id: 2 }, 'x'), false)
+  asyncCheck('replySafe：空消息 → false', await A.replySafe(eNoReply, ''), false)
+  asyncCheck('replySafe：同步 false 的 reply 也吃得住', await A.replySafe({ reply: () => false }, 'x'), true)
+  asyncCheck('replySafe：reject 的 reply → false（不抛）', await A.replySafe({ reply: () => Promise.reject(new Error('boom')) }, 'x'), false)
+  asyncCheck('replySafe：正常通道 → true', await A.replySafe({ reply: async () => ({ message_id: 9 }) }, 'x'), true)
+
+  // ── 定时器：异步回调抛错被接住，不变成 unhandledRejection ──
+  let unhandled = 0
+  const onUnhandled = () => { unhandled++ }
+  const prevLogger = global.logger
+  const quietLogger = { info() {}, warn() {}, error() {}, mark() {} }
+  process.on('unhandledRejection', onUnhandled)
+  global.logger = quietLogger
+  try {
+    A.setSafeTimeout(async () => { throw new Error('timer boom') }, 1, '测试定时器')
+    await new Promise((r) => setTimeout(r, 40))
+  } finally {
+    process.removeListener('unhandledRejection', onUnhandled)
+    global.logger = prevLogger
+  }
+  asyncCheck('setSafeTimeout：回调抛错被接住（0 次 unhandledRejection）', unhandled, 0)
+
+  // ── 插件类护栏：处理函数永不 reject；事件进业务前先补回复通道 ──
+  class FakeBase {
+    constructor(cfg = {}) { Object.assign(this, cfg) }
+    async accept() { return true }
+  }
+  class FakePlugin extends FakeBase {
+    constructor() { super({ name: 'fake', rule: [{ reg: /^x$/, fnc: 'boom' }, { reg: /^y$/, fnc: 'syncBoom' }, { reg: /^z$/, fnc: 'ok' }] }) }
+    async boom() { throw new Error('async boom') }
+    syncBoom() { throw new Error('sync boom') }
+    ok() { return 'ok' }
+    async okAsync() { return 'okAsync' }
+  }
+  const H = A.hardenPlugin(FakePlugin, 'fake')
+  const inst = new H()
+  asyncCheck('hardenPlugin：子类语义不变（instanceof 原类）', inst instanceof FakePlugin, true)
+  asyncCheck('hardenPlugin：幂等（同一个类包两次还是它）', A.hardenPlugin(H, 'fake') === H, true)
+  // 下面两条走的是护栏的错误分支，日志静音一下 —— 不然梯子里会刷两条 Error
+  //（护栏「记日志 + 返回 false」这件事本身由 utils/async.js 保证，这里只钉返回值）
+  global.logger = quietLogger
+  const boomRet = await inst.boom()
+  const syncRet = inst.syncBoom()
+  global.logger = prevLogger
+  asyncCheck('hardenPlugin：async 处理函数 reject → false（不抛）', boomRet, false)
+  asyncCheck('hardenPlugin：同步抛 → false（不抛）', syncRet, false)
+  asyncCheck('hardenPlugin：非 thenable 返回值原样透传（框架要靠 res===false 判"没处理"）', inst.ok(), 'ok')
+  asyncCheck('hardenPlugin：thenable 返回值仍是 Promise', inst.okAsync() instanceof Promise, true)
+  asyncCheck('hardenPlugin：await 得到原值', await inst.okAsync(), 'okAsync')
+
+  const guarded = []
+  class ReplyPlugin extends FakeBase {
+    constructor() { super({ name: 'replyfake', rule: [{ reg: /^x$/, fnc: 'r' }] }) }
+    async r(e) { await e.reply('guarded'); return true }
+  }
+  const ev = { group_id: 9, user_id: 8, group: sentTo(guarded) }
+  const rOk = await new (A.hardenPlugin(ReplyPlugin, 'replyfake'))().r(ev)
+  asyncCheck('hardenPlugin：处理前补齐回复通道（e.reply 缺失也能发出去）', [rOk, guarded.join('|')].join(','), 'true,guarded')
+
+  // 真实 app 类也要包得住（test.mjs 顶部已经 import 了这 7 个）
+  const hardenedClasses = modules.map((m) => A.hardenPlugin(m.class, m.name))
+  asyncCheck('hardenPlugin：7 个 app 类都能包', hardenedClasses.length, 7)
+  asyncCheck('hardenPlugin：包装后 instanceof 原类不变', hardenedClasses.every((c, i) => new c() instanceof modules[i].class), true)
+  asyncCheck('hardenPlugin：原始类留了痕（__qqmBase）', hardenedClasses.every((c, i) => c.__qqmBase === modules[i].class), true)
+  const indexSrc = fs.readFileSync(path.join(pluginRoot, 'index.js'), 'utf8')
+  asyncCheck('index.js：apps 出口处确实过了一遍 hardenPlugin', /apps\[name\]\s*=\s*hardenPlugin\(/.test(indexSrc), true)
+
+  // ── plugin-base：并发加载收敛成同一次（7 个 app 是同时被 import 的）──
+  const p1 = PB.loadPluginBase()
+  const p2 = PB.loadPluginBase()
+  asyncCheck('loadPluginBase：并发/重复调用返回同一个 Promise', p1 === p2, true)
+  const base = await p1
+  asyncCheck('loadPluginBase：拿到的是插件基类（原型上有 reply）', typeof base.prototype?.reply, 'function')
+  asyncCheck('loadPluginBase：同步读口子能看到已加载的基类', PB.pluginBaseSync() === base, true)
 }
 
 //
@@ -1455,6 +1600,7 @@ console.log(
     `\n=== 测试结果: ${allPassed ? '全部通过 ✅' : '有失败 ❌'} ===` +
     `\n命令路由 ${routeOk} 通过 / ${routeBad} 失败` +
     `\n纯函数 ${pureOk} 通过 / ${pureBad} 失败` +
+    `\n异步兼容 ${asyncOk} 通过 / ${asyncBad} 失败` +
     `\n2.0（平台 + ？？？）${v2Ok} 通过 / ${v2Bad} 失败`
 )
 process.exit(allPassed ? 0 : 1)

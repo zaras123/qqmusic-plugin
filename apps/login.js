@@ -19,6 +19,7 @@ import { platformAliasPattern, platformOf, platformAuthOf, platformCookieHelp, p
 // 命令解析放 utils（见 utils/command.js 顶部注释：apps 里多导出函数会让加载器认错插件类）
 import { RE_PLATFORM_CK, RE_PLATFORM_CK_CLEAR, parsePlatformCkCmd, parsePlatformCkClearCmd } from '../utils/command.js'
 import { isV2Unlocked, platformEnabled } from '../utils/v2.js'
+import { setSafeTimeout } from '../utils/async.js'
 
 /** 进行中的扫码任务 user_id -> { qrcodeID, timer, e, stopped } */
 const activeLogins = new Map()
@@ -685,7 +686,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const tick = async () => {
       if (task.stopped) return
       if (task.busy) {
-        task.timer = setTimeout(tick, 800)
+        task.timer = setSafeTimeout(tick, 800, '扫码轮询')
         return
       }
       if (Date.now() - started > maxMs) {
@@ -776,11 +777,11 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       }
 
       if (!task.stopped && activeLogins.get(userId)?.qrcodeID === qrcodeID) {
-        task.timer = setTimeout(tick, 2500)
+        task.timer = setSafeTimeout(tick, 2500, '扫码轮询')
       }
     }
 
-    task.timer = setTimeout(tick, 2000)
+    task.timer = setSafeTimeout(tick, 2000, '扫码轮询')
   }
 
   stopPoll(userId) {
@@ -903,7 +904,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const tick = async () => {
       if (task.stopped) return
       if (task.busy) {
-        task.timer = setTimeout(tick, 800)
+        task.timer = setSafeTimeout(tick, 800, '扫码轮询')
         return
       }
       if (Date.now() - started > maxMs) {
@@ -941,11 +942,11 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       }
 
       if (!task.stopped && activeLogins.get(userId)?.sessionId === sessionId) {
-        task.timer = setTimeout(tick, 2500)
+        task.timer = setSafeTimeout(tick, 2500, '扫码轮询')
       }
     }
 
-    task.timer = setTimeout(tick, 2000)
+    task.timer = setSafeTimeout(tick, 2000, '扫码轮询')
   }
 
   async loginStatus(e) {
