@@ -75,7 +75,8 @@ sourceText  detail  canQr  ownersCount  unreliable  note  action(下一步该发
 ```
 
 - `ready` = 能不能用（匿名音源恒真、Apple 看有没有启用、其余看登录态），`stateText` 是给人看的说法
-- `action` 是**可操作的那一步**（能扫码的给 `#qqm<平台>登录`，凭据级给 `POST /<平台>/cookies`），没得做就是空串
+- `action` 是**可操作的那一步**，由 `utils/platforms.js` 的凭据注册表决定：能扫码的给 `#qqm<平台>登录`，
+  只能粘贴 cookie 的给 `#qqm<平台>ck`（私聊），两者都没有（匿名音源 / YouTube）是空串
 - 帮助卡的音源清单**同时给两种形状**：`sources[]`（新的，多带 `short`/`needsCredential`）与
   `sections[0].platforms[]`（老的）。老主题继续读 `sections`，2.0 主题读 `sources`，两边模板都不用改 ——
   **写预览样例时也要两份都给**，只给老的那份的话，2.0 帮助卡里"一行一个音源"那整段在预览里会缺席

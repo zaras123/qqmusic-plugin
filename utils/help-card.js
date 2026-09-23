@@ -11,6 +11,8 @@ import { apiHintFor } from './privacy.js'
 import { displayVersion } from './update.js'
 import { logoUrl } from './path.js'
 import { enabledPlatforms } from './v2.js'
+// 凭据通道（能扫码 / 只能粘贴）的事实来自注册表 —— 帮助卡里不许再手抄一份平台名单
+import { platformCanQrLogin, platformCanCookie, platformQrOf, platformCookieOf } from './platforms.js'
 import { QUALITY_LABEL } from './quality.js'
 
 /** 全部帮助条目；master: true = 仅主人渲染（与 rule 的 permission: 'master' 对应） */
@@ -143,6 +145,9 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
   const cfg = Config.getConfig('qqmusic') || {}
   const isMaster = e?.isMaster === true
   const plats = enabledPlatforms(cfg)
+  // 凭据通道：这家能扫码吗、只能粘贴吗 —— 全按注册表算（别再手抄"网易云/酷狗/汽水"）
+  const qrPlats = plats.filter((p) => platformCanQrLogin(p.id))
+  const ckPlats = plats.filter((p) => platformCanCookie(p.id))
   // "自动" 别再 toUpperCase 成 "AUTO"（用户看到的应该是一个看得懂的档位）
   const q = String(cfg.quality || 'auto').toLowerCase()
   const quality = q === 'auto' || !q ? '自动' : QUALITY_LABEL[q] || q.toUpperCase()
@@ -164,16 +169,6 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
             example: `#qqm${p.short || p.label} 关键词`,
           })),
           { name: '当前音源', desc: '设一次就好：之后 #qqm点歌 默认走它（切回 QQ：#qqm源 默认）', example: '#qqm源 网易' },
-          // 只有支持扫码的平台才列这条（事实来自 platforms.js 的 qrLogin）
-          ...(plats.some((p) => p.qrLogin === true)
-            ? [
-                {
-                  name: '扫码登录（主人）',
-                  desc: `用手机 App 扫，凭据写进共享那份（全站可用）；支持：${plats.filter((p) => p.qrLogin).map((p) => p.label).join(' / ')}`,
-                  example: `#qqm${(plats.find((p) => p.qrLogin) || {}).short || '网易'}登录`,
-                },
-              ]
-            : []),
           { name: '平台清单', desc: '列出现在开着的平台与最短写法', example: '#qqm平台' },
           { name: '平台登录状态', desc: '各家配没配、什么来源、下一步该做什么（一张卡看全）', example: '#qqm平台状态' },
         ]
@@ -182,7 +177,54 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
         ],
   }
 
-  const sections = [multiPlatform, ...visibleSections(isMaster)]
+  /**
+   * 凭据通道**必须自己成段**，不能塞进「多平台音源」那段的 items 里 ——
+   * 第 0 段在所有主题里都被当成"平台彩条"渲染（classic/apple/星云/多平台 都是
+   * `{{if index === 0}}` 走平台清单、`{{else}}` 才渲染 items），塞进去等于**四个主题全看不见**：
+   * 最难的那一步（配凭据）恰恰在帮助卡上隐身。
+   *
+   * 两条通道：能扫的列扫码，能粘贴的列粘贴（两种都有的平台两条都出现）。
+   * 扫码限主人（rule 上就是 permission: master），所以条目标 master 只给主人看；
+   * 粘贴反过来 —— 它必须**私聊**发，成员也能配自己那份。
+   */
+  const credentialItems = [
+    ...(qrPlats.length
+      ? [
+          {
+            name: '扫码登录（主人）',
+            master: true,
+            desc: `用手机 App 扫，凭据按你的槽位存（想让全站共用 → 开「一律走主人账号」）。支持：${qrPlats.map((p) => p.label).join(' / ')}`,
+            example: platformQrOf(qrPlats[0].id).command,
+          },
+        ]
+      : []),
+    ...(ckPlats.length
+      ? [
+          {
+            name: '粘贴 cookie（私聊）',
+            desc: `不能扫码、或扫码被上游风控挡住时走这条（凭据按人存，只对你自己生效）。支持：${ckPlats.map((p) => p.label).join(' / ')}`,
+            example: `${platformCookieOf(ckPlats[0].id).command} <cookie>`,
+          },
+        ]
+      : []),
+  ]
+  const credentialSection = {
+    title: '平台凭据',
+    // tag 由注册表计数拼：几家的凭据是"扫出来的"、几家只能"粘"
+    tag: [qrPlats.length ? `${qrPlats.length} 家可扫` : '', ckPlats.length ? `${ckPlats.length} 家可粘` : '']
+      .filter(Boolean)
+      .join(' / '),
+    items: credentialItems,
+  }
+
+  // 两段自定义段（多平台 / 平台凭据）也过一遍同一套身份过滤：以前第一段是直接塞进
+  // sections 的，一旦给里面的条目标 master（扫码就是主人专属），标记会漏给成员。
+  // 过完滤再丢掉空段 —— 成员看不到扫码那条时，"平台凭据"整段可能只剩粘贴一条（或彻底为空）
+  const sections = [
+    ...visibleSections(isMaster, [multiPlatform]),
+    ...visibleSections(isMaster, [credentialSection]).filter((s) => s.items.length),
+    ...visibleSections(isMaster),
+  ]
   const cmdCount = sections.reduce((n, s) => n + s.items.length, 0)
 
   return {

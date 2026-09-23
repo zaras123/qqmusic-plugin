@@ -14,14 +14,51 @@
  * 打开后平台分组才会出现，且**立刻生效**（schema 与判定都是现读配置，不用重启）。
  */
 import Config from '../components/Config.js'
-import { pullLoginMeta, normalizeApiBase } from '../utils/api.js'
+import { pullLoginMeta, normalizeApiBase, request } from '../utils/api.js'
 import { QQMUSIC_QUALITY_LIST } from '../utils/quality.js'
 import { listThemeIds, loadManifest, darkPrefOf } from '../utils/theme.js'
-import { PLATFORMS, VISIBLE_PLATFORMS, platformHasQualityChoice, platformQualities } from '../utils/platforms.js'
+import {
+  PLATFORMS,
+  VISIBLE_PLATFORMS,
+  platformHasQualityChoice,
+  platformQualities,
+  platformAuthOf,
+  platformCanQrLogin,
+  platformCanCookie,
+  platformQrOf,
+  platformCookieOf,
+  platformCookieHelp,
+} from '../utils/platforms.js'
 import { V2_FIELD, isV2Unlocked, platformEnabled, platformQualityPref, platformFillEnabled } from '../utils/v2.js'
 
 /** 分组小工具（R 插件同款：SOFT_GROUP_BEGIN 之后到下一个 BEGIN 之间归本组） */
 const group = (label) => ({ label, component: 'SOFT_GROUP_BEGIN' })
+
+/**
+ * 平台页签里"凭据怎么配"那几行说明（扫码 / 粘贴 / 匿名，全按注册表生成）
+ *
+ * ⚠️ 这里只**说明**；真正能填的是下面的粘贴框（`platforms.<id>.ck`）—— 它是"上传动作"
+ *    而不是配置项：值由 **API** 保管、**不进插件配置**（见 setConfigData 里那段）。
+ *    凭据是**按人存的**（发命令那个 QQ 号），所以锅巴里"一次配好"的语义只能是
+ *    "配到主人槽位"，回执里会把槽位名说清楚，绝不假装"全站已配"。
+ */
+function credentialHints(p) {
+  const qr = platformQrOf(p.id)
+  const ck = platformCookieOf(p.id)
+  const out = []
+  if (qr) out.push(`扫码登录（主人）：${qr.command}　用「${qr.app}」扫`)
+  if (ck) out.push(`粘贴凭据：${platformCookieHelp(p.id)}`)
+  if (!qr && !ck) out.push(`不用配凭据：${platformAuthOf(p.id).note || '匿名音源'}`)
+  return out
+}
+
+/**
+ * 凭据上传/清除落到哪个槽位 = **主人的请求实际会用的那个账号**
+ * （与 utils/api.js 的 publicAccount 同一口径：一律走主人账号时，所有请求都按它取凭据）
+ */
+function masterCredSlot(cfg = {}) {
+  return String(cfg.publicAccount || cfg.public_account || cfg.lastLoginUserKey || '').trim()
+}
 
 /** 卡片主题下拉项：直接扫 resources/themes/，丢个主题目录进去（重启锅巴后）就会出现在这里 */
 const UI_THEME_OPTIONS = (() => {
@@ -42,6 +79,10 @@ const UI_THEME_OPTIONS = (() => {
 export function buildSchemas() {
   const cfg = Config.getConfig('qqmusic') || {}
   const unlocked = isV2Unlocked(cfg)
+  // 分组说明里要列"哪几家能扫码 / 哪几家只能粘贴"—— 由注册表算，别手抄（加一家必漏）
+  const visibleOthers = VISIBLE_PLATFORMS.filter((p) => !p.own)
+  const qrNames = visibleOthers.filter((p) => platformCanQrLogin(p.id)).map((p) => p.label).join('/')
+  const ckNames = visibleOthers.filter((p) => platformCanCookie(p.id)).map((p) => p.label).join('/')
 
   return [
   group('① 基础设置'),
@@ -364,9 +405,15 @@ export function buildSchemas() {
         // 现在：一家一个页签，页签里就是"这家自己的开关 + 条数 + 用法"，互不干扰。
         {
           component: 'Divider',
-          label: '2.0 命令：#qqm<平台> 关键词 点歌 · #qqm<平台>播放 直搜直播 · #qqm<平台>登录 扫码（主人；网易云/酷狗/汽水）· #qqm源 切换默认音源（主人=全群、成员=只对自己）· #qqm平台 看清单 · #qqm平台状态 看各家登录状态卡',
+          label:
+            '#qqm<平台> 关键词 点歌 · #qqm<平台>播放 直搜直播 · ' +
+            `#qqm<平台>登录 扫码（主人；${qrNames}）· #qqm<平台>ck <cookie> 私聊粘贴凭据（${ckNames}）· ` +
+            '#qqm源 切换默认音源（主人=全群、成员=只对自己）· #qqm平台 看清单 · #qqm平台状态 看各家登录状态卡',
         },
-        ...VISIBLE_PLATFORMS.filter((p) => !p.own).flatMap((p) => [
+        ...VISIBLE_PLATFORMS.filter((p) => !p.own).flatMap((p) => {
+          // 这家能粘贴凭据吗（决定页签里要不要出现粘贴框）
+          const ck = platformCookieOf(p.id)
+          return [
           group(p.label),
           {
             component: 'Divider',
@@ -414,7 +461,30 @@ export function buildSchemas() {
             component: 'Divider',
             label: `用法：#qqm${p.short || p.label} 关键词（最短）；也可以 #qqm${p.label}点歌 / #qqm${p.label}播放 —— 都只在 ${p.label} 里搜`,
           },
-        ]),
+          // ── 凭据通道（与 #qqm<平台>登录 / #qqm<平台>ck 同一份事实，全部由注册表生成）──
+          ...credentialHints(p).map((label) => ({ component: 'Divider', label })),
+          ...(ck
+            ? [
+                {
+                  field: `platforms.${p.id}.ck`,
+                  label: ck.file ? '粘贴凭据（整份 cookies 文件全文）' : '粘贴凭据（cookie 整串）',
+                  bottomHelpMessage: `填好再点「保存」即上传（不写进插件配置、不回显）。${ck.where}。关键字段：${ck.keys}`,
+                  component: ck.file ? 'InputTextArea' : 'InputPassword',
+                  componentProps: {
+                    placeholder: ck.file ? '# Netscape HTTP Cookie File …' : 'MUSIC_U=xxx; __csrf=yyy',
+                  },
+                },
+                {
+                  field: `platforms.${p.id}.ckClear`,
+                  label: '清除已保存的凭据',
+                  bottomHelpMessage:
+                    '打开后点「保存」：清掉这份凭据（共享那份与别人的都不动）。上面填了内容时以「上传」为准',
+                  component: 'Switch',
+                },
+              ]
+            : []),
+        ]
+        }),
       ]
     : []),
   ]
@@ -458,6 +528,10 @@ export function getConfigData() {
           fill: platformFillEnabled(c, p.id),
           quality: platformQualityPref(c, p.id),
           maxList: c?.platforms?.[p.id]?.maxList ?? '',
+          // 凭据输入框**不落盘**（它是"上传动作"，值由 API 保管）：给界面一个明确的
+          // 空串/关状态，免得锅巴把 undefined 显示成一半开一半关的样子
+          ck: '',
+          ckClear: false,
         },
       ])
     ),
@@ -500,6 +574,9 @@ export async function setConfigData(data, { Result } = {}) {
     // 白名单直接由 schema 推导 —— 以前是手写数组，加了新开关忘了同步这里，
     // 锅巴保存时会被静默丢弃（表现：开关一打开就弹回原状）
     const UI_ONLY_FIELDS = new Set(['pullLoginMeta']) // 仅界面用，不落盘
+    // 平台凭据输入框同理（**绝不落盘**）：它是"上传动作"，值由 API 保管 ——
+    // 落进插件配置就等于把 cookie 明文写进 yaml（还会跟着配置备份到处跑）
+    const UI_ONLY_FIELD_RE = /^platforms\.[^.]+\.(ck|ckClear)$/
     const EXTRA_KEYS = [
       // 未暴露在界面上但需要保留可写的历史字段
       'songRequestMaxList',
@@ -512,7 +589,9 @@ export async function setConfigData(data, { Result } = {}) {
     // 否则"关掉 ？？？ 之后保存"会把平台段整个丢掉
     const keys = [
       ...new Set([
-        ...buildSchemas().map((s) => s.field).filter((f) => f && !UI_ONLY_FIELDS.has(f)),
+        ...buildSchemas()
+          .map((s) => s.field)
+          .filter((f) => f && !UI_ONLY_FIELDS.has(f) && !UI_ONLY_FIELD_RE.test(f)),
         ...PLATFORMS.filter((p) => !p.own).flatMap((p) => [
           `platforms.${p.id}.enabled`,
           `platforms.${p.id}.maxList`,
@@ -522,6 +601,45 @@ export async function setConfigData(data, { Result } = {}) {
         ...EXTRA_KEYS,
       ]),
     ]
+
+    // ── 平台凭据（每个平台页签里的粘贴框）：**只走 API，绝不落盘** ──
+    //
+    // 它是"上传动作"而不是配置项：填了内容 + 点保存 = 上传一次（配置里不留明文，
+    // 所以 ck/ckClear 也不进上面的 keys 白名单）。槽位固定为**主人的账号槽** ——
+    // 锅巴里没有"谁在保存"这个信息，而凭据在 API 侧是按槽位存的（见 masterCredSlot）。
+    const credMsgs = []
+    const credSlot = masterCredSlot(cur)
+    const isOn = (v) => v === true || v === 1 || v === '1' || v === 'true'
+    for (const p of PLATFORMS.filter((x) => !x.own)) {
+      const ck = platformCookieOf(p.id)
+      if (!ck) continue
+      const raw = String(pickValue(`platforms.${p.id}.ck`) ?? '').trim()
+      const wantClear = isOn(pickValue(`platforms.${p.id}.ckClear`))
+      if (raw) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const body = await request(ck.post, { [ck.field]: raw }, 'post', credSlot)
+          const d = body?.data || body || {}
+          credMsgs.push(`【${p.label}】凭据已上传${d.note ? `：${d.note}` : ''}`)
+        } catch (e) {
+          credMsgs.push(`⚠️ 【${p.label}】凭据上传失败：${e.message}`)
+        }
+      } else if (wantClear) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          const body = await request(ck.clear.path, {}, ck.clear.method, credSlot)
+          const d = body?.data || body || {}
+          credMsgs.push(`【${p.label}】已清除凭据${d.note ? `：${d.note}` : ''}`)
+        } catch (e) {
+          credMsgs.push(`⚠️ 【${p.label}】清除凭据失败：${e.message}`)
+        }
+      }
+    }
+    // 槽位为空 = 没人登录过 QQ、也没填「主人账号」：这时凭据会落到 API 的 default 槽，
+    // 而机器人的请求都带自己的 userKey —— 谁也读不到它。必须说清楚，否则表现是"传了没用"
+    if (!credSlot && credMsgs.length) {
+      credMsgs.push('⚠️ 还没登录过 QQ（也没填「主人账号」）：这份凭据落在 API 的默认槽位，正常点歌读不到它 —— 先 #qqm登录 一次再传')
+    }
 
     for (const k of keys) {
       const v = pickValue(k)
@@ -586,7 +704,8 @@ export async function setConfigData(data, { Result } = {}) {
 
     Config.setConfig('qqmusic', next)
 
-    const okMsg = [pullMsg, '保存成功'].filter(Boolean).join('；')
+    // 凭据结果放最前（它最可能是用户这次点保存的目的），再是登录态查询、保存成功
+    const okMsg = [...credMsgs, pullMsg, '保存成功'].filter(Boolean).join('；')
     if (Result?.ok) return Result.ok({}, okMsg)
     return { success: true, message: okMsg }
   } catch (e) {

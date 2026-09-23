@@ -75,29 +75,31 @@ function countSources(list) {
 
 /* 平台行样例：字段与 utils/card-data.js 的 platformStatusRow() **一一对应**
  * （聚合卡与单平台卡共用那一个函数，样例也必须共用同一份，否则预览会骗人）。
- * 覆盖四种状态：已登录 / 匿名可用 / 未配置(凭据→给 POST) / 未配置(可扫码→给命令)，
- * 外加一行带 unreliable 的告警文案 —— 这几种在真机上都会出现。 */
+ * 覆盖四种状态：已登录 / 匿名可用 / 未配置(只能粘贴→给 #qqm<平台>ck) /
+ * 未配置(可扫码→给 #qqm<平台>登录)，外加一行带 unreliable 的告警文案 —— 这几种在真机上都会出现。
+ * ⚠️ action 字段必须**照抄真机**（由 utils/card-data.js 的 nextActionOf 生成）：
+ *    只有能扫码/能粘贴的平台才有值，YouTube 那种"卡的是出网代理"的必须是空串。 */
 const PLATFORM_ROWS = [
   { name: 'qq', label: 'QQ 音乐', color: '#31c27c', kindText: '账号', ready: true, stateText: '已登录', canQr: true,
     quality: '无损 / Hi-Res（看会员）', sourceText: '', ownersCount: 0, action: '', unreliable: '', note: '',
     detail: '档位：无损 / Hi-Res（看会员）' },
-  { name: 'netease', label: '网易云', color: '#c62f2f', kindText: '账号', ready: true, stateText: '已登录', canQr: true,
+  { name: 'netease', label: '网易云', color: '#c62f2f', kindText: '凭据', ready: true, stateText: '已登录', canQr: true,
     quality: '128k', sourceText: '手机号扫码', ownersCount: 1, action: '', unreliable: '', note: '',
     detail: '来源：手机号扫码 · 档位：128k' },
-  { name: 'kuwo', label: '酷我', color: '#ffb500', kindText: '账号', ready: false, stateText: '未配置', canQr: true,
-    quality: '128k', sourceText: '', ownersCount: 0, action: '#qqm酷我登录', unreliable: '', note: '',
+  { name: 'kuwo', label: '酷我', color: '#ffb500', kindText: '凭据', ready: false, stateText: '未配置', canQr: false,
+    quality: '128k', sourceText: '', ownersCount: 0, action: '#qqm酷我ck', unreliable: '', note: '',
     detail: '档位：128k' },
-  { name: 'kugou', label: '酷狗', color: '#0ea0e8', kindText: '凭据', ready: false, stateText: '未配置', canQr: false,
-    quality: '128k', sourceText: '', ownersCount: 0, action: 'POST /kugou/cookies', unreliable: '', note: '',
+  { name: 'kugou', label: '酷狗', color: '#0ea0e8', kindText: '凭据', ready: false, stateText: '未配置', canQr: true,
+    quality: '128k', sourceText: '', ownersCount: 0, action: '#qqm酷狗登录', unreliable: '', note: '',
     detail: '档位：128k' },
   { name: 'bilibili', label: 'B站', color: '#fb7299', kindText: '匿名', ready: true, stateText: '匿名可用', canQr: false,
     quality: '192k', sourceText: '', ownersCount: 0, action: '', unreliable: '', note: '',
     detail: '档位：192k' },
   { name: 'youtube', label: 'YouTube', color: '#ff0033', kindText: '凭据', ready: false, stateText: '未配置', canQr: false,
-    quality: '128k', sourceText: '', ownersCount: 0, action: 'POST /youtube/cookies',
+    quality: '128k', sourceText: '', ownersCount: 0, action: '', // 卡的是出网代理，配 cookie 没用 → 没有"下一步命令"
     unreliable: '版权曲取链失败率偏高，当兜底用，别当主力', note: '', detail: '档位：128k' },
   { name: 'apple', label: 'Apple Music', color: '#fa2a55', kindText: '音源', ready: false, stateText: '未启用', canQr: false,
-    quality: '256k', sourceText: '', ownersCount: 0, action: '', unreliable: '', note: '', detail: '档位：256k' },
+    quality: '256k', sourceText: '', ownersCount: 0, action: '#qqmamck', unreliable: '', note: '', detail: '档位：256k' },
 ]
 
 /* 帮助卡的音源清单：模板有两种吃法 ——
@@ -112,7 +114,7 @@ const GUIDE_PLATS = [
   { id: 'kuwo', short: '酷我', label: '酷我', color: '#ffb500', quality: '128k', needsCredential: false },
   { id: 'bilibili', short: 'B站', label: 'B站', color: '#fb7299', quality: '192k', needsCredential: false },
   { id: 'kugou', short: '酷狗', label: '酷狗', color: '#0ea0e8', quality: '128k', needsCredential: true },
-  { id: 'qishui', short: '汽水', label: '汽水', color: '#00e0c6', quality: '256k', needsCredential: false },
+  { id: 'qishui', short: '汽水', label: '汽水', color: '#00e0c6', quality: '256k', needsCredential: true },
   { id: 'migu', short: '咪咕', label: '咪咕', color: '#ff5a5f', quality: '128k', needsCredential: false },
   { id: 'youtube', short: 'YouTube', label: 'YouTube', color: '#ff0033', quality: '128k', needsCredential: true },
   { id: 'apple', short: 'Apple', label: 'Apple Music', color: '#fa2a55', quality: '256k', needsCredential: true },
@@ -132,7 +134,8 @@ const samples = {
     tips: [
       '「匿名可用」= 不需要登录就能取链（B站/咪咕/YouTube 这类）',
       '「已登录」= 有账号凭据，能拿更高档位或 VIP 曲',
-      '还没配的：酷我 / 酷狗 / YouTube —— 可扫码的发 #qqm<平台>登录，其余用 POST /<平台>/cookies',
+      // ⚠️ 照抄真机：由 "有 action 的行" + 注册表拼出 —— 酷我/Apple 只能粘贴、酷狗能扫码、YouTube 没通道
+      '还没配的：酷我 私聊 #qqm酷我ck；酷狗 扫码 #qqm酷狗登录；Apple Music 私聊 #qqmamck',
     ],
   },
   // 2.0 单平台状态卡（`#qqm网易状态`）
@@ -179,6 +182,15 @@ const samples = {
           { name: '跨平台补歌', desc: 'QQ 结果尾部自动追加可播的外源曲', example: '#qqm点歌 关键词' },
           { name: '网易云 点歌', desc: '只在网易云里搜（免登录 128k）', example: '#qqm网易云点歌 关键词' },
           { name: '平台清单', desc: '列出现在开着的平台与命令', example: '#qqm平台' },
+        ],
+      },
+      // ⚠️ 凭据渠道必须**独立成段**（第 0 段在四套主题里都被当"平台彩条"渲染，items 是死的）
+      {
+        title: '平台凭据',
+        tag: '3 家可扫 / 5 家可粘',
+        items: [
+          { name: '扫码登录（主人）', desc: '用手机 App 扫，凭据按你的槽位存（想让全站共用 → 开「一律走主人账号」）。支持：网易云 / 酷狗 / 汽水', example: '#qqm网易登录' },
+          { name: '粘贴 cookie（私聊）', desc: '不能扫码、或扫码被上游风控挡住时走这条（凭据按人存，只对你自己生效）。支持：网易云 / 酷我 / 酷狗 / 汽水 / Apple Music', example: '#qqm网易ck <cookie>' },
         ],
       },
       {

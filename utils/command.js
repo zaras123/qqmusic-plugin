@@ -87,10 +87,64 @@ export function parseSongCmd(text = '') {
  */
 export const RE_PLATFORM_STATUS = new RegExp('^#?(?:qq|QQ)m\\s*(' + platformAliasPattern({ includeOwn: true }) + ')\\s*(?:状态|登录状态|音源状态)$', 'i')
 
+/**
+ * 平台凭据（cookie）粘贴：`#qqm网易ck MUSIC_U=xxx; __csrf=yyy`
+ *
+ * 为什么要有这条命令：**不是每家都能扫码**（酷我 / Apple 只能粘贴），而汽水扫码会被
+ * 上游风控掐掉。以前遇到这种情况只能让用户自己去 `curl POST /<平台>/cookies` —— 群里
+ * 没人会干这个，等于"这家的账号态配不了"。现在给一个命令入口，形如：
+ *   #qqm网易ck <整串 cookie>      #qqm酷狗ck <整串>      #qqm汽水ck <整串>
+ *   #qqm酷我ck <整串>            #qqmappleck <Netscape cookies 全文>
+ *
+ * ⚠️ 用 `[\s\S]+` 而不是 `.+`：Apple 那种是**多行文件全文**，`.` 不吃换行。
+ * ⚠️ 平台名与 `ck` 之间**必须紧挨着**（`#qqm网易ck …`，中间不能有空格）。这条不是风格问题：
+ *    RE_SONG_CMD 的省动词分支是"平台 + **空白** + 关键词"，只要这里留了空格，
+ *    `#qqm网易 ck xxx` 就会**同时**命中点歌规则（搜"ck xxx"）与这条规则 → 两个 handler 都回话。
+ *    反过来若把 `ck` 加进点歌规则的排除词表，`#qqm网易 清空` 之类**正常搜索词**会被误排除
+ *    （排除表是按前缀匹配的）—— 所以约束压在这边，写法固定成"紧挨着"。
+ *    载荷可留空（`#qqm网易ck`）：那时 handler 会回一条用法提示，而不是沉默。
+ */
+export const RE_PLATFORM_CK = new RegExp(
+  `^#?(?:qq|QQ)m\\s*(${platformAliasPattern()})(?:ck|cookie|导入ck|设置ck|绑定ck)(?:\\s*([\\s\\S]+))?$`,
+  'i'
+)
+
+/** 清掉自己那份凭据：`#qqm网易清ck` / `#qqm酷狗清除cookie` 之类的写法都收（同样紧挨着，理由见上） */
+export const RE_PLATFORM_CK_CLEAR = new RegExp(
+  `^#?(?:qq|QQ)m\\s*(${platformAliasPattern()})(?:清ck|清除ck|删ck|删除ck|清cookie|清除cookie|ck清除|ck清空)$`,
+  'i'
+)
+
+/** @returns {{plat:string, cookie:string}} 认不出返回全空串；`#qqm网易ck`（没带载荷）时 cookie 为空串 */
+export function parsePlatformCkCmd(text = '') {
+  const m = String(text || '').trim().match(RE_PLATFORM_CK)
+  if (!m) return { plat: '', cookie: '' }
+  // cookie 里可能有换行（Apple 的文件全文）：只去首尾空白，别 trim 中间
+  return { plat: m[1] || '', cookie: String(m[2] || '').trim() }
+}
+
+/** @returns {{plat:string}} 认不出返回 {plat:''} */
+export function parsePlatformCkClearCmd(text = '') {
+  const m = String(text || '').trim().match(RE_PLATFORM_CK_CLEAR)
+  return { plat: m?.[1] || '' }
+}
+
 /** @returns {{plat:string}} 认不出返回 {plat:''} */
 export function parsePlatformStatusCmd(text = '') {
   const m = String(text || '').trim().match(RE_PLATFORM_STATUS)
   return { plat: m?.[1] || '' }
 }
 
-export default { RE_SONG_CMD, RE_PICK_PLAIN, RE_LYRIC_CMD, parseSongCmd, parseLyricCmd }
+export default {
+  RE_SONG_CMD,
+  RE_PICK_PLAIN,
+  RE_LYRIC_CMD,
+  RE_PLATFORM_STATUS,
+  RE_PLATFORM_CK,
+  RE_PLATFORM_CK_CLEAR,
+  parseSongCmd,
+  parseLyricCmd,
+  parsePlatformStatusCmd,
+  parsePlatformCkCmd,
+  parsePlatformCkClearCmd,
+}

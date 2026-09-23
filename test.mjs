@@ -182,6 +182,16 @@ const cases = [
   ['#qqm酷狗登录', 'platformQrLogin'],
   ['#qqm汽水登录', 'platformQrLogin'],
   ['#qqmB站登录', 'platformQrLogin'], // 能匹配到规则（handler 会说明"这家没有扫码通道"）
+  // 2.0：粘贴凭据（#qqm<平台>ck …）—— 不能扫码的那几家唯一的通道，规则挂在 login.js
+  // ⚠️ 平台名与 ck **必须紧挨着**：留了空格会被点歌规则的"平台 + 空格 + 关键词"分支吃掉
+  ['#qqm网易ck MUSIC_U=xxx; __csrf=yyy', 'platformSetCookie'],
+  ['#qqm酷我ck Hm_Iuvt_x=y', 'platformSetCookie'],
+  ['#qqm汽水ck sessionid=z', 'platformSetCookie'],
+  ['#qqmappleck .music.apple.com\tTRUE\t/\tmedia-user-token\tAAA', 'platformSetCookie'],
+  ['#qqmamck multi=line', 'platformSetCookie'], // 最短平台名（apple → am）
+  ['#qqm网易 ck MUSIC_U=x', 'onSongCmd'], // 带空格的写法是**搜索**（写在负例里会误导，这里钉住实际行为）
+  ['#qqm网易清ck', 'platformClearCookie'],
+  ['#qqm酷狗清除cookie', 'platformClearCookie'],
   ['#qqm登录qq', 'startQrLogin'],
   ['#qqm登录app', 'startQrLogin'],
   ['#qqm状态', 'loginStatus'],
@@ -301,6 +311,9 @@ console.log('\n=== 规则冲突体检 ===\n')
     ...aliasList.flatMap((a) => [`#qqm${a}点歌 晴天`, `#qqm${a}播放 晴天`]),
     '#qqm点歌 网易云的歌', '#qqm播放 网易云', '#qqm歌单 网易云',
     '#qqm网易 晴天', '#qqmB站 晴天', '#qqmyt 晴天', '#qqmam 晴天', '#qqm源', '#qqm源 网易',
+    // 凭据命令在这段语料里每条只能命中 1 条规则（与点歌规则的边界最容易出双命中）
+    '#qqm网易ck MUSIC_U=x; __csrf=y', '#qqmappleck .music.apple.com\tTRUE\t/\tmedia-user-token\tA',
+    '#qqm网易清ck', '#qqm酷狗清除ck', '#qqm网易 ck MUSIC_U=x', '#qqm网易 清ck',
     'https://y.qq.com/n/ryqq/songDetail/0039MnYb0qxYhV',
   ]
   const hitsOf = (msg, list = allRules) => list.filter((r) => r.re.test(msg))
@@ -1182,6 +1195,151 @@ function v2Check(name, got, want) {
     }
 
     // ── 3 处一致性修复的回归（2026-09-23）──
+    // ── 凭据通道（扫码 / 粘贴 cookie）：注册表是唯一事实来源 ──────────────
+    {
+      const CD3 = await import('./utils/card-data.js')
+      const CMD = await import('./utils/command.js')
+      const loginApp = new qqmusicLogin()
+      const quoted = []
+      const fakeE = (msg, extra = {}) => ({ msg, user_id: 'u1', reply: async (t) => quoted.push(String(t)), ...extra })
+
+      // ① 能力矩阵：与 API 侧**实际有的接口**对齐（API：只有 qq/netease/kugou/qishui 有 qrcode 模块）
+      v2Check('凭据：能扫码的外部平台 = 网易云/酷狗/汽水', P.qrPlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kugou,qishui')
+      v2Check('凭据：酷我**不能**扫码（曾经错标成能扫，用户照着帮助发命令只得到"没这条通道"）', P.platformCanQrLogin('kuwo'), false)
+      v2Check('凭据：酷狗**能**扫码（曾经漏标，帮助/锅巴都不提它）', P.platformCanQrLogin('kugou'), true)
+      v2Check('凭据：能粘贴的外部平台 = 网易云/酷我/酷狗/汽水/Apple', P.cookiePlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kuwo,kugou,qishui,apple')
+      v2Check('凭据：匿名平台（B站/咪咕/YouTube）不收凭据', ['bilibili', 'migu', 'youtube'].map((id) => P.platformCanCookie(id)).join(','), 'false,false,false')
+      // API 侧 audius 早就注册了（前缀 au_），插件注册表以前没登记 → au_xxx 被当成 QQ 曲
+      v2Check('凭据：audius（au_）也登记进注册表（认得出外源曲）', P.platformOfMid('au_123')?.id, 'audius')
+
+      // ② 上传路径 / 字段名 / 清除方式必须与 API 的接口一致（Apple 的例外就藏在这组里）
+      const wantCk = {
+        netease: ['/netease/cookies', 'cookie', '/netease/cookies/clear', 'post'],
+        kugou: ['/kugou/cookies', 'cookie', '/kugou/cookies/clear', 'post'],
+        qishui: ['/qishui/cookies', 'cookie', '/qishui/cookies/clear', 'post'],
+        kuwo: ['/kuwo/cookies', 'cookie', '/kuwo/cookies/clear', 'post'],
+        apple: ['/apple/cookies', 'cookies', '/apple/cookies', 'delete'], // 字段是 cookies、清除是 DELETE
+      }
+      v2Check('凭据：上传路径/字段名/清除方式与 API 一致', Object.entries(wantCk).every(([id, w]) => {
+        const c = P.platformCookieOf(id)
+        return c && [c.post, c.field, c.clear.path, c.clear.method].join('|') === w.join('|')
+      }), true)
+      // ③ 命令写法（帮助 / 锅巴 / 卡片 / handler 共用同一份）：用**最短平台名**
+      v2Check(
+        '凭据：命令用最短平台名（#qqm网易登录 / #qqmamck / #qqm网易清ck）',
+        [
+          P.platformQrOf('netease').command,
+          P.platformCookieOf('netease').command,
+          P.platformCookieOf('netease').clearCommand,
+          P.platformQrOf('apple'), // Apple **没有**扫码命令（空档位就是这条断言）
+          P.platformCookieOf('apple').command,
+        ].join('|'),
+        '#qqm网易登录|#qqm网易ck|#qqm网易清ck||#qqmamck'
+      )
+      // ④ Apple 的多行 cookies 全文：换行不能被吃掉
+      v2Check('凭据：Apple 的多行 cookies 全文能整段解析', CMD.parsePlatformCkCmd('#qqmamck # Netscape HTTP Cookie File\n.music.apple.com\tTRUE\t/\tmedia-user-token\tAAA').cookie, '# Netscape HTTP Cookie File\n.music.apple.com\tTRUE\t/\tmedia-user-token\tAAA')
+
+      setCfg({ enable: true, unlockV2: true, platforms: {} })
+      // ⑤ handler：不能再扫码的那家要说清"怎么粘贴"（用户原来就是卡在这一步）
+      let h = await loginApp.platformQrLogin(fakeE('#qqm酷我登录', { isMaster: true }))
+      v2Check('凭据：酷我发"登录"时给出粘贴命令（不再只有一句"没通道"）', h === true && /#qqm酷我ck/.test(quoted.join('\n')), true)
+      quoted.length = 0
+      h = await loginApp.platformQrLogin(fakeE('#qqmB站登录', { isMaster: true }))
+      v2Check('凭据：匿名平台发"登录"时说清"不需要配"', h === true && /不需要配/.test(quoted.join('\n')), true)
+      // ⑥ 群里发凭据一律拒收（凭据按人存，群里发等于给全群用）——并且**不能**打到 API
+      quoted.length = 0
+      h = await loginApp.platformSetCookie(fakeE('#qqm网易ck MUSIC_U=xxx', { isGroup: true, group_id: 'g1' }))
+      v2Check('凭据：群里发 ck 被拒收（提示改私聊）', h === true && /私聊/.test(quoted.join('\n')), true)
+      quoted.length = 0
+      h = await loginApp.platformClearCookie(fakeE('#qqm网易清ck', { isGroup: true, group_id: 'g1' }))
+      v2Check('凭据：群里发"清ck"也被拒收', h === true && /私聊/.test(quoted.join('\n')), true)
+      quoted.length = 0
+      h = await loginApp.platformSetCookie(fakeE('#qqmB站ck whatever'))
+      v2Check('凭据：给匿名平台发 ck 时说清它不需要凭据', h === true && /不需要凭据/.test(quoted.join('\n')), true)
+      quoted.length = 0
+      h = await loginApp.platformSetCookie(fakeE('#qqm网易ck'))
+      v2Check('凭据：只发 #qqm网易ck（没带内容）时回用法与出处', h === true && /用法：#qqm网易ck/.test(quoted.join('\n')) && /MUSIC_U/.test(quoted.join('\n')), true)
+      // ⑦ ？？？关着：三条命令都必须静默（1.9 里它们不存在）
+      setCfg({ unlockV2: false })
+      quoted.length = 0
+      const locked = [
+        await loginApp.platformSetCookie(fakeE('#qqm网易ck MUSIC_U=x')),
+        await loginApp.platformClearCookie(fakeE('#qqm网易清ck')),
+        await loginApp.platformQrLogin(fakeE('#qqm网易登录', { isMaster: true })),
+      ]
+      v2Check('凭据：？？？关着时三条命令都静默（不提示、不报错）', [locked.join(','), quoted.length].join('|'), 'false,false,false|0')
+      setCfg({ unlockV2: true, platforms: {} })
+
+      // ⑧ 帮助卡：两条通道都列出来；扫码那条是主人专属（rule 上就是 permission: master）
+      // 条目要**跨段**找：凭据那两条在独立的「平台凭据」段里（见下一条断言）
+      const itemsOf = (g) => g.sections.flatMap((s) => s.items).map((i) => `${i.name}|${i.example}`).join(' ; ')
+      const masterItems = itemsOf(HC.buildGuideCardData({ isMaster: true }))
+      const memberItems = itemsOf(HC.buildGuideCardData({}))
+      v2Check('帮助卡：主人看到扫码条目（示例给最短写法）', /扫码登录（主人）\|#qqm网易登录/.test(masterItems), true)
+      v2Check('帮助卡：粘贴凭据也列出来（注明私聊 + 支持哪几家）', /粘贴 cookie（私聊）\|#qqm网易ck <cookie>/.test(masterItems) && /酷我/.test(masterItems), true)
+      v2Check('帮助卡：成员看不到扫码条目（master 命令）', /扫码登录/.test(memberItems), false)
+      v2Check('帮助卡：条目里不残留内部标记 master', /master/.test(masterItems), false)
+      // ⚠️ 凭据那两条**不能**待在第 0 段的 items 里 —— 第 0 段在四套主题里都被渲染成"平台彩条"，
+      //    它自己的 items 一个都不会被画出来（配凭据这一步会在帮助卡上彻底隐身）
+      const guideMaster = HC.buildGuideCardData({ isMaster: true })
+      v2Check('帮助卡：凭据独立成段且不在第 0 段（否则四个主题都看不见）',
+        [guideMaster.sections[0].title, guideMaster.sections[1].title, guideMaster.sections[0].items.some((i) => /扫码登录/.test(i.name))].join('|'),
+        '多平台音源|平台凭据|false')
+      const guideMember = HC.buildGuideCardData({})
+      v2Check('帮助卡：成员那份"平台凭据"段仍在（只剩粘贴那条），没被整段丢掉',
+        [guideMember.sections.some((s) => s.title === '平台凭据'), guideMember.sections.flatMap((s) => s.items).some((i) => /粘贴 cookie/.test(i.name))].join('|'),
+        'true|true')
+
+      // ⑨ 状态卡：下一步发的是**聊天命令**，不再是运维接口 POST /x/cookies
+      const rows = CD3.buildPlatformsCardData({
+        list: [
+          { name: 'netease', label: '网易云', kind: 'credential', canQr: true, loggedIn: true, quality: '128k' },
+          { name: 'kuwo', label: '酷我', kind: 'credential', canQr: false, loggedIn: false, quality: '128k' },
+          { name: 'kugou', label: '酷狗', kind: 'credential', canQr: false, loggedIn: false, quality: '128k' },
+          { name: 'apple', label: 'Apple Music', kind: 'apple', configured: false, quality: '256k' },
+          { name: 'bilibili', label: 'B站', kind: 'anonymous', quality: '192k' },
+        ],
+      }).rows
+      const rowOf = (id) => rows.find((r) => r.name === id)
+      v2Check('状态卡：下一步是聊天命令（酷我=粘贴、酷狗=扫码、Apple=粘贴、匿名=空）', [rowOf('kuwo').action, rowOf('kugou').action, rowOf('apple').action, rowOf('bilibili').action].join('|'), '#qqm酷我ck|#qqm酷狗登录|#qqmamck|')
+      v2Check('状态卡：能不能扫码也按注册表算（酷狗能、酷我不能）', [rowOf('kugou').canQr, rowOf('kuwo').canQr].join(','), 'true,false')
+      v2Check('状态卡：苹果没配时也提示贴凭据（以前是空的，只能自己去 curl）', /#qqmamck/.test(CD3.formatPlatformsText({ rows, title: 'x', readyCount: 1, total: 5 })), true)
+      v2Check('单平台卡：QQ 不会拼出 #qqmQQ音乐登录 这种不存在的命令', CD3.buildPlatformCardData({ list: [{ name: 'qq', label: 'QQ音乐', kind: 'account', canQr: true, loggedIn: true }] }, 'qq').commands.every((c) => !/#qqmQQ音乐登录/.test(c.example)), true)
+
+      // ⑨b 状态卡底部"还没配的"那句：平台名单与命令**全从注册表拼**
+      //     （以前是手写的「其余（酷我/Apple）」——注册表一变就成假话；且只有粘贴通道的要标"私聊发"）
+      const platTips = CD3.buildPlatformsCardData({
+        list: [
+          { name: 'netease', label: '网易云', kind: 'credential', loggedIn: true, quality: '128k' },
+          { name: 'kuwo', label: '酷我', kind: 'credential', loggedIn: false, quality: '128k' },
+          { name: 'kugou', label: '酷狗', kind: 'credential', loggedIn: false, quality: '128k' },
+          { name: 'apple', label: 'Apple Music', kind: 'apple', configured: false, quality: '256k' },
+          { name: 'youtube', label: 'YouTube', kind: 'credential', loggedIn: false, quality: '128k' },
+        ],
+      }).tips.join(' | ')
+      v2Check('状态卡："还没配的"按注册表拼（酷狗→扫码命令、酷我/Apple→私聊粘贴）',
+        /酷我 私聊 #qqm酷我ck/.test(platTips) && /酷狗 扫码 #qqm酷狗登录/.test(platTips) && /Apple Music 私聊 #qqmamck/.test(platTips), true)
+      // 注意别用裸 /YouTube/：tips 第一行的"（B站/咪咕/YouTube 这类）"会误命中
+      v2Check('状态卡：没通道的（YouTube，卡出网代理）不进"还没配的"（不然等于教人白配）', /YouTube (私聊|扫码|见)/.test(platTips), false)
+
+      // ⑩ 锅巴：凭据段按平台独立（能粘贴的才有输入框），且**绝不落盘**
+      const ckIds = P.cookiePlatforms().filter((x) => !x.own && !x.hidden).map((x) => x.id).sort()
+      const schemaCkIds = unlockedSchemas
+        .map((s) => String(s.field || ''))
+        .filter((f) => /^platforms\.[^.]+\.ck$/.test(f))
+        .map((f) => f.split('.')[1])
+        .sort()
+      v2Check('锅巴：只有能粘贴凭据的平台页签才有凭据输入框', schemaCkIds.join(','), ckIds.join(','))
+      v2Check('锅巴：每个凭据框旁边都有"清除"开关', ckIds.every((id) => unlockedSchemas.some((s) => s.field === `platforms.${id}.ckClear`)), true)
+      v2Check('锅巴：凭据默认值是空串/关（不是 undefined）', [getConfigData().platforms.netease.ck, getConfigData().platforms.netease.ckClear, getConfigData().platforms.kuwo.ck].join('|'), '|false|')
+      v2Check('锅巴：能扫码的页签里写了扫码命令', P.qrPlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}登录`))), true)
+      v2Check('锅巴：能粘贴的页签里写了粘贴命令且注明"私聊"', P.cookiePlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}ck`) && /私聊/.test(String(s.label)))), true)
+      v2Check('锅巴：匿名页签里写清"不用配凭据"', ['bilibili', 'migu', 'youtube'].every((id) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('不用配凭据'))), true)
+      await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})
+      v2Check('锅巴：凭据不写进配置（明文 cookie 不进 yaml）', JSON.stringify(cfgNow()).includes('definitely-not-a-cookie'), false)
+      v2Check('锅巴：保存后 ck/ckClear 两个界面键都不存在', [cfgNow().platforms?.netease?.ck, cfgNow().platforms?.netease?.ckClear].join('|'), '|')
+    }
+
     {
       const src = fs.readFileSync(path.join(pluginRoot, 'apps', 'song.js'), 'utf8')
       // ① 播放也要认「当前音源」：以前只有点歌认，用户设完音源去播放还是搜 QQ

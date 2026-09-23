@@ -33,7 +33,15 @@
  *                                的 `QUALITY_OPTIONS` **一一对应**，锅巴的"音质档位"用它）
  * @property {boolean} [hidden]   true = 不在帮助/锅巴里展示（但别名仍可解析）
  * @property {boolean} [own]      true = QQ 音乐本体
- * @property {boolean} [qrLogin]  true = 支持**扫码登录**（`#qqm<平台>登录`，凭据写进共享那份）
+ * @property {object}  [auth]      凭据能力（**单一事实来源**：帮助卡 / 锅巴 / 命令 / 状态卡都读它）
+ *   · `mode`：`qr`（可扫码）| `cookie`（只能粘贴）| `file`（粘贴的是一份文件全文，如 Apple）| `none`（匿名，不需要凭据）
+ *   · `qr`：`{ app }` —— 扫码用哪个 App；**有它才允许** `#qqm<平台>登录`
+ *   · `cookie`：`{ where, keys, file?, post?, field?, clear? }` —— 粘贴入口的出处与关键字段；
+ *     **有它才允许** `#qqm<平台>ck <cookie>`。API 侧的路径与字段名都有默认值
+ *     （`POST /<id>/cookies` + `cookie` 字段），只有 Apple 例外（字段叫 `cookies`、清除走 DELETE）——
+ *     默认值只在 platformCookieOf() 里算一次，**调用方不许再手写路径**
+ *   · `deeplink`：true = 另有 deep link 导入通道（目前只有 QQ 本体）
+ *   · `note`：给用户的一句人话（匿名平台用它说明"为什么不需要配"）
  */
 export const PLATFORMS = Object.freeze([
   {
@@ -44,6 +52,9 @@ export const PLATFORMS = Object.freeze([
     color: '#31c27c',
     quality: '320k+',
     own: true,
+    // QQ 本体不进 `#qqm<平台>登录` 那条通配规则：它的入口（#qqm登录 / 微信 / 登录qq / 绑定 deeplink）
+    // 在 apps/login.js 里各写一条。这里登记能力，只为让帮助/状态卡/文档读到同一份事实。
+    auth: { mode: 'qr', qr: { app: 'QQ音乐 App' }, deeplink: true },
   },
   {
     id: 'netease',
@@ -55,8 +66,15 @@ export const PLATFORMS = Object.freeze([
     icon: 'https://i.gtimg.cn/open/app_icon/00/49/50/85/100495085_100_m.png',
     color: '#c62f2f',
     quality: '128k',
-    // 扫码登录：API 侧 `/netease/login/qrcode` + `/login/qrcode/check`（vendor 模块 + 我们归一化）
-    qrLogin: true,
+    // 凭据能力：扫码（API `/netease/login/qrcode` + `/login/qrcode/check`）+ 粘贴（`POST /netease/cookies`）
+    auth: {
+      mode: 'qr',
+      qr: { app: '网易云音乐' },
+      cookie: {
+        where: '登录 music.163.com → F12 → Application → Cookies，复制整串（别只复制 __csrf）',
+        keys: 'MUSIC_U',
+      },
+    },
     // 与 API QUALITY_OPTIONS.netease 对齐；exhigh/lossless/hires 需要账号（API 侧校验，
     // 拿不到会如实回落并在响应里给 qualityNote）
     qualities: [
@@ -76,8 +94,16 @@ export const PLATFORMS = Object.freeze([
     icon: 'https://p.qpic.cn/qqconnect/0/app_100243533_1636374695/100',
     color: '#ffb500',
     quality: '128k',
-    // 扫码登录：API 侧 `/kugou/login/qrcode` + `/login/qrcode/check`
-    qrLogin: true,
+    // ⚠️ 酷我**没有扫码通道**（API 侧只有 `/kuwo/cookies`，没有 qrcode 模块）。
+    //    这里曾错标成 `qrLogin: true` —— 用户照着帮助去发 `#qqm酷我登录`，只拿到一句"没这条通道"。
+    //    它只能粘贴（Hm_Iuvt_*），所以 mode 是 cookie。
+    auth: {
+      mode: 'cookie',
+      cookie: {
+        where: '先打开一次 www.kuwo.cn（服务端会下发新的 Hm_Iuvt_*）→ F12 → Application → Cookies，复制整串',
+        keys: 'Hm_Iuvt_*',
+      },
+    },
     // 酷我是签名通道、单档位：只给"自动"，不给假选择
   },
   {
@@ -89,6 +115,8 @@ export const PLATFORMS = Object.freeze([
     icon: 'https://i.gtimg.cn/open/app_icon/00/95/17/76/100951776_100_m.png',
     color: '#fb7299',
     quality: '192k',
+    // 匿名：B站搜索/取链不要账号（要大会员的曲目上游也只给试听段，配了也白配）
+    auth: { mode: 'none', note: '免登录直接搜/播（192k），不需要配凭据' },
   },
   {
     id: 'kugou',
@@ -108,6 +136,17 @@ export const PLATFORMS = Object.freeze([
     ],
     // 酷狗**没配凭据就用不了**（搜索要登录态）：不是"没搜到"，接口会回 unavailable 原因
     needsCredential: true,
+    // 凭据能力：扫码（API `/kugou/login/qrcode`）+ 粘贴（`POST /kugou/cookies`，认 token 与 userid）
+    //   ⚠️ 这里以前**漏标**了扫码能力，于是帮助卡/锅巴都不提它能扫码（命令却一直能跑）——
+    //      能力清单与实现必须一起改，不要再各写一份。
+    auth: {
+      mode: 'qr',
+      qr: { app: '酷狗音乐' },
+      cookie: {
+        where: '登录 kugou.com → F12 → Application → Cookies，复制整串（关键是 token 与 userid，别只复制一个）',
+        keys: 'token / userid',
+      },
+    },
   },
   {
     id: 'qishui',
@@ -117,8 +156,16 @@ export const PLATFORMS = Object.freeze([
     short: '汽水',
     color: '#00e0c6',
     quality: '256k',
-    // 扫码登录：API 侧 `/qishui/login/qrcode` + `/login/status?token=`（抖音 App 扫）
-    qrLogin: true,
+    // 凭据能力：扫码（API `/qishui/login/qrcode`，抖音 App 扫）+ 粘贴（`POST /qishui/cookies`）
+    //   上游风控（error_code 2046）时不时把扫码这条路掐掉，所以粘贴入口**必须有**
+    auth: {
+      mode: 'qr',
+      qr: { app: '抖音 App（或汽水音乐）' },
+      cookie: {
+        where: 'PC 客户端或浏览器里复制 qishui.com 的整串 cookie（扫码被风控挡住时走这条）',
+        keys: 'sessionid',
+      },
+    },
     qualities: [
       { value: 'auto', label: '自动（该平台最高可用）' },
       { value: 'highest', label: '免费最高档' },
@@ -138,6 +185,7 @@ export const PLATFORMS = Object.freeze([
     // 匿名（也是本项目唯一能走的通道）只有 PQ —— "自动"与"PQ"结果完全一样，
     // 所以**不给档位选择器**（给一个二选一但没有区别的开关就是噪声）。
     // API 侧仍登记了 PQ（`QUALITY_OPTIONS.migu`），将来接入 VIP 凭据再在这里补 HQ/SQ。
+    auth: { mode: 'none', note: '免登录直接搜/播（PQ 128k）；要 VIP 档位得等接入凭据' },
   },
   {
     id: 'youtube',
@@ -148,6 +196,8 @@ export const PLATFORMS = Object.freeze([
     color: '#ff0033',
     quality: '128k',
     needsCredential: true, // 国内必须要有出网代理
+    // 没有账号体系：卡的是**网络**不是凭据 —— 所以不给 ck 入口（给了也解决不了问题）
+    auth: { mode: 'none', note: '免登录，但 API 侧必须配 YOUTUBE_PROXY 才通（配 cookie 没用）' },
   },
   {
     id: 'apple',
@@ -158,6 +208,19 @@ export const PLATFORMS = Object.freeze([
     color: '#fa2a55',
     quality: '256k',
     needsCredential: true, // 元数据免配，音频/搜索要 sidecar
+    // Apple 的凭据不是"一行 cookie"，而是**一份 Netscape cookies 文件全文**（含 media-user-token），
+    // 所以 mode 是 file：粘贴的是整份文件内容；API 字段名也跟别家不同（`cookies` 而不是 `cookie`）
+    auth: {
+      mode: 'file',
+      cookie: {
+        where: 'tools/apple-dl 的导出脚本产出的 Netscape cookies 全文（必须含 music.apple.com 的行）',
+        keys: 'media-user-token',
+        file: true,
+        // 这两项是 Apple 与别家的差别：字段名是 cookies（不是 cookie），清除走 DELETE 同一条路
+        field: 'cookies',
+        clear: { path: '/apple/cookies', method: 'delete' },
+      },
+    },
   },
   {
     // 印度/宝莱坞强，中文基本没有 —— 默认不在帮助里露脸，但 `#qqmjiosaavn点歌` 仍可用
@@ -168,6 +231,20 @@ export const PLATFORMS = Object.freeze([
     color: '#2bc5b4',
     quality: '320k',
     hidden: true,
+    auth: { mode: 'none', note: '免登录直接搜/播（320k）' },
+  },
+  {
+    // Audius：API 侧早就注册了（`util/providers/audius.js`，前缀 `au_`），插件这边一直没登记。
+    // 后果不是"少一家音源"，而是 `au_xxx` 这种 songmid **认不出平台** → 被当成 QQ 曲
+    // （白打一次详情请求、还会拿 QQ 的档位阶梯去套它）。补上，仍然 hidden（不在帮助里露脸）。
+    id: 'audius',
+    prefix: 'au_',
+    label: 'Audius',
+    aliases: ['audius'],
+    color: '#7d3ce8',
+    quality: '128k',
+    hidden: true,
+    auth: { mode: 'none', note: '免登录直接搜/播（128k）' },
   },
 ])
 
@@ -266,9 +343,96 @@ export function platformHasQualityChoice(name = '') {
   return platformQualities(name).some((x) => x.value !== 'auto')
 }
 
+/**
+ * 归一化后的**凭据能力**（认不出的平台 = 匿名、什么都不能配）
+ *
+ * 单一事实来源：帮助卡 / 锅巴 / 命令行 / 卡片文案都读它 —— 别再各自判断 `p.qrLogin`。
+ * 形状固定，所以调用方不用到处写 `?.` 兜底。
+ */
+export function platformAuthOf(name = '') {
+  const a = platformOf(name)?.auth || {}
+  return {
+    mode: a.mode || 'none',
+    qr: a.qr || null,
+    cookie: a.cookie || null,
+    deeplink: a.deeplink === true,
+    note: a.note || '',
+    anonymous: (a.mode || 'none') === 'none',
+  }
+}
+
 /** 这家支持扫码登录吗（帮助/平台清单/登录命令共用这一份事实） */
 export function platformCanQrLogin(name = '') {
-  return platformOf(name)?.qrLogin === true
+  return Boolean(platformOf(name)?.auth?.qr)
+}
+
+/** 这家支持粘贴 cookie 吗（`#qqm<平台>ck <cookie>`） */
+export function platformCanCookie(name = '') {
+  return Boolean(platformOf(name)?.auth?.cookie)
+}
+
+/**
+ * 扫码通道的元信息 —— 认不出/不能扫码回 null
+ *
+ * @returns {{app:string, command:string}|null} command = 给用户抄的那条命令（用**最短平台名**）
+ */
+export function platformQrOf(name = '') {
+  const p = platformOf(name)
+  const qr = p?.auth?.qr
+  if (!p || !qr) return null
+  return { app: qr.app || '手机 App', command: `#qqm${platformShort(p.id)}登录` }
+}
+
+/**
+ * 粘贴凭据通道的元信息 —— 认不出/这家不收 cookie 回 null
+ *
+ * 命令 / 上传路径 / 字段名 / 清除方式**都在这里算一次**（以前散在 login.js、card-data.js、
+ * 锅巴 schema 三处，Apple 那个"字段叫 cookies、清除用 DELETE"的例外就漏过一次）。
+ *
+ * @returns {{command:string, clearCommand:string, where:string, keys:string, file:boolean,
+ *            post:string, field:string, clear:{path:string, method:string}}|null}
+ */
+export function platformCookieOf(name = '') {
+  const p = platformOf(name)
+  const c = p?.auth?.cookie
+  if (!p || !c) return null
+  return {
+    command: `#qqm${platformShort(p.id)}ck`,
+    clearCommand: `#qqm${platformShort(p.id)}清ck`,
+    where: c.where || '',
+    keys: c.keys || '',
+    // file = 粘贴的是一份**文件全文**（Apple），不是一行 cookie 串
+    file: c.file === true,
+    post: c.post || `/${p.id}/cookies`,
+    field: c.field || 'cookie',
+    clear: c.clear || { path: `/${p.id}/cookies/clear`, method: 'post' },
+  }
+}
+
+/**
+ * 粘贴 cookie 的说明（锅巴的 help 文案与命令的用法提示共用同一份文字）
+ *
+ * ⚠️ 结尾特意写明"私聊发"：凭据是**一人一份**存的（按发命令的 QQ 号），
+ *    群里发等于把自己的账号凭据贴给全群看 —— 命令侧也会拒收（见 apps/login.js）。
+ */
+export function platformCookieHelp(name = '') {
+  const c = platformCookieOf(name)
+  if (!c) return ''
+  return [
+    `私聊发 ${c.command} ${c.file ? '<整份 cookies 文件全文>' : '<cookie>'}`,
+    `从哪拿：${c.where || '（未登记）'}`,
+    `关键字段：${c.keys || '（未登记）'}`,
+  ].join('；')
+}
+
+/** 能扫码的平台（帮助卡文案 + 测试断言用） */
+export function qrPlatforms() {
+  return PLATFORMS.filter((p) => p.auth?.qr)
+}
+
+/** 能粘贴 cookie 的平台（帮助卡文案 + 测试断言用） */
+export function cookiePlatforms() {
+  return PLATFORMS.filter((p) => p.auth?.cookie)
 }
 
 /**
@@ -319,6 +483,13 @@ export default {
   platformShort,
   platformQualities,
   platformHasQualityChoice,
+  platformAuthOf,
   platformCanQrLogin,
+  platformQrOf,
+  platformCanCookie,
+  platformCookieOf,
+  platformCookieHelp,
+  qrPlatforms,
+  cookiePlatforms,
   platformAliasPattern,
 }

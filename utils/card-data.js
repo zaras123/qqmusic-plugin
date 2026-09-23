@@ -5,7 +5,16 @@ import Config from '../components/Config.js'
 import { QUALITY_LABEL } from './quality.js'
 import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
 // 「多平台」主题要按来源上色：色值/短名从注册表取（单一事实来源）
-import { platformColor, platformShort, platformOf, platformIdOf, platformQualities } from './platforms.js'
+import {
+  platformColor,
+  platformShort,
+  platformOf,
+  platformIdOf,
+  platformQualities,
+  platformCanQrLogin,
+  platformQrOf,
+  platformCookieOf,
+} from './platforms.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
 import { resolveTheme, TIME_LABEL } from './theme.js'
@@ -238,6 +247,17 @@ export function buildLyricCardData({
  */
 
 /**
+ * 这一行"下一步该做什么"：**能扫码就给登录命令，否则给粘贴命令**，匿名/已就绪给空
+ *
+ * 事实来自注册表（platformQrOf / platformCookieOf）—— 卡片 / 帮助 / 命令 / 锅巴共用一份。
+ * 以前这里写的是 `POST /<平台>/cookies`，那是**运维接口**，群里没人会去 curl。
+ */
+function nextActionOf(name, ready) {
+  if (ready) return ''
+  return platformQrOf(name)?.command || platformCookieOf(name)?.command || ''
+}
+
+/**
  * 平台状态行（**聚合卡与单平台卡共用**，别两处各算一遍 —— 状态词/来源词/下一步
  * 的口径必须一致，否则同一台机器上两张卡会说不一样的话）
  */
@@ -262,12 +282,14 @@ function platformStatusRow(p) {
     stateText,
     sourceText: p.sourceText || '',
     quality,
-    canQr: Boolean(p.canQr),
+    // 能不能扫码、下一步该发什么，全按**注册表**算（与 #qqm<平台>登录/ck 命令同一份事实）：
+    // 用 API 的 canQr 会出现"卡片说可扫码、命令说没这条通道"（两边各有一份清单，必分手）
+    canQr: platformCanQrLogin(p.name),
     ownersCount: Array.isArray(p.owners) ? p.owners.length : 0,
     unreliable: p.unreliable || '',
     note: p.note || '',
-    // 该做什么（可操作的一步）：能扫码给命令，凭据级给接口，匿名/已就绪给空
-    action: !ready && p.canQr ? `#qqm${short}登录` : !ready && p.kind === 'credential' ? `POST /${p.name}/cookies` : '',
+    // 该做什么（可操作的一步）：能扫码给登录命令，否则给粘贴命令，匿名/已就绪给空
+    action: nextActionOf(p.name, ready),
     // ⚠️ 用上面算好的 quality/srcText —— 直接读 p.quality 会让 QQ 那行（API 不给 quality）
     //    明明有档位却显示空（实测踩过）
     detail: [srcText, quality ? `档位：${quality}` : ''].filter(Boolean).join(' · '),
@@ -294,7 +316,16 @@ export function buildPlatformCardData(status = {}, platformId = '') {
     { name: '歌词', example: isQq ? '#qqm歌词 关键词' : `#qqm${short}歌词 关键词`, desc: '按歌取词（也可 #qqm歌词 序号）' },
   ]
   if (!isQq) commands.push({ name: '设为当前音源', example: `#qqm源 ${short}`, desc: '设一次，之后 #qqm点歌 默认走它（主人=全群、成员=只对自己）' })
-  if (row.canQr) commands.push({ name: '扫码登录', example: `#qqm${short}登录`, desc: '主人扫码（凭据写共享那份，全站可用）' })
+  // 凭据通道（事实来自注册表）：能扫码的给登录命令（换号也用它），只有粘贴的给粘贴命令。
+  // ⚠️ QQ 排除在外 —— 它的登录命令是 #qqm登录/#qqm登录app，不是 `#qqm<平台>登录`
+  //   （以前这里按 API 的 canQr 拼出过 `#qqmQQ音乐登录` 这种不存在的命令）
+  const qrOf = isQq ? null : platformQrOf(id)
+  const ckOf = isQq ? null : platformCookieOf(id)
+  if (qrOf) {
+    commands.push({ name: '扫码登录', example: qrOf.command, desc: '主人扫码；凭据按主人槽位存（想全站共用 → 开「一律走主人账号」）' })
+  } else if (ckOf) {
+    commands.push({ name: '粘贴凭据', example: ckOf.command, desc: '私聊发（这家不能扫码）；从哪拿见帮助卡' })
+  }
   commands.push({ name: '看全部平台', example: '#qqm平台状态', desc: '10 家音源的登录状态一览' })
 
   const cfg = Config.getConfig('qqmusic') || {}
@@ -337,7 +368,17 @@ export function buildPlatformsCardData(status = {}) {
 
   const total = rows.length
   const readyCount = rows.filter((r) => r.ready).length
-  const needCred = rows.filter((r) => r.kindText === '凭据' && !r.ready)
+  // 「还没配的」= 有下一步动作的那些（`action` 空 ⟺ 已就绪 / 这家根本没通道）。
+  // 命令文案**从注册表拼**：以前这里手写「其余（酷我/Apple）」——二手名单，注册表一变就成假话
+  const todo = rows.filter((r) => r.action)
+  const todoHint = todo
+    .map((r) => {
+      const qr = platformQrOf(r.name)
+      if (qr) return `${r.label} 扫码 ${qr.command}`
+      const ck = platformCookieOf(r.name)
+      return ck ? `${r.label} 私聊 ${ck.command}` : `${r.label} 见 API 配置`
+    })
+    .join('；')
 
   return {
     title: '平台登录状态',
@@ -352,7 +393,7 @@ export function buildPlatformsCardData(status = {}) {
     tips: [
       '「匿名可用」= 不需要登录就能取链（B站/咪咕/YouTube 这类）',
       '「已登录」= 有账号凭据，能拿更高档位或 VIP 曲',
-      needCred.length ? `还没配的：${needCred.map((r) => r.label).join(' / ')} —— 可扫码的发 #qqm<平台>登录，其余用 POST /<平台>/cookies` : '所有凭据类平台都配好了 🎉',
+      todo.length ? `还没配的：${todoHint}` : '所有能配的平台都配好了 🎉',
     ],
   }
 }
@@ -366,7 +407,7 @@ export function formatPlatformsText(data = {}) {
       (r) =>
         `${r.ready ? '✅' : '⬜'} ${r.label}（${r.kindText}）${r.stateText}` +
         (r.detail ? ` · ${r.detail}` : '') +
-        (r.canQr ? ` · 可扫码：#qqm${r.short}登录` : '') +
+        (r.action ? ` · 下一步：${r.action}` : '') +
         (r.unreliable ? `\n     ⚠️ ${r.unreliable}` : '')
     ),
     '',
