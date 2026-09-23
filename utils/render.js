@@ -234,6 +234,131 @@ function isDarkBg(color) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128
 }
 
+// ──────────── 共用 Chrome 实例 ────────────
+/**
+ * 为什么复用：原来**每张卡**都 launch + close 一次 Chrome，实测 launch 545~1368ms、
+ * close 232~256ms —— 每张卡白烧 0.8~1.6s，而截图本身才 ~600ms。卡片是高频操作
+ * （点歌 / 排行 / 新歌 / 歌手 / 歌单 / 帮助 / 状态全是图），这笔开销直接落在「发指令到出图」上。
+ *
+ * 兜底三件事，保证不会「越复用越脏」：
+ *   · 空闲 5 分钟自动关（别让一个 headless Chrome 常驻吃内存）
+ *   · 断开（崩了 / 被杀了）→ 清引用，下一次自己重启
+ *   · 渲染抛错 → 丢掉这份实例，与「每张卡都是干净浏览器」的老行为一致
+ * 退出时用 kill 收尾（`exit` 里不能 await，也没必要优雅关）。
+ */
+let sharedBrowser = null // Promise<Browser> | null —— 并发 launch 只留一份
+let sharedBrowserRef = null // 已就绪的 Browser（空闲关闭 / 退出钩子要同步拿到它）
+let sharedIdleTimer = null
+const BROWSER_IDLE_MS = 5 * 60 * 1000
+
+/** 解析一次 Chrome 路径就够（原来每张卡都要 fs.existsSync 六遍） */
+let cachedExecutablePath
+function resolveExecutablePath() {
+  if (cachedExecutablePath !== undefined) return cachedExecutablePath
+  cachedExecutablePath = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    'C:/Program Files/Google/Chrome/Application/chrome.exe',
+    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+    '/usr/bin/google-chrome',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+  ]
+    .filter(Boolean)
+    .find((p) => fs.existsSync(p))
+  return cachedExecutablePath
+}
+
+/** 关一个实例，吞掉所有失败（关不掉不该盖住真正的截图错误） */
+async function closeBrowserQuietly(browser) {
+  try {
+    await browser?.close?.()
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 丢掉当前实例：清引用 + 关掉；下一次调用会自己重启 */
+function dropSharedBrowser() {
+  const b = sharedBrowserRef
+  sharedBrowser = null
+  sharedBrowserRef = null
+  if (sharedIdleTimer) {
+    clearTimeout(sharedIdleTimer)
+    sharedIdleTimer = null
+  }
+  if (b) closeBrowserQuietly(b)
+}
+
+/** 用完往后推一次「空闲就关」 */
+function scheduleIdleClose() {
+  if (sharedIdleTimer) clearTimeout(sharedIdleTimer)
+  sharedIdleTimer = setTimeout(() => {
+    sharedIdleTimer = null
+    dropSharedBrowser()
+  }, BROWSER_IDLE_MS)
+  sharedIdleTimer.unref?.()
+}
+
+/** 拿一个可用浏览器：有活的就复用；没有（或上次 launch 就失败）就新起一个 */
+async function acquireBrowser(puppeteer) {
+  if (sharedBrowser) {
+    let alive = null
+    try {
+      alive = await sharedBrowser
+    } catch {
+      alive = null // 上一次 launch 失败了 → 重来
+    }
+    if (alive?.connected) return alive
+    sharedBrowser = null
+    sharedBrowserRef = null
+  }
+
+  const launching = puppeteer.launch({
+    headless: 'new',
+    executablePath: resolveExecutablePath(),
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--font-render-hinting=none',
+      '--enable-font-antialiasing',
+      '--hide-scrollbars',
+    ],
+  })
+  sharedBrowser = launching
+
+  let browser
+  try {
+    browser = await launching
+  } catch (err) {
+    if (sharedBrowser === launching) sharedBrowser = null
+    throw err
+  }
+
+  sharedBrowserRef = browser
+  browser.once('disconnected', () => {
+    if (sharedBrowserRef === browser) {
+      sharedBrowser = null
+      sharedBrowserRef = null
+    }
+  })
+  // 别让 Chrome 把机器人进程钉住（进程退出时不该等它）
+  try {
+    browser.process()?.unref?.()
+  } catch {
+    /* 拿不到进程就算了 */
+  }
+  return browser
+}
+
+process.once('exit', () => {
+  try {
+    sharedBrowserRef?.process?.()?.kill?.()
+  } catch {
+    /* 退出路径上别抛 */
+  }
+})
+
 /** 直连 Chrome 截图（导出给本地预览复用，保证与真机同一套参数） */
 export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg = '#F2F2F7' } = {}) {
   let puppeteer = loadPuppeteer()
@@ -248,40 +373,13 @@ export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg =
     puppeteer = mod.default || mod
   }
 
-  const chromeCandidates = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-    '/usr/bin/google-chrome',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-  ].filter(Boolean)
-
-  let executablePath
-  for (const p of chromeCandidates) {
-    if (fs.existsSync(p)) {
-      executablePath = p
-      break
-    }
-  }
-
   // 注意：不要再叠 --force-device-scale-factor，交给 viewport.deviceScaleFactor
   // 过高 dpr 在部分 Chrome 上会二次缩放导致糊字
   const dpr = 3
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    executablePath,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--font-render-hinting=none',
-      '--enable-font-antialiasing',
-      '--hide-scrollbars',
-    ],
-  })
+  const browser = await acquireBrowser(puppeteer)
+  let page = null
   try {
-    const page = await browser.newPage()
+    page = await browser.newPage()
     await page.setViewport({
       width: viewportWidth,
       height: 2200,
@@ -290,8 +388,16 @@ export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg =
     await page.emulateMediaFeatures?.([
       { name: 'prefers-color-scheme', value: pageBg && isDarkBg(pageBg) ? 'dark' : 'light' },
     ])
+    // waitUntil 用 'load'，**别改回 networkidle0**
+    // 实测（2026-09-24 本机 Chrome）：同一个卡片页，networkidle0 的 goto 要 ~975ms，
+    // 'load' 只要 ~65ms —— networkidle0 必须等满 500ms 静默窗口，file:// 上经常等两轮。
+    // 8 张真卡片 A/B 对比：7 张 PNG **字节完全一致**，剩下那张复测 4 次也一致；
+    // 单张总耗时 1.67s → 0.69s。
+    // 为什么敢用 'load'：页面没有"晚到的资源" —— 44 个模板里一个 <script> 都没有、
+    // 也没有远程字体（远程背景图本身算在 load 事件里），而且下面还显式等了
+    // document.fonts.ready + 200ms 落定。
     await page.goto(pathToFileURL(htmlFile).href, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'load',
       timeout: 60000,
     })
     await page.evaluate(async (bg) => {
@@ -336,13 +442,32 @@ export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg =
       captureBeyondViewport: false,
     })
     return Buffer.isBuffer(buff) ? buff : Buffer.from(buff)
+  } catch (err) {
+    // 渲染出错 → 丢掉这份实例：下次自己重启，与「每张卡都是干净浏览器」的老行为一致
+    dropSharedBrowser()
+    throw err
   } finally {
+    // 复用同一个浏览器时**必须**关页：不关就是每截一张漏一个 page
+    //（老代码靠 browser.close() 顺带兜住了这件事）
     try {
-      await browser.close()
+      await page?.close?.()
     } catch {
-      /* 关不掉就算了，别盖住真正的截图错误 */
+      /* ignore */
     }
+    scheduleIdleClose()
   }
+}
+
+/** 关掉共用的 Chrome（预览脚本这类「跑完就退」的场景用；机器人运行时不需要调） */
+export async function closeDirectBrowser() {
+  const b = sharedBrowserRef
+  sharedBrowser = null
+  sharedBrowserRef = null
+  if (sharedIdleTimer) {
+    clearTimeout(sharedIdleTimer)
+    sharedIdleTimer = null
+  }
+  await closeBrowserQuietly(b)
 }
 
 function toSegmentImage(buf) {

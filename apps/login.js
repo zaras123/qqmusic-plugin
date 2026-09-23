@@ -116,6 +116,34 @@ async function sendImage(e, fileOrUrl) {
 }
 
 /** 登录成功后：只记录元信息 */
+/**
+ * 写「登录态」到插件配置 —— 全插件唯一一份口径
+ *
+ * 原本这段在 4 个地方各写了一遍（登录成功 / 登出 / 从 API 同步 / 手动刷新 key），
+ * 字段一样、回落却各写各的，加字段要改四处。收在这里之后：
+ *   · 普通写入：逐项**回落到旧值**（这次没拿到新值，就别把旧值擦掉）
+ *   · `reset: true`（登出）：全清，cookie 一起清
+ * `lastLoginUserKey` 是 API 侧的登录会话键（= 发起登录的机器人用户），不是 uin。
+ *
+ * @param {{uin?: string, userKey?: string, nick?: string, hasRefresh?: boolean,
+ *          reset?: boolean, clearCookie?: boolean}} patch
+ */
+function writeLoginState(patch = {}) {
+  const cfg = Config.getConfig('qqmusic') || {}
+  const reset = patch.reset === true
+  const next = {
+    ...cfg,
+    lastLoginUin: reset ? '' : String(patch.uin || cfg.lastLoginUin || ''),
+    lastLoginUserKey: reset ? '' : String(patch.userKey || cfg.lastLoginUserKey || ''),
+    lastLoginNick: reset ? '' : String(patch.nick || cfg.lastLoginNick || ''),
+    lastLoginAt: reset ? 0 : Date.now(),
+    lastHasRefresh: reset ? false : Boolean(patch.hasRefresh),
+  }
+  if (reset || patch.clearCookie === true) next.cookie = ''
+  Config.setConfig('qqmusic', next)
+  return next
+}
+
 async function onLoginSuccess(e, info = {}) {
   const uin = info.uin || ''
   const nick = info.nick || ''
@@ -131,16 +159,13 @@ async function onLoginSuccess(e, info = {}) {
   }
 
   try {
-    const cfg = Config.getConfig('qqmusic') || {}
-    Config.setConfig('qqmusic', {
-      ...cfg,
-      cookie: '',
-      lastLoginUin: String(meta?.uin || uin || cfg.lastLoginUin || ''),
+    writeLoginState({
+      clearCookie: true,
+      uin: meta?.uin || uin || '',
       // 登录会话在 API 侧按发起登录的机器人用户（userKey）存，备注 uin 仅兜底展示
-      lastLoginUserKey: String(e.user_id || cfg.lastLoginUserKey || ''),
-      lastLoginNick: String(meta?.nick || nick || cfg.lastLoginNick || ''),
-      lastLoginAt: Date.now(),
-      lastHasRefresh: Boolean(meta?.hasRefresh),
+      userKey: e.user_id || '',
+      nick: meta?.nick || nick || '',
+      hasRefresh: meta?.hasRefresh,
     })
   } catch (err) {
     logger?.warn?.(`[qqmusic-plugin] 写登录配置失败: ${err.message}`)
@@ -990,16 +1015,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     try {
       await request('/login/logout', {}, 'post', userKey)
       try {
-        const cfg = Config.getConfig('qqmusic') || {}
-        Config.setConfig('qqmusic', {
-          ...cfg,
-          cookie: '',
-          lastLoginUin: '',
-          lastLoginUserKey: '',
-          lastLoginNick: '',
-          lastLoginAt: 0,
-          lastHasRefresh: false,
-        })
+        writeLoginState({ reset: true })
       } catch {}
       await e.reply('已解除登录绑定')
     } catch (err) {
@@ -1016,14 +1032,11 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         await e.reply('API 当前未登录，请先 #qqm登录')
         return true
       }
-      const cfg = Config.getConfig('qqmusic') || {}
-      Config.setConfig('qqmusic', {
-        ...cfg,
-        lastLoginUin: meta.uin || cfg.lastLoginUin || '',
-        lastLoginUserKey: userKey || cfg.lastLoginUserKey || '',
-        lastLoginNick: meta.nick || cfg.lastLoginNick || '',
-        lastLoginAt: Date.now(),
-        lastHasRefresh: meta.hasRefresh,
+      writeLoginState({
+        uin: meta.uin || '',
+        userKey,
+        nick: meta.nick || '',
+        hasRefresh: meta.hasRefresh,
       })
       await e.reply(
         [
@@ -1064,14 +1077,11 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       try {
         const meta = await pullLoginMeta(userKey)
         if (meta) {
-          const cfg = Config.getConfig('qqmusic') || {}
-          Config.setConfig('qqmusic', {
-            ...cfg,
-            lastLoginUin: meta.uin || cfg.lastLoginUin || '',
-            lastLoginUserKey: userKey || cfg.lastLoginUserKey || '',
-            lastLoginNick: meta.nick || cfg.lastLoginNick || '',
-            lastLoginAt: Date.now(),
-            lastHasRefresh: meta.hasRefresh,
+          writeLoginState({
+            uin: meta.uin || '',
+            userKey,
+            nick: meta.nick || '',
+            hasRefresh: meta.hasRefresh,
           })
         }
       } catch {

@@ -3,6 +3,7 @@
  */
 import Config from '../components/Config.js'
 import { logWarn } from './log.js'
+import { formatSongList } from './format.js'
 
 export function getCfg() {
   return Config.getConfig('qqmusic') || {}
@@ -47,4 +48,32 @@ export async function replyCardOrText(e, { render, data, formatText, onFallback,
     logWarn(`${tag}文本回退失败: ${err.message}`)
   }
   return false
+}
+
+/**
+ * 列表卡（歌手 / 专辑 / 歌单 / 排行 / 新歌 / 点歌结果）的统一出口
+ *
+ * 收在这里的原因：这段「动态 import 卡片数据 + 渲染 → replyCardOrText → 文本兜底」
+ * 原本在 6 个命令里各抄了一遍，差量只有标题、卡片选项和兜底文案。
+ *
+ * ⚠️ 卡片模块必须**动态 import**：utils/card-data.js 与 utils/render.js 会把
+ *    art-template / Puppeteer 一并拉起来，不能在插件启动时就加载。
+ * ⚠️ 热搜卡（buildHotCardData/renderHotCard）与评论卡（buildCommentCardData/
+ *    renderCommentCard）虽然同样挂在 `renderListCard !== false` 闸门后面，
+ *    但用的**不是**列表卡 —— 别顺手收进来。
+ *
+ * @param {object} e 消息事件
+ * @param {{title: string, list: Array, options?: object, formatText?: Function, tag?: string}} args
+ *   title 同时用作卡片标题与默认文本标题；options 透传给 buildListCardData
+ * @returns {Promise<boolean>} 是否已回复（图或文）
+ */
+export async function replyListCardOrText(e, { title, list, options = {}, formatText, tag = '列表卡片' } = {}) {
+  const { buildListCardData } = await import('./card-data.js')
+  const { renderListCard } = await import('./render.js')
+  return replyCardOrText(e, {
+    render: renderListCard,
+    data: buildListCardData(title, list, options),
+    formatText: formatText || (() => formatSongList(list, title)),
+    tag,
+  })
 }

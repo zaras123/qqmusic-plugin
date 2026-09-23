@@ -58,7 +58,7 @@ process.env.QQMUSIC_YUNZAI_PATH = resolveYunzai()
 const { listThemeIds, loadManifest, resolveTheme, pageBgOf, viewportWidthOf, CARDS } = await import(
   '../utils/theme.js'
 )
-const { renderHtmlFile, screenshotDirect } = await import('../utils/render.js')
+const { renderHtmlFile, screenshotDirect, closeDirectBrowser } = await import('../utils/render.js')
 
 const outRoot = path.join(pluginPath, 'temp', 'preview')
 fs.mkdirSync(outRoot, { recursive: true })
@@ -160,6 +160,8 @@ async function main() {
   console.log(`\n完成 ${done.length} 张，失败 ${failed.length} 张`)
   console.log(`输出目录: ${outRoot}`)
   writeIndex()
+  // 截图现在共用同一个 Chrome（见 utils/render.js）：本脚本跑完就退，得显式关掉
+  await closeDirectBrowser()
   if (failed.length) process.exitCode = 1
 }
 

@@ -304,6 +304,30 @@ qqmusic-plugin/
 
 ---
 
+## ⚡ 性能红线（改代码前先看）
+
+卡片是高频操作，而插件与所有别的插件共用**同一条事件循环** —— 下面几条都是踩过之后写下来的：
+
+**① 判定必须每次现读配置，别缓存在模块顶层。**
+`#qqm界面`、「？？？」开关这类判定（`utils/v2.js`）每次都拿 `Config.getConfig()` 现算。老代码把开关读一次写进模块变量，锅巴里改完要重启才生效，而且「未开启」那个分支还会被缓存成永久的。
+
+**② `Config.getConfig()` 的结果按文件指纹（mtime + size）缓存，返回浅拷贝。**
+一次调用要读 + 解析**两份** yaml（实测 ~4.2ms，而且是同步的），一条命令里会被叫好几次，所以必须有缓存；但缓存的是**文件内容**、不是判定结果 —— 锅巴保存 / 手改 yaml / 插件更新覆盖 `default_config`，指纹一变下一次就立刻读到新的（`setConfig` 另有一次主动失效）。返回值是浅拷贝，调用方随便改自己那份不会污染缓存；**将来若要改配置里的嵌套对象，得先把这里改成深拷贝**。
+
+**③ 卡片模块只能动态 import。**
+`utils/card-data.js` / `utils/render.js` 会把 art-template 和 Puppeteer 一起拉起来，不能在插件启动时加载（列表卡的统一出口 `replyListCardOrText()` 就负责这件事）。
+
+**④ 渲染共用同一个 Chromium，且别把 `waitUntil` 改回 `networkidle0`。**
+以前每张卡都 launch + close 一次 Chrome（实测 launch 545~1368ms、close 232~256ms），而截图本身才 ~600ms —— 一半时间白烧。现在 `utils/render.js` 是**单例浏览器**（空闲 5 分钟自动关、进程退出时 kill），每张卡只开 / 关一个 page。
+`waitUntil` 必须留在 `'load'`：内置 44 张模板**一个 `<script>` 都没有**，也没有远程字体；`networkidle0` 在 `file://` 上要等满 500ms 静默窗口（实测 goto 975ms → 65ms），后面仍然显式等 `document.fonts.ready` + 200ms，不会丢字。
+
+**⑤ 列表卡别各写各的。**
+排行 / 新歌 / 歌手 / 专辑 / 歌单 / 点歌的「动态 import + 渲染 → 文本兜底」统一走 `utils/common.js` 的 `replyListCardOrText()`；热搜卡与评论卡**不是**列表卡，别顺手收进去。
+
+实测收益：同一张状态卡（`multi` 主题）热态渲染 **3322ms → 1654ms**（约 -50%）；`Config.getConfig()` 命中缓存 **4.22ms → 0.107ms**（约 39×）。`test.mjs` 的「2.0 重构收口」段把这些不变量钉成了断言。
+
+---
+
 ## License
 
 [MIT](LICENSE)

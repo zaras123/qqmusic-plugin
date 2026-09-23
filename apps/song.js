@@ -30,7 +30,7 @@ import { QUALITY_LABEL } from '../utils/quality.js'
 import { buildHelpCardData, buildGuideCardData, formatGuideText } from '../utils/help-card.js'
 import { renderHelpCard, renderGuideCard, renderPlatformsCard, renderPlatformCard } from '../utils/render.js'
 import { buildPlatformsCardData, formatPlatformsText, buildPlatformCardData, formatPlatformCardText } from '../utils/card-data.js'
-import { getCfg, replyCardOrText } from '../utils/common.js'
+import { getCfg, replyCardOrText, replyListCardOrText } from '../utils/common.js'
 import { logError, logWarn } from '../utils/log.js'
 import { platformOf, platformShort, platformCanQrLogin, platformAliasPattern } from '../utils/platforms.js'
 // ⚠️ 命令解析放 utils（见 utils/command.js 顶部注释）：apps 里多导出一个函数，
@@ -688,11 +688,10 @@ export class qqmusicSong extends (await loadPluginBase()) {
     await setSession(scope, { keyword, data: list, user_id: e.user_id })
 
     if (cfg.renderListCard !== false) {
-      const { buildListCardData } = await import('../utils/card-data.js')
-      const { renderListCard } = await import('../utils/render.js')
-      const ok = await replyCardOrText(e, {
-        render: renderListCard,
-        data: buildListCardData(keyword, list, { title, sourceLabel }),
+      const ok = await replyListCardOrText(e, {
+        title: keyword,
+        list,
+        options: { title, sourceLabel },
         formatText: () => formatListText(list, { title: title || 'QQ音乐点歌结果' }),
         tag: '列表卡片',
       })

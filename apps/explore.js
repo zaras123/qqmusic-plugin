@@ -16,7 +16,7 @@ import {
 } from '../utils/api.js'
 import { setSession } from '../utils/session.js'
 import { formatSongList } from '../utils/format.js'
-import { getCfg, replyCardOrText } from '../utils/common.js'
+import { getCfg, replyCardOrText, replyListCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 
 export class qqmusicExplore extends (await loadPluginBase()) {
@@ -63,16 +63,13 @@ export class qqmusicExplore extends (await loadPluginBase()) {
 
       // 渲染列表卡片（统一风格）
       if (cfg.renderListCard !== false) {
-        const { buildListCardData } = await import('../utils/card-data.js')
-        const { renderListCard } = await import('../utils/render.js')
-        const cardData = buildListCardData(title, result.list, {
-          singerInfo: singer.singerName || '',
-          tip: `发送 #qqm听序号 播放「${singer.singerName}」的歌曲`,
-        })
-        const ok = await replyCardOrText(e, {
-          render: renderListCard,
-          data: cardData,
-          formatText: () => formatSongList(result.list, title),
+        const ok = await replyListCardOrText(e, {
+          title,
+          list: result.list,
+          options: {
+            singerInfo: singer.singerName || '',
+            tip: `发送 #qqm听序号 播放「${singer.singerName}」的歌曲`,
+          },
           tag: '歌手卡片',
         })
         if (ok) {
@@ -129,15 +126,13 @@ export class qqmusicExplore extends (await loadPluginBase()) {
 
       // 渲染卡片（统一风格）
       if (cfg.renderListCard !== false) {
-        const { buildListCardData } = await import('../utils/card-data.js')
-        const { renderListCard } = await import('../utils/render.js')
-        const ok = await replyCardOrText(e, {
-          render: renderListCard,
-          data: buildListCardData(title, result.list, {
+        const ok = await replyListCardOrText(e, {
+          title,
+          list: result.list,
+          options: {
             albumInfo: alb.publicTime ? `发行时间：${alb.publicTime}` : '',
             tip: `发送 #qqm听序号 播放「${alb.albumName}」`,
-          }),
-          formatText: () => formatSongList(result.list, title),
+          },
           tag: '专辑卡片',
         })
         if (ok) {
@@ -183,14 +178,7 @@ export class qqmusicExplore extends (await loadPluginBase()) {
 
       // 渲染卡片
       if (cfg.renderListCard !== false) {
-        const { buildListCardData } = await import('../utils/card-data.js')
-        const { renderListCard } = await import('../utils/render.js')
-        const ok = await replyCardOrText(e, {
-          render: renderListCard,
-          data: buildListCardData(title, songs),
-          formatText: () => formatSongList(songs, title),
-          tag: '歌单卡片',
-        })
+        const ok = await replyListCardOrText(e, { title, list: songs, tag: '歌单卡片' })
         if (ok) return true
       }
 

@@ -1596,11 +1596,138 @@ function v2Check(name, got, want) {
   }
 }
 
+// ──────────── 2.0 重构收口（账号口径 / 配置缓存 / 列表卡 / 渲染复用）────────────
+//
+// 这一段钉的是「抄了多份 → 分叉」和「每次现算 → 拖慢整机」这两类问题：
+//   · 主人账号的回落链原本三处各一份，锅巴那份漏了 lastLoginUin（设置卡说已生效、锅巴说没启用）
+//   · getConfig 每次同步读+解析**两份** yaml（实测 ~4.2ms），一条命令里会被叫好几次
+//   · 列表卡的「动态 import + 渲染 → 文本兜底」在 6 个命令里各抄一遍
+//   · 渲染每张卡都 launch/close 一个 Chromium（实测单张 ~3.3s → 复用后 ~1.65s）
+console.log('\n=== 2.0 重构收口 ===\n')
+let refactorOk = 0
+let refactorBad = 0
+function refactorCheck(name, got, want) {
+  if (JSON.stringify(got) === JSON.stringify(want)) {
+    refactorOk++
+    console.log(`✅ ${name}`)
+  } else {
+    refactorBad++
+    allPassed = false
+    console.log(`❌ ${name} → 期望 ${JSON.stringify(want)}，实际 ${JSON.stringify(got)}`)
+  }
+}
+
+{
+  // ── 主人账号：回落链只此一份（别在别处再写 cfg.publicAccount || ...）──
+  const { publicAccountOf, resolvePublicAccount, isAutoPublicAccount } = await import('./utils/account.js')
+  refactorCheck('账号：没填也没登录过 → 空', resolvePublicAccount({}), '')
+  refactorCheck('账号：手填优先于任何回落值', resolvePublicAccount({ publicAccount: '12345', lastLoginUin: '888' }), '12345')
+  refactorCheck('账号：手填带空格 → trim', publicAccountOf({ publicAccount: '  12345  ' }), '12345')
+  refactorCheck('账号：没手填 → 回落登录会话键', resolvePublicAccount({ lastLoginUserKey: 'k_u1' }), 'k_u1')
+  refactorCheck('账号：会话键优先于备注 uin', resolvePublicAccount({ lastLoginUserKey: 'k_u1', lastLoginUin: '888' }), 'k_u1')
+  refactorCheck('账号：只剩备注 uin（老配置）也能回落', resolvePublicAccount({ lastLoginUin: '888' }), '888')
+  refactorCheck('账号：手填 = 不是自动', isAutoPublicAccount({ publicAccount: '1' }), false)
+  refactorCheck('账号：没手填但有回落 = 自动（设置卡要标注）', isAutoPublicAccount({ lastLoginUin: '888' }), true)
+  refactorCheck('账号：彻底没有 = 也不是自动', isAutoPublicAccount({}), false)
+  // 历史死别名：yaml 与锅巴 schema 里从来没有过，删了就得焊死（否则又长出第二个口径）
+  // 正则**拼字符串**是为了别让这段检查命中自己（本文件里也会出现那个字面量）
+  const deadAlias = new RegExp('\\.' + 'public' + '_account\\b')
+  const aliasHits = collectJsFiles(pluginRoot).filter((f) => deadAlias.test(fs.readFileSync(f, 'utf8')))
+  refactorCheck('账号：全仓没有 public_account 死别名', aliasHits.length, 0)
+
+  // ── 列表卡：6 个命令共用一个出口，且卡片模块必须**惰性**（别把 Puppeteer 拽进启动）──
+  const commonSrc = fs.readFileSync(path.join(pluginRoot, 'utils/common.js'), 'utf8')
+  const { replyListCardOrText } = await import('./utils/common.js')
+  refactorCheck('列表卡：统一出口已导出', typeof replyListCardOrText, 'function')
+  refactorCheck(
+    '列表卡：common.js 不静态引卡片模块（Puppeteer 不在启动时加载）',
+    /^\s*import[\s\S]*?from\s*'\.\/(card-data|render)\.js'/m.test(commonSrc),
+    false
+  )
+  refactorCheck('列表卡：出口内部用动态 import 卡片模块', /await import\('\.\/card-data\.js'\)/.test(commonSrc), true)
+  const listSites = ['apps/chart.js', 'apps/explore.js', 'apps/song.js'].map((f) =>
+    (fs.readFileSync(path.join(pluginRoot, f), 'utf8').match(/replyListCardOrText\(/g) || []).length
+  )
+  refactorCheck('列表卡：排行/新歌/歌手/专辑/歌单/点歌全走统一出口', listSites.join(','), '2,3,1')
+
+  // ── 渲染：共用浏览器 + 不再等 networkidle0 ──
+  const renderSrc = fs.readFileSync(path.join(pluginRoot, 'utils/render.js'), 'utf8')
+  refactorCheck('渲染：不再是每张卡 launch 一个浏览器（单例 + 空闲回收）', /sharedBrowser/.test(renderSrc), true)
+  refactorCheck('渲染：浏览器空闲/退出都会收（不留孤儿 Chromium）', /process\.once\('exit'/.test(renderSrc), true)
+  refactorCheck("渲染：goto 用 waitUntil: 'load'（模板里没有任何 script，后面仍等 fonts.ready）", /waitUntil:\s*'load'/.test(renderSrc), true)
+  refactorCheck("渲染：代码里不再回退到 networkidle0（注释里那句「别改回去」不算）", /waitUntil:\s*['"]networkidle0['"]/.test(renderSrc), false)
+  refactorCheck('渲染：每张图都显式关 page（page?.close?.() 这种可选调用也算）', /page\??\.close\??\.?\(\)/.test(renderSrc), true)
+  refactorCheck('渲染：新增 closeDirectBrowser 出口', /export\s+async\s+function\s+closeDirectBrowser/.test(renderSrc), true)
+  refactorCheck(
+    '渲染：预览脚本收尾关浏览器（否则进程挂着不退）',
+    /closeDirectBrowser\(\)/.test(fs.readFileSync(path.join(pluginRoot, 'scripts/preview-cards.mjs'), 'utf8')),
+    true
+  )
+
+  // ── 登录态落盘：四处逐字重复收成一个函数 ──
+  const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps/login.js'), 'utf8')
+  refactorCheck('登录：落盘收进 writeLoginState', /function writeLoginState/.test(loginSrc), true)
+  refactorCheck('登录：登出走全清（reset）', /writeLoginState\(\{\s*reset:\s*true\s*\}\)/.test(loginSrc), true)
+
+  // ── 配置缓存：靠**文件指纹**失效，不靠「读一次写死」──
+  //  用一份临时配置验（跑完 finally 删掉），绝不碰真配置
+  const fsMod = await import('node:fs')
+  const { default: Config } = await import('./components/Config.js')
+  const scratchDef = path.join(pluginRoot, 'config/default_config/__cachetest.yaml')
+  const scratchUsr = path.join(pluginRoot, 'config/config/__cachetest.yaml')
+  const origRead = fsMod.default.readFileSync
+  const reads = []
+  fsMod.default.readFileSync = function (p, ...rest) {
+    if (String(p).includes('__cachetest')) reads.push(String(p))
+    return origRead.call(this, p, ...rest)
+  }
+  try {
+    fsMod.default.mkdirSync(path.dirname(scratchUsr), { recursive: true })
+    fsMod.default.writeFileSync(scratchDef, 'a: 1\n', 'utf8')
+    fsMod.default.writeFileSync(scratchUsr, 'b: 2\n', 'utf8')
+
+    const first = Config.getConfig('__cachetest')
+    refactorCheck('配置：默认 + 用户两份合并', [first.a, first.b].join(','), '1,2')
+    const readsMiss = reads.length
+    refactorCheck('配置：首次未命中确实读盘', readsMiss > 0, true)
+
+    const second = Config.getConfig('__cachetest')
+    refactorCheck('配置：命中缓存 → 一次盘都不读（提速就来自这里）', reads.length - readsMiss, 0)
+    refactorCheck('配置：命中值一致', JSON.stringify(second), JSON.stringify({ a: 1, b: 2 }))
+
+    first.a = '我改我自己'
+    delete first.b
+    const third = Config.getConfig('__cachetest')
+    refactorCheck('配置：返回浅拷贝（改调用方那份不污染缓存）', [third.a, third.b].join(','), '1,2')
+
+    const onEdit = reads.length
+    fsMod.default.writeFileSync(scratchUsr, 'b: 3\nc: 4\n', 'utf8')
+    const edited = Config.getConfig('__cachetest')
+    refactorCheck('配置：手改 yaml → 立刻生效（指纹失效，不是读一次写死）', [edited.b, edited.c].join(','), '3,4')
+    refactorCheck('配置：失效后确实重读了盘', reads.length - onEdit > 0, true)
+
+    Config.setConfig('__cachetest', { b: '9' })
+    refactorCheck('配置：setConfig 之后立刻可见', Config.getConfig('__cachetest').b, '9')
+
+    fsMod.default.unlinkSync(scratchUsr)
+    fsMod.default.writeFileSync(scratchDef, 'a: 7\n', 'utf8')
+    refactorCheck('配置：默认配置被更新覆盖 → 同样失效', Config.getConfig('__cachetest').a, 7)
+  } finally {
+    fsMod.default.readFileSync = origRead
+    for (const f of [scratchDef, scratchUsr]) {
+      try {
+        fsMod.default.unlinkSync(f)
+      } catch {}
+    }
+  }
+}
+
 console.log(
     `\n=== 测试结果: ${allPassed ? '全部通过 ✅' : '有失败 ❌'} ===` +
     `\n命令路由 ${routeOk} 通过 / ${routeBad} 失败` +
     `\n纯函数 ${pureOk} 通过 / ${pureBad} 失败` +
     `\n异步兼容 ${asyncOk} 通过 / ${asyncBad} 失败` +
+    `\n重构收口 ${refactorOk} 通过 / ${refactorBad} 失败` +
     `\n2.0（平台 + ？？？）${v2Ok} 通过 / ${v2Bad} 失败`
 )
 process.exit(allPassed ? 0 : 1)

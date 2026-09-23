@@ -3,6 +3,7 @@
  */
 import Config from '../components/Config.js'
 import { QUALITY_LABEL } from './quality.js'
+import { publicAccountOf, resolvePublicAccount, isAutoPublicAccount } from './account.js'
 import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
 // 「多平台」主题要按来源上色：色值/短名从注册表取（单一事实来源）
 import {
@@ -465,10 +466,9 @@ export async function buildSettingsCardData(e = null) {
   const onOff = (v) => (v === false ? '关' : '开')
   // 主人账号：没登录的群友点歌回落到这个号；开了「一律走主人账号」时则不看请求者。
   // 未手填时自动取最近扫码登录的账号（lastLoginUserKey 是登录会话键，备注 uin 兜底）
-  const explicitAccount = String(c.publicAccount || c.public_account || '').trim()
-  const publicAccount =
-    explicitAccount || String(c.lastLoginUserKey || c.lastLoginUin || '').trim()
-  const autoAccount = !explicitAccount && publicAccount
+  const explicitAccount = publicAccountOf(c)
+  const publicAccount = resolvePublicAccount(c)
+  const autoAccount = isAutoPublicAccount(c)
   const forceMasterAccount = c.forceMasterAccount === true
   // 主人账号没登录 = 静默失效（回落不生效却看不出原因），查一次并标注。
   // 查不到（API 异常）时不下结论，避免误报。

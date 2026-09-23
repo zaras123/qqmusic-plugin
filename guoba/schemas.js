@@ -16,6 +16,7 @@
 import Config from '../components/Config.js'
 import { pullLoginMeta, normalizeApiBase, request } from '../utils/api.js'
 import { QQMUSIC_QUALITY_LIST } from '../utils/quality.js'
+import { resolvePublicAccount } from '../utils/account.js'
 import { listThemeIds, loadManifest, darkPrefOf } from '../utils/theme.js'
 import {
   PLATFORMS,
@@ -57,7 +58,7 @@ function credentialHints(p) {
  * （与 utils/api.js 的 publicAccount 同一口径：一律走主人账号时，所有请求都按它取凭据）
  */
 function masterCredSlot(cfg = {}) {
-  return String(cfg.publicAccount || cfg.public_account || cfg.lastLoginUserKey || '').trim()
+  return resolvePublicAccount(cfg)
 }
 
 /** 卡片主题下拉项：直接扫 resources/themes/，丢个主题目录进去（重启锅巴后）就会出现在这里 */

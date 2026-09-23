@@ -9,6 +9,7 @@ import {
   summarizeFileSizes,
 } from './quality.js'
 import { logInfo, logWarn } from './log.js'
+import { resolvePublicAccount } from './account.js'
 import { platformIcon, platformIdOf, platformLabel, isExternalMid as isExternalPlatformMid } from './platforms.js'
 
 const UA =
@@ -64,9 +65,8 @@ function sanitizeForHeader(value) {
  */
 function getPublicAccount() {
   const cfg = Config.getConfig('qqmusic') || {}
-  return sanitizeForHeader(
-    cfg.publicAccount || cfg.public_account || cfg.lastLoginUserKey || cfg.lastLoginUin || ''
-  )
+  // 回落口径唯一一份在 utils/account.js —— 别在这里再写一遍 || 链（历史上分叉过一次）
+  return sanitizeForHeader(resolvePublicAccount(cfg))
 }
 
 /** 「一律走主人账号」开关：播歌/取数据不看请求者是谁，全按主人的 ck 走 */

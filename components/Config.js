@@ -82,6 +82,32 @@ function loadYaml(file) {
   }
 }
 
+/**
+ * 合并结果缓存（name -> { key, cfg }）
+ *
+ * 为什么必须有：getConfig 每次都要读+解析**两份** yaml（默认 + 用户），实测单次
+ * ~4.2ms 且是**同步**的 —— 一条命令里 getCfg() 会被叫好几次，而所有插件共用同一条
+ * 事件循环，这段解析拖的是整个机器人的响应。
+ *
+ * 失效靠**文件指纹**（mtime + size），不是靠"读一次写死"：
+ *   · 锅巴保存 / 用户手改 yaml / 插件更新覆盖 default_config → 指纹变 → 下一次立刻读到新的
+ *   · 所以不违反 utils/v2.js 那条「判定必须每次现读配置」的红线 —— 缓存的是**文件内容**，
+ *     不是判定结果；判定函数照旧每次现算
+ * 返回的是**浅拷贝**，调用方照旧可以随便改自己那份，不会污染缓存。
+ * （全仓没有"改配置里的嵌套对象"的写法，浅拷贝够用；将来若要有，得改成深拷贝。）
+ */
+const mergedCache = new Map()
+
+/** 文件指纹：mtime + 大小；不存在 / 读不到 → '-'（删了文件也能触发失效） */
+function fileKey(file) {
+  try {
+    const s = fs.statSync(file)
+    return `${s.mtimeMs}:${s.size}`
+  } catch {
+    return '-'
+  }
+}
+
 export default class Config {
   /** 启动时调用：扫描 default_config，缺失的用户配置全部补齐 */
   static init() {
@@ -98,15 +124,23 @@ export default class Config {
   }
 
   static getConfig(name = 'qqmusic') {
-    const def = loadYaml(path.join(defDir, `${name}.yaml`))
+    const defFile = path.join(defDir, `${name}.yaml`)
+    const cacheKey = `${fileKey(defFile)}|${fileKey(path.join(cfgDir, `${name}.yaml`))}`
+    const hit = mergedCache.get(name)
+    if (hit && hit.key === cacheKey) return { ...hit.cfg }
+
+    // 未命中：先补齐用户配置（可能新建 / 合并缺省字段并落盘），再合并读取
     const userFile = ensureUserConfig(name)
-    const user = loadYaml(userFile)
-    return { ...def, ...user }
+    const cfg = { ...loadYaml(defFile), ...loadYaml(userFile) }
+    // 落盘后再取一次指纹 —— 否则 ensureUserConfig 刚写的那一版会被下一次调用判成未命中
+    mergedCache.set(name, { key: `${fileKey(defFile)}|${fileKey(userFile)}`, cfg })
+    return { ...cfg }
   }
 
   static setConfig(name, data) {
     const file = ensureUserConfig(name)
     fs.writeFileSync(file, YAML.stringify(data ?? {}), 'utf8')
+    mergedCache.delete(name)
   }
 
   static mergeConfig(name, patch) {

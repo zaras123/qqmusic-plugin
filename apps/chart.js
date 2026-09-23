@@ -10,7 +10,7 @@ await loadPluginBase()
 import { topCategory, topDetail, recommendHot, recommendFeed, personalRadio, dailyRecommend, userFavorites, songUrlBest, newSongs as newSongsApi, mvCategory, mvByTag, mvUrl, searchMv, normalizeSearchItem, songlistDetail } from '../utils/api.js'
 import { pickSession, setSession } from '../utils/session.js'
 import { deliverSong } from '../utils/send.js'
-import { getCfg, replyCardOrText } from '../utils/common.js'
+import { getCfg, replyCardOrText, replyListCardOrText } from '../utils/common.js'
 import { logError } from '../utils/log.js'
 import { formatSongList } from '../utils/format.js'
 import { replySafe } from '../utils/async.js'
@@ -87,14 +87,7 @@ export class qqmusicChart extends (await loadPluginBase()) {
 
       // 渲染列表卡片
       if (cfg.renderListCard !== false) {
-        const { buildListCardData } = await import('../utils/card-data.js')
-        const { renderListCard } = await import('../utils/render.js')
-        const ok = await replyCardOrText(e, {
-          render: renderListCard,
-          data: buildListCardData(match.label, songs),
-          formatText: () => formatSongList(songs, match.label),
-          tag: '排行卡片',
-        })
+        const ok = await replyListCardOrText(e, { title: match.label, list: songs, tag: '排行卡片' })
         if (ok) return true
       }
 
@@ -328,14 +321,7 @@ export class qqmusicChart extends (await loadPluginBase()) {
 
       // 渲染列表卡片（与排行/歌手同款），失败回退文本
       if (cfg.renderListCard !== false) {
-        const { buildListCardData } = await import('../utils/card-data.js')
-        const { renderListCard } = await import('../utils/render.js')
-        const ok = await replyCardOrText(e, {
-          render: renderListCard,
-          data: buildListCardData('新歌速递', songs),
-          formatText: () => formatSongList(songs, '新歌速递'),
-          tag: '新歌卡片',
-        })
+        const ok = await replyListCardOrText(e, { title: '新歌速递', list: songs, tag: '新歌卡片' })
         if (ok) return true
       }
 
