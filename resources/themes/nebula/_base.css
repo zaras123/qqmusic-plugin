@@ -774,7 +774,8 @@ html[data-mode="dark"] .plat {
 }
 /* 来源色标：**收敛的**品牌色 —— 金箔主题里一堆高饱和实心药丸 = 廉价。
  * 改成"色点 + 品牌色字 + 同色淡玻璃底"，色相还在，饱和度让给整张卡。
- * （multi 主题仍是实心色块：那套的立意就是"音源色自己跳出来"，两套语言不一样是有意的） */
+ * （multi 主题与这里同一套收敛，只是数字更"满"一点 —— 那套的立意是"音源色要跳"，
+ *   底冷中性、色标玻璃化的同时保留了更饱和的色轨；两套语言同源不同调。） */
 .src-chip {
   display: inline-flex; align-items: center; gap: 5px; flex: none;
   padding: 3px 9px 3px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 800;

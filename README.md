@@ -218,7 +218,7 @@ cd qqmusic-plugin && pnpm install
 >
 > 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受开关限制。
 
-> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置四套：`classic`（原始界面，1.x 默认）、`apple`（排印对齐 apple.com.cn 的实测值：近白底 + 白玻璃卡 + 蓝色小标），以及 **2.0 专版**的 `nebula`「星云 · 鎏光」（液态玻璃材质 + 香槟金烫字，2.0 的默认主题）与 `multi`「多平台」（每首歌/每个平台都带来源色标）。四套都支持深色与时段配色。主人发 `#qqm界面` 查看与切换，深浅色支持「浅色 / 深色 / 跟随时间（夜晚自动深色）」，锅巴里都有。
+> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置四套：`classic`（原始界面，1.x 默认）、`apple`（排印对齐 apple.com.cn 的实测值：近白底 + 白玻璃卡 + 蓝色小标），以及 **2.0 专版**的 `nebula`「星云 · 鎏光」（暖象牙底 + 液态玻璃 + 香槟金烫字，2.0 的默认主题）与 `multi`「多平台」（冷中性底 + 单一主光，来源色标走色轨/色点/同色玻璃标，一眼看出这首歌来自哪家）。四套都支持深色与时段配色。主人发 `#qqm界面` 查看与切换，深浅色支持「浅色 / 深色 / 跟随时间（夜晚自动深色）」，锅巴里都有。
 >
 > **换主题、改模板、改 `theme.json` 都是热更新** —— 不用重启机器人（渲染前比对文件 mtime，变了就让 art-template 重新编译；它默认按文件名永久缓存，这正是以前改模板必须重启的原因）。批量改动后想强制重来：`#qqm界面 重载`。
 >
