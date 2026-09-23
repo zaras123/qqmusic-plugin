@@ -5,8 +5,8 @@
   "dark": true,
   "bg": true,
   "pageBg": {
-    "light": "#f2f0ff",
-    "dark": "#0b0a18"
+    "light": "#eae0cc",
+    "dark": "#0d0b10"
   },
   "viewportWidth": 660,
   "cardWidth": {

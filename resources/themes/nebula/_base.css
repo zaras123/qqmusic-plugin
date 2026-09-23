@@ -1,23 +1,31 @@
 /**
  * 「星云 · 鎏光」2.0 —— 液态玻璃（Liquid Glass）主题
  *
- * 为什么重做过两轮（用户原话：「液态玻璃效果不明显，其他系统的特征也不明显，
- * 没高级感和奢侈设计感」）——**根因不是颜色不够，是玻璃后面什么都没有**：
- *   · 上一版的 .page 只是一条近乎单色的浅渐变，卡片 fill 又是 0.72 的不透明白，
- *     于是 backdrop-filter 没东西可模糊、没颜色可透 —— 渲染出来就是一块奶油色平板；
- *   · 液态玻璃的全部观感来自三件事：**透（背景真的在动）、边（边缘折射高光）、光（扫光）**。
- *     三件事缺一件，剩下的就是"带圆角的纸"。
+ * 为什么返工过四轮（用户原话：「液态玻璃效果不明显，其他系统的特征也不明显，没高级感
+ * 和奢侈设计感」→「感觉很奇怪，没用高级感奢侈感和设计感」）：
+ *   · 第一版：根因是**玻璃后面什么都没有** —— .page 只是一条近乎单色的浅渐变，卡片 fill
+ *     又是 0.72 的不透明白，于是 backdrop-filter 没东西可模糊、没颜色可透，渲染出来
+ *     就是一块奶油色平板；
+ *   · 于是第二、三轮一路**加**：6 个色团、一条满屏四色带、头部三色光晕、橙→蓝→绿的
+ *     彩虹折射边…… 越加越脏。6 个半透明色团互相叠加，糊成一块"被彩色水彩泡过的脏底"，
+ *     再透过白玻璃看，卡就是发黄的脏玻璃 —— 用户那句"奇怪"出在这里。
  *
- * 所以现在的结构是（第 5~7 条是**第二轮**补的 —— 只有前四条时实拍还是"不够玻璃"）：
- *   1. **极光底**（.page::before）：暗角 + 香槟金/暖灰/青玉/雾霭蓝色团 + 4 颗光斑
- *      —— 卡片占页面九成，色团必须**越过卡片边缘**、卡心也要有，玻璃才有得折射
+ * 第四轮（2026-09-23）是**减法**：高奢的反面从来不是"颜色不够"，而是**颜色太多、光源太多**。
+ *   整张底只留两族色（暖金 / 中性灰）、**一个**香槟金主光 + 一道冷灰对位 + 一条斜向暗角，
+ *   唯一的彩色留给品牌色标（来源 chip / 色轨）。**多光源等于没有光源**。
+ *
+ * 但玻璃的全部观感仍然来自那三件事：**透（背景真的在动）、边（边缘折射高光）、光（扫光）**，
+ * 三件事缺一件，剩下的就是"带圆角的纸"。现在的结构：
+ *   1. **极光底**（.page::before）：**一个**香槟金主光（右上）+ 一道斜向暗角（左下 ——
+ *      光必须有方向，对称的环形暗角会让画面发平）+ 一道冷灰对位 + 2 颗高亮光斑。
+ *      卡片占页面九成，光必须**越过卡片边缘**、卡心也要有，玻璃才有得折射
  *   2. **折射边**（.card 双层 background + 双 background-clip 的渐变描边）：
  *      上左亮、下右柔 —— 这条边才是"玻璃"而不是"塑料"的分水岭
  *   3. **扫光 + 内壁回弹光**（.card::after + inset shadow）：45° 高光扫过，底部一层
  *      被背景染色的回弹光，玻璃的"厚度"就出来了
  *   4. **颗粒**（.page::after）：约 4% 噪点，近看是材质、远看是"贵"（哑膜手感）
- *   5. **折射环**（.card::before，放大 134% + 模糊 + 只留边）：边缘把身后的颜色推移/堆亮，
- *      这一层才是"液态"（`z-index:-1` 夹在白底与正文之间，别改成正值，会糊正文）
+ *   5. **折射环**（.card::before，放大 140% + 模糊 + 只留边）：边缘把身后的颜色推移/堆亮，
+ *      这一层才是"液态"（z-index:-1 夹在白底与正文之间，别改成正值，会糊正文）
  *   6. **抛光面 + 内衬金线**（.card::after 的两团径向高光 + inset 10px 的金发丝）
  *   7. **收敛的色标**：品牌色只做"色点 + 同色字 + 同色淡玻璃底"；实心糖果色药丸（1.x 的语言）
  *      摆在金箔卡上就是廉价感的来源 —— 色相保留，饱和度让给整张卡
@@ -31,13 +39,15 @@
  *   · **三星 One UI**：大标题 + 小号字距标签 + 大留白 + 底部说明条（.tip）
  *   · **奢侈品层**：象牙/暖墨底 + **香槟金烫字**（只做小面积：眉标、数字、细线、图标金环）
  *
- * ⚠️ 三条红线（都踩过）：
- *   1. **别把玻璃填充改回接近 1.0 的不透明**：一改就退化成"纸"。正文可读性靠 blur +
- *      饱和度 + 文字色对比，不靠填充的不透明度（现在这套浅深两色下正文对比都够）。
+ * ⚠️ 四条红线（都踩过）：
+ *   1. **别把玻璃填充改回接近 1.0 的不透明**：一改就退化成"纸"（0.50 那版实拍整张卡全白，
+ *      极光一点透不上来）。正文可读性靠 blur + 饱和度 + 文字色对比，不靠填充的不透明度。
  *   2. **别动卡片的层叠顺序**：极光/颗粒必须画在卡片**下面**，backdrop-filter 才抓得到；
  *      把 .card 挪到极光之前（或给它加更低的 z-index）玻璃会瞬间失效。
- *   3. **别把行/面板改回"实心白片"**：玻璃是**叠**出来的（卡片 0.08~0.22 / 面板 0.13~0.34 /
+ *   3. **别把行/面板改回"实心白片"**：玻璃是**叠**出来的（卡片 0.20~0.32 / 面板 0.13~0.34 /
  *      行 0.03~0.12，三级越往里越薄）。有一层贴实了，整条链就变成"白纸压白纸"。
+ *   4. **别再往极光里加光源/色相**（第四轮返工的原因），也**别再拉 backdrop-filter 的
+ *      saturate**：235% 那一档是**给正文染色**的元凶 —— 底色一多彩，整张卡的字就跟着发黄发脏。
  *
  * 字体栈直接用厂商字体优先（MiSans / HarmonyOS Sans / SF Pro），观感立刻"像高端机"。
  * 布局沿用已验证那套（min-width:0 + 截断），只升视觉 —— 不给"好看"引入溢出 bug。
@@ -55,8 +65,9 @@
 
 :root {
   --label: #17130f;
-  --label-2: #6b6152;
-  --label-3: #9b9184;
+  /* 次级字压深一档：底色收敛成中性象牙后，原来那档暖灰"发飘"（对比度不够 = 廉价） */
+  --label-2: #5c5346;
+  --label-3: #8b8276;
   --divider: rgba(23, 19, 15, 0.10);
   --fill-2: rgba(255, 255, 255, 0.42);
   --fill-3: rgba(255, 255, 255, 0.28);
@@ -81,14 +92,16 @@
   /* 玻璃本体：**半透明**才是玻璃（正文可读性靠 blur/饱和度，不靠不透明度）
    * ⚠️ 这里第一版写的是 0.60/0.44/0.52 —— 实拍出来卡心是一块死白，极光只从边角漏进来，
    *    看着像"白纸压在彩纸上"；0.40/0.22/0.30 那版仍偏实（第二轮回访原话：
-   *    "液态玻璃效果不明显"）。现在是 0.30/0.13/0.20 —— 卡心只剩一层薄雾，
-   *    极光的色团直接透上来，玻璃才有"透"这件事。
-   *    再往下压（<0.10）就开始吃正文对比度，别试。 */
+   *    "液态玻璃效果不明显"）。
+   *    第四轮一度提到 0.50/0.36/0.42 去换对比度 —— 结果整张卡几乎全白、极光透不上来，
+   *    玻璃的"透"直接没了（正是本文件第 1 条红线的反面）。现在收在 0.32/0.20/0.26：
+   *    底色收敛成暖香槟沙之后卡心只要一层薄雾 —— **对比度由极光的明暗给，
+   *    不由填充的不透明度给**。再往下压（<0.10）才开始吃正文对比度。 */
   --glass-fill: linear-gradient(
     165deg,
-    rgba(255, 255, 255, 0.22) 0%,
-    rgba(255, 252, 246, 0.08) 42%,
-    rgba(255, 252, 246, 0.14) 100%
+    rgba(255, 255, 255, 0.32) 0%,
+    rgba(255, 253, 249, 0.20) 42%,
+    rgba(255, 252, 246, 0.26) 100%
   );
   --glass-fill-2: rgba(255, 255, 255, 0.26);
   /* 折射描边：上左亮 → 中段透 → 下右回光（双层 background 的 border-box 层用它）
@@ -104,35 +117,38 @@
   );
   /* blur 30 → 22：30px 把极光的色团糊成一片，玻璃后面"什么都没有"，
    * 玻璃就退化成一块奶油色板子。留一点结构，折射才看得出来。 */
-  --blur: 22px;
+  /* blur 22 → 18：极光收敛成"一个光源"之后，22px 会把那点结构也糊掉 */
+  --blur: 18px;
 
-  /* 极光底 = 玻璃的"素材"。三轮实拍的结论（每轮都是被"看不出玻璃"打回来的）：
-   *   · 第 1 层**暗角**：没有暗，亮就不存在 —— 玻璃的亮边要有对照物
-   *   · 色团要**落在卡片的投影范围内**：卡片占页面九成面积，色团摆在 4%/2% 这种页面角上，
-   *     一大半会被卡片切成边角余料，卡心只剩平滑底色 = 平（上一轮栽在这）
-   *   · 两道**低饱和斜光带**（金 / 雾蓝）：玻璃后面必须有"边界"，纯渐变透过去永远是平的
-   *   · **高对比小光斑**（2~3% 的亮点）：小 + 亮 = 透过玻璃化成柔光点，
-   *     这是磨砂玻璃最不带歧义的特征（大而淡的光斑只会被 blur 糊成一片）
-   * 配色定调不变：**香槟金为主、青玉/雾蓝为辅、玫瑰只留一点**
-   * （玫瑰给到 .50 时实拍偏"糖果粉"，与"高奢"反方向 —— 奢侈品用暖金+冷灰，不用嫩粉）。 */
-  --aurora: radial-gradient(128% 108% at 50% 42%, rgba(52, 36, 14, 0) 44%, rgba(52, 36, 14, 0.18) 100%),
-    linear-gradient(112deg, rgba(226, 188, 116, 0) 22%, rgba(226, 188, 116, 0.40) 38%, rgba(226, 188, 116, 0) 52%),
-    linear-gradient(24deg, rgba(120, 156, 186, 0) 58%, rgba(120, 156, 186, 0.32) 72%, rgba(120, 156, 186, 0) 86%),
-    radial-gradient(52% 42% at 20% 12%, rgba(232, 186, 104, 0.92) 0%, transparent 70%),
-    radial-gradient(46% 38% at 96% 30%, rgba(176, 132, 124, 0.52) 0%, transparent 72%),
-    radial-gradient(54% 44% at 92% 88%, rgba(84, 118, 162, 0.54) 0%, transparent 72%),
-    radial-gradient(50% 44% at 10% 84%, rgba(94, 158, 138, 0.50) 0%, transparent 70%),
-    radial-gradient(40% 30% at 54% 46%, rgba(198, 150, 108, 0.50) 0%, transparent 68%),
-    radial-gradient(34% 26% at 74% 62%, rgba(108, 144, 148, 0.46) 0%, transparent 70%),
-    radial-gradient(3% 2.2% at 26% 30%, rgba(255, 250, 236, 0.95) 0%, transparent 72%),
-    radial-gradient(2.4% 1.8% at 68% 18%, rgba(255, 246, 232, 0.90) 0%, transparent 72%),
-    radial-gradient(2.6% 2% at 84% 66%, rgba(248, 252, 255, 0.92) 0%, transparent 74%),
-    radial-gradient(2% 1.6% at 40% 74%, rgba(255, 248, 226, 0.88) 0%, transparent 74%),
-    radial-gradient(3.2% 2.4% at 62% 88%, rgba(255, 244, 216, 0.82) 0%, transparent 74%),
-    linear-gradient(133deg, rgba(228, 200, 154, 0.56) 0%, rgba(208, 188, 176, 0.44) 34%, rgba(186, 200, 214, 0.38) 68%, rgba(176, 204, 190, 0.44) 100%);
-  /* 底色比上一轮深一档（#f5eddf → #f0e5d2）：白玻璃要有"底"才透得出来；
-     底色太接近白，玻璃和白纸就没有区别（浅色下"看不出玻璃"的一半原因在这）。 */
-  --aurora-base: linear-gradient(176deg, #f0e5d2 0%, #e9dfdc 48%, #dde8e7 100%);
+  /* 极光底 = 玻璃的"素材"。
+   *
+   * 第四轮返工（2026-09-23，用户原话「感觉很奇怪，没有高级感、奢侈感和设计感」）。
+   * 前三轮都在加：加色团、加光斑、加斜光带，想让玻璃"后面有东西"。**方向错了** ——
+   * 这一层当时摆着 6 个不同色相的大色团（赭金 / 玫瑰 / 雾蓝 / 青玉 / 陶土 / 石板）
+   * 每个 ~0.5 透明度，底下还有一条满屏四色带（米黄→藕紫→灰青）：它们互相叠加，
+   * 糊成一块"被彩色水彩泡过的脏底"。再透过白玻璃看，卡就成了发黄的脏玻璃。
+   * 高奢的反面从来不是"颜色不够"，而是**颜色太多**。
+   *
+   * 所以这一版做的是**减法**，整张底只剩两族色（暖金 / 中性灰）：
+   *   ① **一个**香槟金光源（右上、落在卡片投影范围内）：**多光源等于没有光源**，
+   *      只能有一个主光，多了就是壁纸
+   *   ② **一道斜向暗角**（左下 → 右上渐亮）：没有暗，亮就不存在 —— 对称的环形暗角
+   *      会让画面发平，光必须**有方向**
+   *   ③ **一道**冷灰反光（左下）：给金一个冷对位，画面才不闷
+   *   ④ 两颗极小的高亮光斑（2~3%）：小 + 亮 = 透过玻璃化成柔光点，
+   *      这是磨砂玻璃最不带歧义的特征（大而淡的光斑只会被 blur 糊成一片）
+   * 画面里唯一的彩色留给**品牌色标**（来源 chip / 色轨）—— 克制的底才有设计感。
+   * ⚠️ 主光与暗角的**亮度差**才是"光源"读不读得出来的关键：浅色下底座太亮
+   *    （#f6f1e8）时，0.42 的金光根本看不出来（第四轮实拍就是一片平奶油）。 */
+  --aurora: radial-gradient(94% 78% at 88% -8%, rgba(255, 246, 219, 0.98) 0%, rgba(255, 238, 200, 0.34) 46%, transparent 80%),
+    linear-gradient(316deg, rgba(74, 52, 22, 0) 28%, rgba(74, 52, 22, 0.26) 100%),
+    radial-gradient(58% 48% at 2% 98%, rgba(120, 124, 134, 0.16) 0%, transparent 72%),
+    linear-gradient(118deg, rgba(226, 196, 142, 0.16) 6%, rgba(226, 196, 142, 0) 48%),
+    radial-gradient(2.6% 2% at 30% 26%, rgba(255, 250, 236, 0.92) 0%, transparent 74%),
+    radial-gradient(2.2% 1.7% at 72% 66%, rgba(252, 250, 246, 0.86) 0%, transparent 74%);
+  /* 底色：三色带（米黄→藕紫→灰青）改成**单一暖象牙**。
+   * 那条带子本身就是脏底的一半，而且末端的青绿跟香槟金是互补色，越看越像陈年纸。 */
+  --aurora-base: linear-gradient(168deg, #e9dfcb 0%, #e0d4be 52%, #d2c5ac 100%);
 
   /* 子元素（面板/行/胶囊/统计块/底条）用的**半档折射边**：同一套渐变、整体压暗。
    * 卡片挨着极光，用满档白边才压得住背景；子元素是**压在卡片身上**的，再各来一圈 1.0 的白边，
@@ -179,11 +195,11 @@ html[data-mode="dark"] {
 
   --glass-fill: linear-gradient(
     165deg,
-    rgba(38, 33, 27, 0.50) 0%,
-    rgba(20, 17, 14, 0.34) 42%,
-    rgba(22, 19, 16, 0.42) 100%
+    rgba(40, 34, 27, 0.34) 0%,
+    rgba(20, 17, 14, 0.20) 42%,
+    rgba(22, 19, 16, 0.28) 100%
   );
-  --glass-fill-2: rgba(20, 17, 14, 0.34);
+  --glass-fill-2: rgba(20, 17, 14, 0.26);
   --rim-gradient: linear-gradient(
     152deg,
     rgba(255, 255, 255, 0.40) 0%,
@@ -201,23 +217,16 @@ html[data-mode="dark"] {
     rgba(255, 255, 255, 0.16) 100%
   );
 
-  /* 深色下的极光同样要有暗角（深色本来就暗，这里靠"四边更深"做出纵深）；
-   * 色团位置、斜光带、小光斑与浅色**一一对应**（同一套光学，只换明度）。 */
-  --aurora: radial-gradient(130% 110% at 50% 40%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.42) 100%),
-    linear-gradient(112deg, rgba(198, 152, 78, 0) 22%, rgba(198, 152, 78, 0.30) 38%, rgba(198, 152, 78, 0) 52%),
-    linear-gradient(24deg, rgba(78, 124, 168, 0) 58%, rgba(78, 124, 168, 0.26) 72%, rgba(78, 124, 168, 0) 86%),
-    radial-gradient(52% 42% at 20% 12%, rgba(206, 160, 84, 0.62) 0%, transparent 70%),
-    radial-gradient(46% 38% at 96% 30%, rgba(132, 96, 124, 0.52) 0%, transparent 72%),
-    radial-gradient(54% 44% at 92% 88%, rgba(74, 116, 164, 0.54) 0%, transparent 72%),
-    radial-gradient(50% 44% at 10% 84%, rgba(56, 150, 126, 0.48) 0%, transparent 70%),
-    radial-gradient(40% 30% at 54% 46%, rgba(150, 104, 96, 0.44) 0%, transparent 68%),
-    radial-gradient(34% 26% at 74% 62%, rgba(74, 108, 120, 0.46) 0%, transparent 70%),
-    radial-gradient(3% 2.2% at 26% 30%, rgba(255, 240, 206, 0.54) 0%, transparent 72%),
-    radial-gradient(2.4% 1.8% at 68% 18%, rgba(255, 236, 196, 0.48) 0%, transparent 72%),
-    radial-gradient(2.6% 2% at 84% 66%, rgba(206, 230, 255, 0.48) 0%, transparent 74%),
-    radial-gradient(2% 1.6% at 40% 74%, rgba(255, 238, 200, 0.44) 0%, transparent 74%),
-    linear-gradient(133deg, rgba(122, 92, 46, 0.40) 0%, rgba(116, 76, 122, 0.38) 34%, rgba(58, 92, 142, 0.38) 68%, rgba(42, 112, 96, 0.40) 100%);
-  --aurora-base: linear-gradient(176deg, #141019 0%, #0e0c16 48%, #0b100f 100%);
+  /* 深色与浅色**一一对应**（同一套光学：暗角 + 一个暖主光 + 一道冷对位 + 两颗光斑）。
+   * 上一版这里也有 6 个色团，实拍底部泛"青绿"，跟香槟金互相打架。 */
+  --aurora: radial-gradient(94% 78% at 88% -8%, rgba(216, 170, 94, 0.56) 0%, rgba(206, 158, 84, 0.18) 46%, transparent 80%),
+    linear-gradient(316deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, 0.55) 100%),
+    radial-gradient(58% 48% at 2% 98%, rgba(72, 92, 122, 0.26) 0%, transparent 72%),
+    linear-gradient(118deg, rgba(198, 152, 78, 0.12) 6%, rgba(198, 152, 78, 0) 48%),
+    radial-gradient(2.6% 2% at 30% 26%, rgba(255, 244, 216, 0.52) 0%, transparent 74%),
+    radial-gradient(2.2% 1.7% at 72% 66%, rgba(226, 240, 255, 0.44) 0%, transparent 74%);
+  /* 底色去掉末端的墨绿（#0b100f 那一下会把页面底部染青）：改成中性的暖墨。 */
+  --aurora-base: linear-gradient(168deg, #191419 0%, #110f15 52%, #0a090c 100%);
 
   --shadow: 0 40px 76px -34px rgba(0, 0, 0, 0.80), 0 10px 24px -14px rgba(0, 0, 0, 0.55),
     0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -244,7 +253,9 @@ html[data-mode="dark"] {
 html,
 body {
   width: fit-content; height: fit-content; min-width: 0; min-height: 0; margin: 0; padding: 0;
-  background: #f6f0f4 !important;
+  /* 兜底底色（.page 之外那一圈）：跟着暖香槟走。原来那档 #f6f0f4 是偏粉的旧底色，
+   * 万一哪天截的是 .card 而不是 .page，边上就会露出一圈粉。 */
+  background: #eae0cc !important;
   color: var(--label);
   font-family: var(--font);
   font-size: 15px;
@@ -253,6 +264,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: geometricPrecision;
   font-variant-numeric: tabular-nums;
+}
+html[data-mode="dark"],
+html[data-mode="dark"] body {
+  background: #0d0b10 !important;
 }
 
 /* ---------- 极光底 + 颗粒：让玻璃后面"真有东西" ----------
@@ -279,12 +294,13 @@ body {
 html[data-mode="dark"] .page::after { mix-blend-mode: screen; opacity: 0.05; }
 
 /* 时段配色：极光基调跟着变，玻璃透出来的颜色也就跟着变 */
-html[data-time="dawn"] .page { background: linear-gradient(176deg, #fdf3e6 0%, #f9eef1 48%, #f0f4f0 100%); }
-html[data-time="dusk"] .page { background: linear-gradient(176deg, #fcefe2 0%, #f6ecf2 48%, #eef2f5 100%); }
-html[data-time="night"] .page { background: linear-gradient(176deg, #efe9e1 0%, #eae7f0 48%, #e7eeea 100%); }
-html[data-mode="dark"][data-time="dawn"] .page { background: linear-gradient(176deg, #1b1219 0%, #15111c 48%, #0f1514 100%); }
-html[data-mode="dark"][data-time="dusk"] .page { background: linear-gradient(176deg, #1d1319 0%, #17121f 48%, #101614 100%); }
-html[data-mode="dark"][data-time="night"] .page { background: linear-gradient(176deg, #0a080c 0%, #0e0c15 48%, #090e0d 100%); }
+/* 时段底色同样收成**两段同族**：原来是三色带（末段还偏青），四张卡摆在一起就是四种脏。 */
+html[data-time="dawn"] .page { background: linear-gradient(174deg, #ece2ce 0%, #d8cbb0 100%); }
+html[data-time="dusk"] .page { background: linear-gradient(174deg, #eee1cc 0%, #d5c5a9 100%); }
+html[data-time="night"] .page { background: linear-gradient(174deg, #e7e2d6 0%, #cec6b5 100%); }
+html[data-mode="dark"][data-time="dawn"] .page { background: linear-gradient(174deg, #1a1417 0%, #100d12 100%); }
+html[data-mode="dark"][data-time="dusk"] .page { background: linear-gradient(174deg, #1b141a 0%, #110e13 100%); }
+html[data-mode="dark"][data-time="night"] .page { background: linear-gradient(174deg, #100e11 0%, #08070a 100%); }
 
 /* ---------- 卡片：液态玻璃本体 ----------
  * 双层 background + 双 background-clip 是"渐变描边"的标准做法：
@@ -305,8 +321,11 @@ html[data-mode="dark"][data-time="night"] .page { background: linear-gradient(17
   background-clip: padding-box, border-box;
   /* 饱和度 185% → 215%：玻璃会把身后的颜色"吸"到面前（iOS 液态玻璃的做法），
    * 不加这一档，透出来的极光会是一层灰扑扑的洗色。 */
-  backdrop-filter: blur(var(--blur)) saturate(235%) brightness(1.03) contrast(1.03);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(235%) brightness(1.03) contrast(1.03);
+  /* 饱和度 235% → 145%：这一档是**给文字染色**的元凶 —— 底色一多彩，它就把整张卡的正文
+   * 一起染上底色（浅色下尤其明显，字发黄发脏）。"玻璃吸色"的观感该由极光本身与折射边
+   * 提供，不该靠把饱和度拉到失真。 */
+  backdrop-filter: blur(var(--blur)) saturate(145%) brightness(1.02) contrast(1.02);
+  -webkit-backdrop-filter: blur(var(--blur)) saturate(145%) brightness(1.02) contrast(1.02);
   /* 内壁：顶部一道高光 + 一圈只贴边 40px 的柔白光 + 底部"被背景染色的回弹光"
    * ⚠️ 白光必须贴着边（-40px 的负扩散），铺满整张卡（inset 0 0 46px）会把卡心糊死。 */
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 1), inset 0 1px 1px rgba(255, 255, 255, 0.9),
@@ -334,13 +353,15 @@ html:not([data-bg="1"]) .card::before {
   /* 第 1 层：放大后的极光（把身后的颜色推移 + 堆亮 = 结构折射）
    * 第 2 层：一圈**暖→冷的光谱洗色**，和极光走同一个遮罩 —— 真玻璃的边会把光拆成色，
    *         这一层就是"液态"与"磨砂"的分界（压到 .4 上下，浓了立刻变糖果边）。 */
+  /* 光谱洗色从"橙 → 蓝 → 薄荷绿"收成"香槟金 → 暖灰"：三色折射边在浅色下会泛彩虹，
+   * 那是最像"塑料贴纸"的一笔。 */
   background-image: var(--aurora),
-    linear-gradient(118deg, rgba(255, 206, 138, 0.46) 0%, rgba(196, 214, 255, 0.30) 46%, rgba(168, 240, 208, 0.38) 100%);
+    linear-gradient(118deg, rgba(255, 206, 138, 0.40) 0%, rgba(228, 216, 198, 0.20) 52%, rgba(212, 202, 188, 0.24) 100%);
   background-size: 140% 140%, 118% 118%;
   background-position: center center, center center;
   background-repeat: no-repeat, no-repeat;
   filter: blur(11px) saturate(1.35);
-  opacity: 0.62;
+  opacity: 0.55;
   /* 遮罩带从 38%~72% 放宽到 34%~68%：折射带要**有厚度**才像透镜（上一轮细成一条线，
    * 实拍回访就是"不像玻璃、像描边"）。 */
   -webkit-mask-image: radial-gradient(128% 106% at 50% 50%, rgba(0, 0, 0, 0) 34%, #000 68%);
@@ -349,7 +370,7 @@ html:not([data-bg="1"]) .card::before {
 html[data-mode="dark"]:not([data-bg="1"]) .card::before {
   opacity: 0.66;
   background-image: var(--aurora),
-    linear-gradient(118deg, rgba(255, 196, 126, 0.30) 0%, rgba(150, 176, 255, 0.24) 46%, rgba(140, 220, 190, 0.26) 100%);
+    linear-gradient(118deg, rgba(255, 196, 126, 0.26) 0%, rgba(152, 162, 190, 0.16) 52%, rgba(142, 150, 170, 0.18) 100%);
 }
 /* 抛光面 + 45° 扫光 + 内衬金线（都在这一层：z-index 3 在正文之上，只做"光"不做"色"）
  *   · 抛光面：左上镜面高光 + 右下暖回弹 —— 玻璃的厚度感来自它们
@@ -427,15 +448,15 @@ html[data-bg="1"] .card::before {
   position: relative;
   padding: 26px var(--pad) 22px;
   color: var(--label);
-  background: radial-gradient(120% 120% at 86% -20%, rgba(206, 168, 96, 0.30) 0%, transparent 58%),
-    radial-gradient(90% 96% at -10% 116%, rgba(160, 116, 190, 0.20) 0%, transparent 64%),
-    radial-gradient(64% 60% at 46% -6%, rgba(96, 190, 152, 0.14) 0%, transparent 62%);
+  /* 头部原来是三色光晕（金 + 紫 + 绿）。**多光源等于没有光源** —— 这是"没有设计感"
+   * 最直接的一处：头部只要一个香槟金主光，再给一道很淡的冷灰对位就够。 */
+  background: radial-gradient(130% 130% at 88% -24%, rgba(206, 168, 96, 0.34) 0%, transparent 62%),
+    radial-gradient(80% 90% at -8% 120%, rgba(118, 112, 104, 0.14) 0%, transparent 66%);
   border-bottom: 1px solid var(--divider);
 }
 html[data-mode="dark"] .hero {
-  background: radial-gradient(120% 120% at 86% -20%, rgba(212, 176, 108, 0.26) 0%, transparent 58%),
-    radial-gradient(90% 96% at -10% 116%, rgba(150, 110, 190, 0.24) 0%, transparent 64%),
-    radial-gradient(64% 60% at 46% -6%, rgba(88, 199, 154, 0.14) 0%, transparent 62%);
+  background: radial-gradient(130% 130% at 88% -24%, rgba(212, 176, 108, 0.30) 0%, transparent 62%),
+    radial-gradient(80% 90% at -8% 120%, rgba(98, 110, 132, 0.18) 0%, transparent 66%);
 }
 /* 顶部镜面反光：一道 1px 亮线（玻璃最上面那条"高光边"） */
 .hero::before {
@@ -502,8 +523,8 @@ html[data-mode="dark"] .ver {
     var(--rim-gradient);
   background-origin: border-box, border-box;
   background-clip: padding-box, border-box;
-  backdrop-filter: blur(12px) saturate(190%);
-  -webkit-backdrop-filter: blur(12px) saturate(190%);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92), 0 20px 30px -20px rgba(58, 40, 16, 0.72),
     0 4px 10px -8px rgba(58, 40, 16, 0.5);
 }
@@ -679,9 +700,11 @@ html[data-mode="dark"] .hero .pill-row > .src-chip.on {
 .pill--red,
 .pill--gold {
   --tone: var(--accent);
-  color: color-mix(in srgb, var(--tone) 84%, #241a0e);
-  background: color-mix(in srgb, var(--tone) 14%, rgba(255, 255, 255, 0.40));
-  border-color: color-mix(in srgb, var(--tone) 30%, rgba(255, 255, 255, 0.55));
+  /* 同色玻璃底 14% → 10%：浅色底一收敛，14% 那点色就"浮"出来了（像糖果标签）。
+   * 色相留着当身份，浓淡交给整张卡 —— 这才是"克制"。 */
+  color: color-mix(in srgb, var(--tone) 80%, #241a0e);
+  background: color-mix(in srgb, var(--tone) 10%, rgba(255, 255, 255, 0.42));
+  border-color: color-mix(in srgb, var(--tone) 22%, rgba(255, 255, 255, 0.55));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 .pill--green { --tone: var(--green); }
@@ -693,9 +716,9 @@ html[data-mode="dark"] .pill--green,
 html[data-mode="dark"] .pill--orange,
 html[data-mode="dark"] .pill--red,
 html[data-mode="dark"] .pill--gold {
-  color: color-mix(in srgb, var(--tone) 78%, #fff6e6);
-  background: color-mix(in srgb, var(--tone) 22%, rgba(20, 17, 14, 0.28));
-  border-color: color-mix(in srgb, var(--tone) 36%, rgba(255, 255, 255, 0.10));
+  color: color-mix(in srgb, var(--tone) 76%, #fff6e6);
+  background: color-mix(in srgb, var(--tone) 16%, rgba(20, 17, 14, 0.30));
+  border-color: color-mix(in srgb, var(--tone) 26%, rgba(255, 255, 255, 0.10));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 
@@ -719,7 +742,7 @@ html[data-mode="dark"] .plat {
 /* 品牌色点带一圈光晕（平台色标是 2.0 的身份，别省这道光） */
 .plat i {
   width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--src);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--src) 24%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--src) 16%, transparent);
 }
 .plat em { font-style: normal; font-weight: 600; font-size: 11px; color: var(--label-3); }
 .plat .cmd { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--accent); }
@@ -728,7 +751,7 @@ html[data-mode="dark"] .plat {
  * 品牌色不只出现在色块上，还要在周围**发光**，一眼扫过去就知道这首来自哪家） */
 .src-rail {
   width: 2px; border-radius: 999px; align-self: stretch; flex: none; background: var(--src);
-  box-shadow: 0 0 12px 1px color-mix(in srgb, var(--src) 44%, transparent);
+  box-shadow: 0 0 10px 0 color-mix(in srgb, var(--src) 30%, transparent);
 }
 /* 来源色标：**收敛的**品牌色 —— 金箔主题里一堆高饱和实心药丸 = 廉价。
  * 改成"色点 + 品牌色字 + 同色淡玻璃底"，色相还在，饱和度让给整张卡。
@@ -737,19 +760,19 @@ html[data-mode="dark"] .plat {
   display: inline-flex; align-items: center; gap: 5px; flex: none;
   padding: 3px 9px 3px 7px; border-radius: 999px; font-size: 10.5px; font-weight: 800;
   letter-spacing: 0.2px; white-space: nowrap;
-  color: color-mix(in srgb, var(--src) 82%, #2b1f12);
-  background: color-mix(in srgb, var(--src) 13%, rgba(255, 255, 255, 0.40));
-  border: 1px solid color-mix(in srgb, var(--src) 26%, rgba(255, 255, 255, 0.55));
+  color: color-mix(in srgb, var(--src) 78%, #2b1f12);
+  background: color-mix(in srgb, var(--src) 9%, rgba(255, 255, 255, 0.42));
+  border: 1px solid color-mix(in srgb, var(--src) 20%, rgba(255, 255, 255, 0.55));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 .src-chip::before {
-  content: ""; width: 5px; height: 5px; border-radius: 50%; flex: none; background: var(--src);
-  box-shadow: 0 0 0 2.5px color-mix(in srgb, var(--src) 20%, transparent);
+  content: ""; width: 4px; height: 4px; border-radius: 50%; flex: none; background: var(--src);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--src) 14%, transparent);
 }
 html[data-mode="dark"] .src-chip {
   color: color-mix(in srgb, var(--src) 72%, #fff6e6);
-  background: color-mix(in srgb, var(--src) 22%, rgba(20, 17, 14, 0.30));
-  border-color: color-mix(in srgb, var(--src) 34%, rgba(255, 255, 255, 0.10));
+  background: color-mix(in srgb, var(--src) 15%, rgba(20, 17, 14, 0.32));
+  border-color: color-mix(in srgb, var(--src) 24%, rgba(255, 255, 255, 0.10));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
 }
 .src-chip.soft { color: var(--src); background: var(--src-soft); border-color: transparent; }
