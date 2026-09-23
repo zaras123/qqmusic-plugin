@@ -59,7 +59,10 @@
           {{if data.qualityLabel}}<span class="pill pill--accent">{{data.qualityLabel}}</span>{{/if}}
           {{if data.source}}<span class="pill">{{data.source}}</span>{{/if}}
           {{if data.duration}}<span class="pill t-num">{{data.duration}}</span>{{/if}}
-          {{if data.showPay || data.payplay}}<span class="pill pill--orange">付费曲</span>{{/if}}
+          <!-- showPay = "要不要显示这枚徽章"（MV 卡传 false 就不显示），不是"这歌要付费"：
+               两者 || 起来会把**每一首**都标成"付费曲"（免费的外源曲也一样）。
+               跟 classic 一个口径：payplay 才决定内容，徽章颜色跟着走。 -->
+          {{if data.showPay || data.payplay}}<span class="pill {{if data.payplay}}pill--orange{{else}}pill--green{{/if}}">{{if data.payplay}}会员曲{{else}}免费曲{{/if}}</span>{{/if}}
         </div>
       </div>
 

@@ -1080,6 +1080,65 @@ function v2Check(name, got, want) {
         })(),
         true
       )
+
+      // 预览夹具（scripts/preview-samples.mjs）与模板会**各自漂移**：模板里新写了
+      // {{data.payInfo}}，夹具里没有这个键，art-template 就把空值原样画出去 ——
+      // 星云详情卡那颗"空胶囊"就是这么来的（真机数据由 card-data.js 构建、字段齐全，
+      // 所以只有预览在骗人，肉眼评审时还以为是主题画错了）。
+      // 这里把漂移变成构建期报错：模板读的每个 data.X 都必须是该卡夹具的顶层键。
+      const { samples: fixtures } = await import('./scripts/preview-samples.mjs')
+      v2Check(
+        '预览夹具：每张卡片都有夹具（没有就会从预览里整张消失）',
+        T.CARDS.every((c) => fixtures[c] && typeof fixtures[c] === 'object'),
+        true
+      )
+      v2Check(
+        '预览夹具：模板读的每个 data 字段夹具里都有（缺了就是"预览画空、真机正常"）',
+        (() => {
+          for (const id of T.listThemeIds()) {
+            const dir = path.join(pluginRoot, 'resources', 'themes', id)
+            if (!fs.existsSync(dir)) continue
+            for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.html'))) {
+              const fix = fixtures[f.replace(/\.html$/, '')]
+              if (!fix) continue
+              const src = fs.readFileSync(path.join(dir, f), 'utf8')
+              const used = new Set()
+              for (const m of src.matchAll(/\bdata\s*\.\s*([A-Za-z_$][\w$]*)/g)) used.add(m[1])
+              for (const m of src.matchAll(/\bdata\s*\[\s*['"]([^'"]+)['"]\s*\]/g)) used.add(m[1])
+              // 区分大小写：data.sourceShort 与 data.sourceshort 在 art-template 里是两个键
+              for (const k of used) if (!(k in fix)) return false
+            }
+          }
+          return true
+        })(),
+        true
+      )
+
+      // 详情卡的「付费/免费」徽章必须跟着 payplay 走。apple 以前写成
+      // `{{if data.showPay || data.payplay}}付费曲{{/if}}` 而输出是**固定文案**，
+      // 于是每一首（包括免登录就能播的外源曲）都被标成"付费曲" —— showPay 的语义是
+      // "要不要显示这枚徽章"（MV 卡传 false），不是"这歌要付费"。
+      // 这里不查模板源码，而是把模板真的渲出来看结果：预览与真机走的就是这条路径。
+      const R = await import('./utils/render.js')
+      const freeSong = fixtures['qqmusic-detail']
+      const paidSong = { ...freeSong, payplay: true, payInfo: '会员' }
+      const rendered = (data, id) =>
+        fs.readFileSync(
+          R.renderHtmlFile(data, 'qqmusic-detail', T.resolveTheme({ unlockV2: true, uiThemeV2: id })).outFile,
+          'utf8'
+          // 模板里的注释也带"付费/会员"这些字（说明文案），查正文前先剥掉
+        ).replace(/<!--[\s\S]*?-->/g, '')
+      v2Check(
+        '详情卡：徽章跟着 payplay 走（免费曲不能被标成"付费"，会员曲也不能不标）',
+        T.listThemeIds()
+          .filter((id) => fs.existsSync(path.join(pluginRoot, 'resources', 'themes', id, 'qqmusic-detail.html')))
+          .every((id) => {
+            const free = rendered(freeSong, id)
+            const paid = rendered(paidSong, id)
+            return !/付费|会员/.test(free) && /付费|会员/.test(paid)
+          }),
+        true
+      )
     }
     // ── 新 UI 依赖的数据（来源色标）必须由 builder 提供，否则模板只能画灰的 ──
     {

@@ -49,6 +49,13 @@ resources/themes/
 
 可用的卡片名：`qqmusic-help`、`qqmusic-guide`、`qqmusic-platform`、`qqmusic-platforms`、`qqmusic-list`、`qqmusic-detail`、`qqmusic-lyric`、`qqmusic-hot`、`qqmusic-comment`、`qqmusic-status`、`qqmusic-settings`。
 
+> ⚠️ **卡片名相同 = `data` 形状相同**。`qqmusic-help`（1.x 帮助卡）与 `qqmusic-guide`（2.0 帮助卡）
+> 是**两张卡、两种数据**，别把一张的模板复制成另一张。2026-09-23 实测踩过：`nebula` / `multi` 的
+> `qqmusic-help.html` 当年就是照 guide 抄的，于是**没解锁 `？？？` 却把 `uiTheme` 选成这两套皮肤**时，
+> 帮助卡出来是一张残卡（统计栏空白、音源清单整段消失）—— 2.0 下走的是 `qqmusic-guide`，反而看不出来。
+> 内置主题里 1.x 那几张卡（status/settings/lyric/hot/comment/help）是**逐字复用 apple 的模板、只换
+> `_base.css` 的链接**；list/detail 因为 2.0 的来源色标重画过，是有意不一致的。
+
 ## 2.0 专用的三张卡
 
 `？？？` 打开后插件会多渲染三张卡。文件名与其它卡一样，只是 `data` 的形状不同
@@ -72,7 +79,23 @@ sourceText  detail  canQr  ownersCount  unreliable  note  action(下一步该发
 - 帮助卡的音源清单**同时给两种形状**：`sources[]`（新的，多带 `short`/`needsCredential`）与
   `sections[0].platforms[]`（老的）。老主题继续读 `sections`，2.0 主题读 `sources`，两边模板都不用改 ——
   **写预览样例时也要两份都给**，只给老的那份的话，2.0 帮助卡里"一行一个音源"那整段在预览里会缺席
-  （`scripts/preview-cards.mjs` 已经按这个来了）。
+  （`scripts/preview-samples.mjs` 已经按这个来了）。
+
+## 预览样例（夹具）
+
+每张卡的样例 `data` 都在 **`scripts/preview-samples.mjs`** —— 它是个**纯数据模块**
+（只 import node 内置模块、不碰 `utils/*`），所以 `test.mjs` 也能安全 import 它。
+
+> ⚠️ **改了模板就要顺手看一眼夹具**。`test.mjs` 会逐卡片检查"模板读到的每个 `data.X`
+> 都是该卡夹具的顶层键"（区分大小写），漏了就报错。以前没这道闸：模板里加了个
+> `{{data.sourceShort}}`，夹具里没这个键，art-template 就把空值**原样画出去**（星云详情卡
+> 那颗空胶囊），而真机数据由 `utils/card-data.js` 构建、字段齐全 —— 于是只有预览在骗人，
+> 肉眼评审时还会以为是主题画错了。
+
+夹具里的值要**照真机口径写**（来源短名走 `utils/platforms.js` 的 `platformShort()`，不是自己
+编一个；卡片里**不准出现 API 地址**，所以 `apiHint` 是空串）。演示哪一面也有讲究：详情卡默认
+画的是**外源曲**那一版，因为 QQ 绿正好等于 `--src` 的兜底色，用 QQ 曲预览等于没验证"来源色
+真的从数据流进了样式"这条管道。
 
 ## 模板约定
 
