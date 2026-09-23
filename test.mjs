@@ -1010,21 +1010,27 @@ function v2Check(name, got, want) {
         V.standaloneSourceIds({ unlockV2: true, qqEnabled: false, platforms: {} }).length > 0,
       true
     )
-    // ── 版本号也是 2.0 专属：解锁显示 2.0.x，未解锁与 2.0 之前逐字一致 ──
+    // ── 版本号：解锁显示 2.0；未解锁**任何发版阶段**都不能露出 2.0 ──
     {
       const U = await import('./utils/update.js')
+      const pkgVersion = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'package.json'), 'utf8')).version
+      // 四个象限：闸门（开/关）× 发版（前/后）
+      v2Check('版本（纯函数）：发版前 + 没解锁 = 当时的包版本', U.pickDisplayVersion('1.10.5', false), '1.10.5')
+      v2Check('版本（纯函数）：发版前 + 解锁 = 2.0 占位号', U.pickDisplayVersion('1.10.5', true), U.V2_DISPLAY_VERSION)
+      v2Check('版本（纯函数）：发版后 + 解锁 = 真实包版本', U.pickDisplayVersion('2.0.0', true), '2.0.0')
+      v2Check('版本（纯函数）：2.x 的小版本照样透传', U.pickDisplayVersion('2.1.3', true), '2.1.3')
+      v2Check('版本（纯函数）：发版后 + 没解锁 = 冻结的 1.x 号', U.pickDisplayVersion('2.0.0', false), U.LEGACY_DISPLAY_VERSION)
+      v2Check('版本（纯函数）：包版本读不出来（?）不炸，按没发版算', U.pickDisplayVersion('?', true), U.V2_DISPLAY_VERSION)
+      // 真机口径（走配置文件，不看纯函数）
       setCfg({ unlockV2: false })
-      v2Check('版本：关着？？？显示老的包版本（v1.9.x，与 2.0 之前一样）', U.displayVersion(cfgNow()), `v${U.getLocalVersion()}`)
-      v2Check('版本：关着时帮助卡上的版本号也是老的', HC.buildHelpCardData({}).version, `v${U.getLocalVersion()}`)
+      v2Check('版本：关着？？？显示 2.0 之前的号（发版后是冻结那一版）', U.displayVersion(cfgNow()), `v${U.LEGACY_DISPLAY_VERSION}`)
+      v2Check('版本：关着时帮助卡上的版本号也是老的', HC.buildHelpCardData({}).version, `v${U.LEGACY_DISPLAY_VERSION}`)
       v2Check('版本：关着时不会露出 2.0 的号', /^v1\./.test(U.displayVersion(cfgNow())), true)
       setCfg({ unlockV2: true })
-      v2Check('版本：打开？？？显示 2.0 专属版本', U.displayVersion(cfgNow()), 'v2.0.0')
-      v2Check('版本：2.0 帮助卡用的是展示版本', HC.buildGuideCardData({}).version, 'v2.0.0')
-      v2Check(
-        '版本：package.json 没被改成 2.0（更新器要比对包版本，改了就报"倒退"）',
-        JSON.parse(fs.readFileSync(path.join(pluginRoot, 'package.json'), 'utf8')).version,
-        U.getLocalVersion()
-      )
+      v2Check('版本：打开？？？显示 2.0 专属版本', U.displayVersion(cfgNow()), `v${U.getLocalVersion()}`)
+      v2Check('版本：2.0 帮助卡用的是展示版本', HC.buildGuideCardData({}).version, `v${U.getLocalVersion()}`)
+      v2Check('版本：已发版（package.json 进 2.x）', /^2\./.test(pkgVersion), true)
+      v2Check('版本：展示口径与包版本同源（打包时别只改一处）', U.getLocalVersion(), pkgVersion)
       setCfg({ unlockV2: true, platforms: {} })
     }
     // ── 2.0 是一套**新 UI**（多平台主题），且不能污染 1.9 ──

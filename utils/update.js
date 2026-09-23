@@ -36,28 +36,50 @@ export function getLocalVersion() {
  *
  * 需求原话：「版本也变，这个是 2.0 专属的，没开？？？之前和 2.0 之前一样」。
  *
- * 为什么不直接改 package.json：
- *   · package.json 的 version 是**更新器**的判据（git pull 前后比版本），
- *     本地写 2.0.0 而远程还是 1.9.14 时，拉完会报"v2.0.0 → v1.9.14"这种倒退的鬼话；
- *   · 2.0 还压在闸门后面（没解锁的人看到的必须逐字是 1.9.x），
- *     所以 2.0 的版本是**展示层**的事，不是包的事。
+ * 两个号各自管一段：
+ *   · `V2_DISPLAY_VERSION` —— **发版前**顶着它（包版本还在 1.x，但解锁的人要看到 2.0）；
+ *   · `LEGACY_DISPLAY_VERSION` —— **发版后**顶着它（包版本进了 2.x，但没解锁的人
+ *     必须继续看到 2.0 之前那张卡）。
  *
- * 正式发版那天把 package.json 升到 2.x，这里会自动改用真实版本号（见下）。
+ * 为什么不直接拿 package.json 的 version 当展示版本：那个 version 是**更新器**的判据
+ * （git pull 前后比对包版本），而展示版本要跟闸门走 —— 两者口径不同，别合并。
  */
 export const V2_DISPLAY_VERSION = '2.0.0'
 
 /**
- * 对外展示的版本号：解锁 = 2.0 专属版；未解锁 = 老的 v1.9.x（与 2.0 之前逐字一致）
+ * 未解锁时对外顶的号 = **2.0 之前的最后一个版本**
+ *
+ * 2.0 发版后 package.json 是 2.x，但没开？？？的人看到的必须**仍然**是 2.0 之前的样子
+ * （需求：『没开？？？之前和 2.0 之前一样』）。所以这里**冻结**，别跟着 package.json 走。
+ */
+export const LEGACY_DISPLAY_VERSION = '1.10.5'
+
+/**
+ * 展示版本的计算（纯函数，四个象限都可测）
+ *
+ *   解锁   → 发版前 = V2_DISPLAY_VERSION，发版后 = 真实包版本
+ *   未解锁 → 发版前 = 真实包版本（那时它就是 1.x），发版后 = LEGACY_DISPLAY_VERSION
+ *
+ * @param {string} local package.json 里的版本
+ * @param {boolean} unlocked 闸门是否打开
+ * @returns {string} 不带 `v` 前缀的版本号
+ */
+export function pickDisplayVersion(local, unlocked) {
+  const major = Number(String(local).split('.')[0])
+  // 包版本进 2.x 才算"真发版了"；读不出来（'?'）就按没发版处理
+  const released = Number.isFinite(major) && major >= 2
+  if (!unlocked) return released ? LEGACY_DISPLAY_VERSION : String(local)
+  return released ? String(local) : V2_DISPLAY_VERSION
+}
+
+/**
+ * 对外展示的版本号（解锁 = 2.0 专属版；未解锁 = 2.0 之前的号）
  *
  * @param {object} [cfg] 配置（不给就现读 qqmusic 配置）
- * @returns {string} 形如 `v2.0.0` / `v1.9.14`
+ * @returns {string} 形如 `v2.0.0` / `v1.10.5`
  */
 export function displayVersion(cfg = null) {
-  const local = getLocalVersion()
-  if (!isV2Unlocked(cfg)) return `v${local}`
-  // package.json 已经进 2.x（真发版了）→ 用真实版本，不再顶着占位号
-  const major = Number(String(local).split('.')[0])
-  return Number.isFinite(major) && major >= 2 ? `v${local}` : `v${V2_DISPLAY_VERSION}`
+  return `v${pickDisplayVersion(getLocalVersion(), isV2Unlocked(cfg))}`
 }
 
 async function git(args, { timeout = 120000 } = {}) {
