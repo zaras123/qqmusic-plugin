@@ -395,8 +395,12 @@ const samples = {
     qualityLabel: '128k',
     payplay: false,
     showPay: true,
-    payInfo: '🆓 免费',
-    urlStatus: '✅ 有播放链接',
+    // 卡片上不再用 emoji（宿主机没 emoji 字体会变方框）：只给文字 + 图标名，
+    // 图标由 resources/shared/theme-icons.css 用遮罩画
+    payInfo: '免费',
+    payIcon: 'spark',
+    urlStatus: '有播放链接',
+    urlIcon: 'check',
     source: '网易云 128k',
     sourceId: 'netease',
     sourceColor: SRC.netease.color,
