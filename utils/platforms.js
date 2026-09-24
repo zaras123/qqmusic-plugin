@@ -217,9 +217,26 @@ export const PLATFORMS = Object.freeze([
     short: 'yt',
     color: '#ff0033',
     quality: '128k',
-    needsCredential: true, // 国内必须要有出网代理
-    // 没有账号体系：卡的是**网络**不是凭据 —— 所以不给 ck 入口（给了也解决不了问题）
-    auth: { mode: 'none', note: '免登录，但 API 侧必须配 YOUTUBE_PROXY 才通（配 cookie 没用）' },
+    /**
+     * ⚠️ 这里以前写的是 `needsCredential: true` + `mode: 'none'`（"卡的是网络不是凭据，
+     * 配 cookie 没用"）—— **后半句是错的**，2026-09-24 纠正：
+     *
+     *   · 必须配的是**出网代理** `YOUTUBE_PROXY`（国内直连是网络层封锁）—— 这一条不变；
+     *   · 但 yt-dlp 支持 `--cookies`，带一份登录后的 cookies 能过三类以前**完全没办法**的情况：
+     *     出口 IP 被风控（`Sign in to confirm you're not a bot`）、年龄限制、会员（Premium）曲目。
+     *
+     * 所以它是"配了更强"（needsCredential=false，状态卡显示"免登录可用"），
+     * 而不是"没配用不了" —— 代理那件事由 API 侧的 unreliable 提示，别混成一个字段。
+     */
+    needsCredential: false,
+    auth: {
+      mode: 'cookie',
+      cookie: {
+        where: '浏览器登录 youtube.com → F12 → Network 里任一请求的 Cookie 头整串（SID/HSID/SSID/SAPISID…）；也可以直接贴一份 Netscape cookies 文件全文（两种都认）',
+        keys: 'SID / HSID / SSID / SAPISID / LOGIN_INFO',
+      },
+      note: '免登录也能取链（但 API 侧必须配 YOUTUBE_PROXY 才通）；配 cookies 能过机器人校验 / 年龄限制 / 会员曲目',
+    },
   },
   {
     id: 'apple',

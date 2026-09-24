@@ -1395,13 +1395,19 @@ function v2Check(name, got, want) {
       v2Check('凭据：酷我**不能**扫码（曾经错标成能扫，用户照着帮助发命令只得到"没这条通道"）', P.platformCanQrLogin('kuwo'), false)
       v2Check('凭据：酷狗**能**扫码（曾经漏标，帮助/锅巴都不提它）', P.platformCanQrLogin('kugou'), true)
       v2Check('凭据：B站**能**扫码也能粘贴（曾经是 mode:none —— 命令/帮助/锅巴三处都不提它有通道）', [P.platformCanQrLogin('bilibili'), P.platformCanCookie('bilibili')].join(','), 'true,true')
-      v2Check('凭据：能粘贴的外部平台 = 网易云/酷我/B站/酷狗/汽水/Apple', P.cookiePlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kuwo,bilibili,kugou,qishui,apple')
-      v2Check('凭据：真·匿名平台（咪咕/YouTube）不收凭据', ['migu', 'youtube'].map((id) => P.platformCanCookie(id)).join(','), 'false,false')
+      v2Check('凭据：能粘贴的外部平台 = 网易云/酷我/B站/酷狗/汽水/YouTube/Apple', P.cookiePlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kuwo,bilibili,kugou,qishui,youtube,apple')
+      // ⚠️ YouTube 2026-09-24 起**收 cookie**（yt-dlp 的 --cookies 能过机器人校验/会员曲）——
+      //    以前写的是"配 cookie 没用"，那句是错的
+      v2Check('凭据：YouTube 能粘贴 cookies 但**不能**扫码（账号体系在 Google 那边）', [P.platformCanCookie('youtube'), P.platformCanQrLogin('youtube')].join(','), 'true,false')
+      v2Check('凭据：真·匿名平台（咪咕/JioSaavn）不收凭据', ['migu', 'jiosaavn'].map((id) => P.platformCanCookie(id)).join(','), 'false,false')
       // "能不能配"与"没配能不能用"是两件事：B站/网易云/酷我都是"配了更强"，不能标成"没配用不了"
       v2Check('凭据：B站 属"配了更强"（needsCredential=false，状态卡不能画成红牌未配置）', P.platformNeedsCredential('bilibili'), false)
-      v2Check('凭据：酷狗/汽水/Apple/YouTube 才是"没配用不了"', ['kugou', 'qishui', 'apple', 'youtube'].map((id) => P.platformNeedsCredential(id)).join(','), 'true,true,true,true')
+      // YouTube 从"没配用不了"挪到"配了更强"：它卡的是**代理**（网络层），不是凭据
+      v2Check('凭据：酷狗/汽水/Apple 才是"没配用不了"（YouTube 卡的是代理，不是凭据）', ['kugou', 'qishui', 'apple'].map((id) => P.platformNeedsCredential(id)).join(','), 'true,true,true')
+      v2Check('凭据：YouTube 属"配了更强"（状态卡不能画成红牌未配置）', P.platformNeedsCredential('youtube'), false)
+      v2Check('凭据：YouTube 的说明点出代理仍是硬前提（别让人以为配个 cookie 就通）', /YOUTUBE_PROXY/.test(P.platformAuthOf('youtube').note), true)
       // 帮助卡上的凭据小标（回答"哪几家能扫码"）：三档取值
-      v2Check('凭据小标：可扫码/仅粘贴/免凭据 三档取值正确', ['netease', 'kuwo', 'apple', 'migu', 'bilibili'].map((id) => P.platformAuthTag(id).tag).join(','), '可扫码,仅粘贴,仅粘贴文件,免凭据,可扫码')
+      v2Check('凭据小标：可扫码/仅粘贴/免凭据 三档取值正确', ['netease', 'kuwo', 'apple', 'migu', 'bilibili', 'youtube'].map((id) => P.platformAuthTag(id).tag).join(','), '可扫码,仅粘贴,仅粘贴文件,免凭据,可扫码,仅粘贴')
       // ⚠️ 色值字段必须叫 toneColor —— 叫 color 会覆盖平台条上的**品牌色**（写出来过又抓回来）
       v2Check('凭据小标：色值不叫 color（会覆盖平台品牌色）', ['bilibili', 'kuwo'].every((id) => !('color' in P.platformAuthTag(id)) && /^#[0-9a-f]{6}$/i.test(P.platformAuthTag(id).toneColor)), true)
       // API 侧 audius 早就注册了（前缀 au_），插件注册表以前没登记 → au_xxx 被当成 QQ 曲
@@ -1414,6 +1420,7 @@ function v2Check(name, got, want) {
         qishui: ['/qishui/cookies', 'cookie', '/qishui/cookies/clear', 'post'],
         kuwo: ['/kuwo/cookies', 'cookie', '/kuwo/cookies/clear', 'post'],
         bilibili: ['/bilibili/cookies', 'cookie', '/bilibili/cookies/clear', 'post'],
+        youtube: ['/youtube/cookies', 'cookie', '/youtube/cookies/clear', 'post'],
         apple: ['/apple/cookies', 'cookies', '/apple/cookies', 'delete'], // 字段是 cookies、清除是 DELETE
       }
       v2Check('凭据：上传路径/字段名/清除方式与 API 一致', Object.entries(wantCk).every(([id, w]) => {
@@ -1473,6 +1480,10 @@ function v2Check(name, got, want) {
       // B站 现在收凭据：只发命令不带内容 → 回用法 + 关键字段（SESSDATA，来自注册表）
       h = await loginApp.platformSetCookie(fakeE('#qqmB站ck'))
       v2Check('凭据：B站 的用法提示点出关键字段 SESSDATA（不让用户去猜粘什么）', h === true && /用法：#qqmB站ck/.test(quoted.join('\n')) && /SESSDATA/.test(quoted.join('\n')), true)
+      quoted.length = 0
+      // YouTube 现在收 cookies 了（2026-09-24）→ 用法提示要点出 SID/HSID 这几个关键字段
+      h = await loginApp.platformSetCookie(fakeE('#qqmytck'))
+      v2Check('凭据：YouTube 的用法提示点出 SID/HSID（以前这条命令根本不存在）', h === true && /用法：#qqmytck/.test(quoted.join('\n')) && /SID/.test(quoted.join('\n')), true)
       quoted.length = 0
       h = await loginApp.platformSetCookie(fakeE('#qqm网易ck'))
       v2Check('凭据：只发 #qqm网易ck（没带内容）时回用法与出处', h === true && /用法：#qqm网易ck/.test(quoted.join('\n')) && /MUSIC_U/.test(quoted.join('\n')), true)
@@ -1545,13 +1556,15 @@ function v2Check(name, got, want) {
           { name: 'kuwo', label: '酷我', kind: 'credential', loggedIn: false, quality: '128k' },
           { name: 'kugou', label: '酷狗', kind: 'credential', loggedIn: false, quality: '128k' },
           { name: 'apple', label: 'Apple Music', kind: 'apple', configured: false, quality: '256k' },
-          { name: 'youtube', label: 'YouTube', kind: 'credential', loggedIn: false, quality: '128k' },
+          { name: 'youtube', label: 'YouTube', kind: 'credential', optional: true, loggedIn: false, quality: '128k' },
         ],
       }).tips.join(' | ')
       v2Check('状态卡："还没配的"按注册表拼（酷狗→扫码命令、酷我/Apple→私聊粘贴）',
         /酷我 私聊 #qqm酷我ck/.test(platTips) && /酷狗 扫码 #qqm酷狗登录/.test(platTips) && /Apple Music 私聊 #qqmamck/.test(platTips), true)
-      // 注意别用裸 /YouTube/：tips 第一行的"（B站/咪咕/YouTube 这类）"会误命中
-      v2Check('状态卡：没通道的（YouTube，卡出网代理）不进"还没配的"（不然等于教人白配）', /YouTube (私聊|扫码|见)/.test(platTips), false)
+      // ⚠️ 这条断言的意思变了：从前是"没通道的（YouTube）别进'还没配的'（等于教人白配）"，
+      //    现在 YouTube 有 cookies 通道了 —— 但它是**可选**的（卡的是代理不是凭据），
+      //    所以仍然不该被催着配。判据从"有没有通道"变成"是不是可选的"（API 的 optional）
+      v2Check('状态卡：可选凭据的平台（YouTube/B站）不进"还没配的"（它们不配也能用）', /YouTube (私聊|扫码|见)/.test(platTips), false)
 
       // ⑩ 锅巴：凭据段按平台独立（能粘贴的才有输入框），且**绝不落盘**
       const ckIds = P.cookiePlatforms().filter((x) => !x.own && !x.hidden).map((x) => x.id).sort()
@@ -1565,9 +1578,13 @@ function v2Check(name, got, want) {
       v2Check('锅巴：凭据默认值是空串/关（不是 undefined）', [getConfigData().platforms.netease.ck, getConfigData().platforms.netease.ckClear, getConfigData().platforms.kuwo.ck].join('|'), '|false|')
       v2Check('锅巴：能扫码的页签里写了扫码命令', P.qrPlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}登录`))), true)
       v2Check('锅巴：能粘贴的页签里写了粘贴命令且注明"私聊"', P.cookiePlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}ck`) && /私聊/.test(String(s.label)))), true)
-      // B站 已经不是匿名了（能扫码 + 能粘贴）→ 这条只对真·匿名的两家成立
-      v2Check('锅巴：真·匿名页签里写清"不用配凭据"', ['migu', 'youtube'].every((id) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('不用配凭据'))), true)
+      // B站 与 YouTube 都不是匿名了（有凭据通道）→ 这条只对真·匿名的两家成立
+      v2Check('锅巴：真·匿名页签里写清"不用配凭据"', ['migu', 'jiosaavn'].every((id) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('不用配凭据'))), true)
       v2Check('锅巴：B站 页签里既有扫码命令也有粘贴命令（与 #qqmB站登录/#qqmB站ck 同一份事实）', ['#qqmB站登录', '#qqmB站ck'].every((cmd) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(cmd))), true)
+      v2Check('锅巴：YouTube 页签里给出粘贴命令（以前写的是"不用配凭据"）', unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('#qqmytck')), true)
+      v2Check('锅巴：YouTube 页签里没有任何"扫码"命令（它没有扫码通道）', unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('#qqmyt登录')), false)
+      // "卡的是代理不是凭据"这件事必须能在页签上看见（光看"免登录 128k"看不出来）
+      v2Check('锅巴：YouTube 页签里点出"必须配 YOUTUBE_PROXY"（代理才是硬前提）', unlockedSchemas.some((s) => s.component === 'Divider' && /YouTube/.test(String(s.label || '')) && /YOUTUBE_PROXY/.test(String(s.label || ''))), true)
       await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})
       v2Check('锅巴：凭据不写进配置（明文 cookie 不进 yaml）', JSON.stringify(cfgNow()).includes('definitely-not-a-cookie'), false)
       v2Check('锅巴：保存后 ck/ckClear 两个界面键都不存在', [cfgNow().platforms?.netease?.ck, cfgNow().platforms?.netease?.ckClear].join('|'), '|')

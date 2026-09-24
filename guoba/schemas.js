@@ -418,7 +418,9 @@ export function buildSchemas() {
           group(p.label),
           {
             component: 'Divider',
-            label: `${p.label} · 免登录 ${p.quality}${p.needsCredential ? ' · ⚠️ 需要 API 侧先配好凭据' : ''}`,
+            // ⚠️ 平台自己的说明（`auth.note`）也要露在页签上：像 YouTube 那种
+            //    "卡的是代理不是凭据"的事实，光看"免登录 128k"根本看不出来
+            label: `${p.label} · 免登录 ${p.quality}${p.needsCredential ? ' · ⚠️ 需要 API 侧先配好凭据' : ''}${platformAuthOf(p.id).note ? ` · ${platformAuthOf(p.id).note}` : ''}`,
           },
           {
             field: `platforms.${p.id}.enabled`,
