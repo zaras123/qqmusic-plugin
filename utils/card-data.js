@@ -19,7 +19,7 @@ import {
 } from './platforms.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
-import { resolveTheme, TIME_LABEL } from './theme.js'
+import { resolveTheme, TIME_LABEL, imageFormatOf } from './theme.js'
 import { describeBackground } from './background.js'
 import { enabledPlatforms } from './v2.js'
 
@@ -536,7 +536,7 @@ export async function buildSettingsCardData(e = null) {
     themeNow.darkPref === 'auto' ? `自动·${modeLabel}` : modeLabel
   const themeText = `${themeNow.manifest.name}（${themeNow.id} · ${themeNow.useTimeColor ? `${periodLabel}配色` : '固定配色'} · ${modePrefLabel}）${
     themeNow.fallback ? ' ⚠️ 已回落' : ''
-  }`
+  } · 图片 ${imageFormatOf(c).toUpperCase()}`
   const publicAccountText = !publicAccount
     ? forceMasterAccount
       ? '未登录 · ⚠️ 开了「一律走主人账号」但还没有扫码登录记录'

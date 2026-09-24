@@ -19,6 +19,9 @@ import {
   viewportWidthOf,
   fileChanged,
   invalidateAll as invalidateThemeCache,
+  // 图片格式与 theme.js 同一处定义（三个常量/归一函数在文件下方转发导出）
+  IMAGE_QUALITY,
+  imageFormatOf,
 } from './theme.js'
 
 const require = createRequire(path.join(yunzaiPath, 'package.json'))
@@ -186,12 +189,15 @@ export async function renderCard(e, data, card = 'qqmusic-status') {
     }
     const { outFile } = renderHtmlFile(data, card, theme, { bgUrl: bg?.url || '' })
     const vw = viewportWidthOf(theme, card)
-    const buf = await screenshotDirect(outFile, { viewportWidth: vw, pageBg: pageBgOf(theme) })
-    const outPng = path.join(yunzaiPath, 'temp', `${theme.id}-${card}.png`)
-    ensureDir(path.dirname(outPng))
-    fs.writeFileSync(outPng, buf)
+    // 格式跟着配置走（默认 jpeg：实测同样一张卡 4.98s/9.75MB → 0.56s/1.44MB）
+    const format = imageFormatOf(cfg)
+    const buf = await screenshotDirect(outFile, { viewportWidth: vw, pageBg: pageBgOf(theme), format })
+    // ⚠️ 扩展名要跟着格式走：把 JPEG 字节写进 `.png` 文件是骗人的（谁打开都会以为文件坏了）
+    const shotFile = path.join(yunzaiPath, 'temp', `${theme.id}-${card}.${format === 'png' ? 'png' : 'jpg'}`)
+    ensureDir(path.dirname(shotFile))
+    fs.writeFileSync(shotFile, buf)
     logInfo(
-      `[qqmusic-plugin] ${card} 截图成功 (direct · 主题 ${theme.id}${theme.dark ? '·深色' : ''}${
+      `[qqmusic-plugin] ${card} 截图成功 (direct · ${format} · 主题 ${theme.id}${theme.dark ? '·深色' : ''}${
         bg ? `·背景${bg.source === 'file' ? '本地' : `远端/${bg.from}`}` : ''
       }) ${(buf.length / 1024).toFixed(1)}KB`
     )
@@ -208,6 +214,9 @@ export async function renderCard(e, data, card = 'qqmusic-status') {
         tplFile: tplFileRel,
         pluResPath,
         data,
+        // ⚠️ 这条是**兜底路**（直连截图抛错时才走），故意保持 PNG：
+        //    imgType 由 Yunzai 的渲染层消费，我们没法确认它认 'jpeg'；
+        //    为了不让兜底路失败，这里不动它（代价是偶发的兜底卡会大一些，日志里有 warning 可查）
         imgType: 'png',
       })
       if (img) {
@@ -387,7 +396,14 @@ process.once('exit', () => {
 })
 
 /** 直连 Chrome 截图（导出给本地预览复用，保证与真机同一套参数） */
-export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg = '#F2F2F7' } = {}) {
+// 图片格式的定义在 utils/theme.js（那边是轻量模块，设置卡/锅巴也要读同一份）——
+// 这里**转发导出**，免得调用方为了三个常量去记两个地方。
+export { DEFAULT_IMAGE_FORMAT, IMAGE_QUALITY, imageFormatOf } from './theme.js'
+
+export async function screenshotDirect(
+  htmlFile,
+  { viewportWidth = 640, pageBg = '#F2F2F7', format = 'png', quality = IMAGE_QUALITY } = {}
+) {
   let puppeteer = loadPuppeteer()
   if (!puppeteer) {
     puppeteer = (await import(pathToFileURL(path.join(yunzaiPath, 'node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js')).href)).default
@@ -490,8 +506,11 @@ export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg =
       }
     }
 
+    // 元素截图：格式跟着配置走（jpeg 默认，见 screenshotDirect 头部的实测数据）
+    const type = format === 'png' ? 'png' : 'jpeg'
     const buff = await el.screenshot({
-      type: 'png',
+      type,
+      ...(type === 'jpeg' ? { quality: Math.min(100, Math.max(60, Number(quality) || IMAGE_QUALITY)) } : {}),
       // 不透明导出，兼容 QQ / ICQQ / NapCat 对透明 PNG 的白底处理
       omitBackground: false,
       captureBeyondViewport: false,

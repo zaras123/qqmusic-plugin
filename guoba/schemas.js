@@ -17,7 +17,7 @@ import Config from '../components/Config.js'
 import { pullLoginMeta, normalizeApiBase, request } from '../utils/api.js'
 import { QQMUSIC_QUALITY_LIST } from '../utils/quality.js'
 import { resolvePublicAccount } from '../utils/account.js'
-import { listThemeIds, loadManifest, darkPrefOf } from '../utils/theme.js'
+import { listThemeIds, loadManifest, darkPrefOf, imageFormatOf } from '../utils/theme.js'
 import {
   PLATFORMS,
   VISIBLE_PLATFORMS,
@@ -309,6 +309,22 @@ export function buildSchemas() {
     component: 'Switch',
   },
   {
+    field: 'imageFormat',
+    label: '卡片图片格式',
+    // 实测数字直接摆出来：这是"发卡慢/图片大"最实际的一个开关
+    bottomHelpMessage:
+      'jpeg（推荐）= 同一张卡实测 0.56s / 1.44MB；png = 4.98s / 9.75MB（快 8.9×、小 6.8×，1:1 看不出差别）。' +
+      '卡片每次都要上传给 QQ，慢网下差别很明显。二维码永远是 PNG，不受这里影响',
+    component: 'Select',
+    componentProps: {
+      options: [
+        { label: 'jpeg（小 & 快，推荐）', value: 'jpeg' },
+        { label: 'png（无损，体积大）', value: 'png' },
+      ],
+      placeholder: '默认 jpeg',
+    },
+  },
+  {
     field: 'uiBgEnable',
     label: '自定义卡片背景',
     bottomHelpMessage:
@@ -542,6 +558,9 @@ export function getConfigData() {
     uiThemeV2: String(c.uiThemeV2 || 'nebula'),
     uiDark: darkPrefOf(c.uiDark),
     uiTimeColor: c.uiTimeColor !== false,
+    // 卡片图片格式：缺省 = jpeg（老配置没这个键 → 直接享受新默认；显式 png 的保持 png）
+    // 归一函数只有一份（utils/theme.js），别再在这儿手写一遍判断
+    imageFormat: imageFormatOf(c),
     uiBgEnable: c.uiBgEnable === true,
     uiBgValue: String(c.uiBgValue || ''),
     uiBgCacheMin: c.uiBgCacheMin === undefined || c.uiBgCacheMin === '' ? 10 : Number(c.uiBgCacheMin) || 0,

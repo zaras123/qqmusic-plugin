@@ -1869,6 +1869,21 @@ function refactorCheck(name, got, want) {
     /closeDirectBrowser\(\)/.test(fs.readFileSync(path.join(pluginRoot, 'scripts/preview-cards.mjs'), 'utf8')),
     true
   )
+  // ── 图片格式：默认 jpeg（实测同一张卡 4.98s/9.75MB → 0.56s/1.44MB）──
+  {
+    const R = await import('./utils/render.js')
+    refactorCheck('图片格式：默认 jpeg（别再默认回 PNG 的大图）', R.DEFAULT_IMAGE_FORMAT, 'jpeg')
+    refactorCheck(
+      '图片格式：配置没写 / 写错 → 都回 jpeg；显式 png 才走 png',
+      [R.imageFormatOf({}), R.imageFormatOf({ imageFormat: 'PNG' }), R.imageFormatOf({ imageFormat: 'webp' })].join(','),
+      'jpeg,png,jpeg'
+    )
+    refactorCheck('图片格式：screenshotDirect 支持 format/quality 两个入参', /format = 'png', quality = IMAGE_QUALITY/.test(renderSrc), true)
+    refactorCheck('图片格式：截图时按格式给 type（jpeg 才带 quality）', /type === 'jpeg' \? \{ quality:/.test(renderSrc), true)
+    refactorCheck('图片格式：落地那份调试副本的**扩展名跟着格式走**（JPEG 不许写成 .png）', /\.\$\{format === 'png' \? 'png' : 'jpg'\}/.test(renderSrc), true)
+    refactorCheck('图片格式：预览/展示图固定 PNG（素材要看细节）', /format: 'png'/.test(fs.readFileSync(path.join(pluginRoot, 'scripts/preview-cards.mjs'), 'utf8')), true)
+    refactorCheck('图片格式：兜底那条（Yunzai 渲染）仍留在 PNG —— 不能猜它认不认 jpeg', /imgType: 'png'/.test(renderSrc), true)
+  }
 
   // ── 登录态落盘：四处逐字重复收成一个函数 ──
   const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps/login.js'), 'utf8')

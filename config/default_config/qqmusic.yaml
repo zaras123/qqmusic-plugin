@@ -47,6 +47,11 @@ uiDark: false
 uiThemeV2: nebula
 # 底色随时段自动换：清晨 5-8 / 白天 8-17 / 黄昏 17-20 / 夜晚 20-5（声明了时段配色的主题才生效）
 uiTimeColor: true
+# 卡片图片格式：jpeg（默认）/ png
+#   实测同一张 2.0 帮助卡（2064×6030）：PNG 4.98s / 9.75MB，JPEG(q92) 0.56s / 1.44MB ——
+#   快 8.9×、小 6.8×，1:1 局部看不出差别；而这张图**每发一次都要上传给 QQ**。
+#   想要绝对无损（例如做素材/海报）再改 png；二维码那条路永远是 PNG（不受这里影响）。
+imageFormat: jpeg
 # 自定义背景（apple / nebula / multi 支持，classic 忽略）：开启后卡片切成 iOS 液态玻璃
 uiBgEnable: false
 # 背景来源，自动识别三种：

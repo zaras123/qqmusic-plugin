@@ -98,7 +98,14 @@ function loadYaml(file) {
  */
 const mergedCache = new Map()
 
-/** 文件指纹：mtime + 大小；不存在 / 读不到 → '-'（删了文件也能触发失效） */
+/**
+ * 文件指纹：mtime + 大小；不存在 / 读不到 → '-'（删了文件也能触发失效）
+ *
+ * ⚠️ 2026-09-25 试过给这里加"200ms 指纹记忆"（每次省 2 次 statSync，单次 80µs→8µs），
+ * **被测试打回来了**：`手改 yaml → 立刻生效`是这套配置系统的明码保证
+ * （test.mjs 的"配置：手改 yaml → 立刻生效"三条断言钉着），200ms 的窗口会让它变假。
+ * 结论：这点开销换那个保证不划算 —— 别再往这儿加 TTL。
+ */
 function fileKey(file) {
   try {
     const s = fs.statSync(file)

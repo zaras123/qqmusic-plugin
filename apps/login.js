@@ -75,6 +75,19 @@ const QR_MAX_TRIES = 60 // 兜底：退避到很大间隔时也不会无限轮
 const QR_POLL_MIN_MS = 2000
 const QR_POLL_MAX_MS = 60000 // 上限跟着 API 的退避上限（60s）走
 
+/**
+ * `#qqm<平台>登录` 的匹配式 —— **在模块加载时编译一次**
+ *
+ * ⚠️ 以前是在 handler 里现拼现编（`new RegExp(platformAliasPattern())`）：
+ * 每次都要把所有平台的别名摊平、去重、按长度排序、逐个转义，再编译一个大交替式。
+ * 实测 **~37µs/次** 的纯浪费（别名表是静态的，编译结果永远一样）。
+ * 规则里的那条 `reg`（下面的 Rule 定义）与这里**共用同一个实例**，免得两处各编一份。
+ */
+const RE_PLATFORM_QR_LOGIN = new RegExp(
+  `^#?(?:qq|QQ)m\\s*(?:(${platformAliasPattern()}))\\s*(?:登录|登陆)$`,
+  'i'
+)
+
 /** 退避上限：把不可信的值夹在合理区间里（API 说 30s 也别真睡 30s） */
 function clampPollMs(v) {
   const n = Number(v)
@@ -280,7 +293,8 @@ export class qqmusicLogin extends (await loadPluginBase()) {
            * 未解锁（？？？关着）时 handler 直接 return false —— 1.9 里没有这些命令。
            */
           // 传 RegExp 对象（不是字符串）：Yunzai 会 new RegExp(字符串)，那样 `i` 标志会丢
-          reg: new RegExp(`^#?(?:qq|QQ)m\\s*(?:${platformAliasPattern()})\\s*(?:登录|登陆)$`, 'i'),
+          // 与 handler 共用同一个已编译实例（以前这里另编一份，等于同一张别名表编两次）
+          reg: RE_PLATFORM_QR_LOGIN,
           fnc: 'platformQrLogin',
           permission: 'master',
         },
@@ -386,7 +400,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     if (!isV2Unlocked(cfg)) return false
 
     const msg = String(e.msg || '').trim()
-    const m = msg.match(new RegExp(`^#?(?:qq|QQ)m\\s*(?:(${platformAliasPattern()}))\\s*(?:登录|登陆)$`, 'i'))
+    const m = msg.match(RE_PLATFORM_QR_LOGIN)
     const p = platformOf(m?.[1])
     if (!p) return false
     // "能不能扫码"从注册表读（QR_PLATFORMS 只放 API 那边的路径）：

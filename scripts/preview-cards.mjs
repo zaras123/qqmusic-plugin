@@ -142,6 +142,8 @@ async function main() {
             const png = await screenshotDirect(outFile, {
               viewportWidth: viewportWidthOf(theme, card),
               pageBg: pageBgOf(theme),
+              // 预览/展示图**固定 PNG**（要拿去做素材、看细节；线上发卡走 jpeg，见 utils/render.js）
+              format: 'png',
             })
             const outPng = path.join(dir, `${card}.png`)
             fs.writeFileSync(outPng, png)
