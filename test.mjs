@@ -1629,8 +1629,8 @@ function v2Check(name, got, want) {
         )
         // 粘贴框的占位提示以前**所有平台都写网易云的** `MUSIC_U=xxx; __csrf=yyy` ——
         // B站 / 酷狗 / 汽水 / YouTube 页签里那个例子是错的（锅巴截图里一眼就看得出来）
-        v2Check(
-          '锅巴：粘贴框的占位提示是这家自己的字段（不再是所有平台都写着 MUSIC_U）',
+      v2Check(
+        '锅巴：粘贴框的占位提示是这家自己的字段（不再是所有平台都写着 MUSIC_U）',
           others.every((p) => {
             const ck = P.platformCookieOf(p.id)
             if (!ck) return true
@@ -1645,6 +1645,20 @@ function v2Check(name, got, want) {
           }),
           true
         )
+      }
+      // ── 扫码轮询的节奏（2026-09-25：汽水上游限流把一次成功扫码拖成失败）──────
+      //    用户日志：status=scanned 之后上游一路回 error_code=7 访问太频繁 ——
+      //    我们 3s 一次的轮询把自己打限流，最后报"登录失败"。
+      //    API 侧已改成退避（6→12→24s，上限 30s）并把节奏写在 retryAfterMs 里，
+      //    插件这几条断言钉的是"客户端确实照它走"。
+      {
+        const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
+        v2Check('扫码轮询：间隔读 API 的 retryAfterMs（节奏由 API 一处定）', /waitMs = clampPollMs\(d\.retryAfterMs\)/.test(loginSrc), true)
+        v2Check('扫码轮询：间隔夹在 2~20s（API 说 30s 也不真睡 30s）', /QR_POLL_MIN_MS = 2000/.test(loginSrc) && /QR_POLL_MAX_MS = 20000/.test(loginSrc), true)
+        v2Check('扫码轮询：用**总时长**封顶而不是固定次数（退避会把"多少次"算爆）', /QR_TOTAL_MS = 150000/.test(loginSrc) && /Date\.now\(\) < deadline/.test(loginSrc), true)
+        v2Check('扫码轮询：上局限流只提醒一次（不刷屏）', /rateLimited === true && !rateWarned/.test(loginSrc), true)
+        v2Check('扫码轮询：超时提示给出粘贴入口（被限流挡掉时还有第二条路）', /期间被上游限流过/.test(loginSrc) && /也可以直接粘贴凭据/.test(loginSrc), true)
+        v2Check('扫码轮询：不再有"固定 40 次 × 3s"的老写法（超时按它算会拖到二维码过期后）', !/QR_MAX_TRIES \* \(QR_POLL_MS/.test(loginSrc), true)
       }
       await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})
       v2Check('锅巴：凭据不写进配置（明文 cookie 不进 yaml）', JSON.stringify(cfgNow()).includes('definitely-not-a-cookie'), false)

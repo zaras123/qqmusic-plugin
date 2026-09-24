@@ -47,9 +47,27 @@ const QR_PLATFORMS = {
   bilibili: { start: '/bilibili/login/qrcode', poll: (k) => `/bilibili/login/qrcode/check?key=${encodeURIComponent(k)}` },
 }
 
-/** 扫码登录的轮询节奏：3s 一次、最多 40 次（≈2 分钟，与二维码有效期同量级） */
+/**
+ * 扫码登录的轮询节奏
+ *
+ * 默认 3s 一次；**节奏以 API 回的 `retryAfterMs` 为准**（上限 20s、下限 2s）——
+ * 汽水那种"上游会限流"的平台需要放慢，节奏写在 API 里才能一处改、处处生效。
+ *
+ * ⚠️ 用**总时长**而不是"固定次数"当上限（2026-09-25 改）：限流退避会把单次间隔拉到
+ *    十几秒，按"40 次"算就等于把有效期拖到 10 分钟以后 —— 二维码早过期了。
+ */
 const QR_POLL_MS = 3000
-const QR_MAX_TRIES = 40
+const QR_TOTAL_MS = 150000 // ≈2.5 分钟，与二维码有效期同量级
+const QR_MAX_TRIES = 60 // 兜底：退避到很大间隔时也不会无限轮
+const QR_POLL_MIN_MS = 2000
+const QR_POLL_MAX_MS = 20000
+
+/** 退避上限：把不可信的值夹在合理区间里（API 说 30s 也别真睡 30s） */
+function clampPollMs(v) {
+  const n = Number(v)
+  if (!Number.isFinite(n) || n <= 0) return QR_POLL_MS
+  return Math.min(QR_POLL_MAX_MS, Math.max(QR_POLL_MIN_MS, Math.round(n)))
+}
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -415,8 +433,8 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const ck = platformCookieOf(p.id)
     await e.reply(
       [
-        `请用「${qr.app}」扫码登录 ${p.label}（${QR_MAX_TRIES * (QR_POLL_MS / 1000) / 60} 分钟内有效）`,
-        spec.qishui ? '扫完在手机上确认；若提示需要安全验证，就改用粘贴那条' : '扫完在手机上点一次确认',
+        `请用「${qr.app}」扫码登录 ${p.label}（${Math.round(QR_TOTAL_MS / 60000)} 分钟内有效）`,
+        spec.qishui ? '扫完在手机上确认（汽水上游会限流，机器人会自动放慢轮询，别急）' : '扫完在手机上点一次确认',
         ck ? `扫码被上游挡住时：私聊发 ${ck.command} ${ck.file ? '<整份 cookies 文件全文>' : '<cookie>'}` : '',
       ]
         .filter(Boolean)
@@ -425,11 +443,16 @@ export class qqmusicLogin extends (await loadPluginBase()) {
 
     // ② 轮询（只在状态变化时回话）
     let last = ''
+    // 节奏以 API 回的 retryAfterMs 为准（限流退避时会变大）；总时长封顶，到点就停
+    let waitMs = QR_POLL_MS
+    const deadline = Date.now() + QR_TOTAL_MS
+    // 限流只提醒一次（每一轮都刷屏才是最烦的）
+    let rateWarned = false
     // ⚠️ 循环变量别用 `i`：本文件其它 handler 也裸用 i（作用域检查会把它当跨函数引用），
     //    用一个专属名字就互不干扰
-    for (let tick = 0; tick < QR_MAX_TRIES; tick += 1) {
+    for (let tick = 0; tick < QR_MAX_TRIES && Date.now() < deadline; tick += 1) {
       // eslint-disable-next-line no-await-in-loop
-      await sleep(QR_POLL_MS)
+      await sleep(waitMs)
       if (task.stopped) return true
       let st = ''
       let tip = ''
@@ -444,6 +467,13 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         st = String(d.status || '')
         tip = String(d.tip || d.message || '')
         scopeText = String(d.scopeText || '')
+        // 上游限流：API 已经替我们退避了，这里只把节奏跟上 + 提醒一次
+        waitMs = clampPollMs(d.retryAfterMs)
+        if (d.rateLimited === true && !rateWarned) {
+          rateWarned = true
+          // eslint-disable-next-line no-await-in-loop
+          await e.reply(`${p.label} 上游限流（访问太频繁），已自动放慢轮询；请尽快在手机上点「确认」`)
+        }
         if (spec.qishui) {
           // 汽水的状态词不同：new/waiting → 待扫；scanned/confirmed → 待确认；success → 成功
           if (d.loggedIn === true || st === 'success') st = 'success'
@@ -493,7 +523,15 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       }
     }
     activeLogins.delete(userKey)
-    await e.reply(`${p.label} 扫码超时（没等到确认），重新发一次 ${qr.command}`)
+    await e.reply(
+      [
+        `${p.label} 扫码超时（没等到确认），重新发一次 ${qr.command}`,
+        rateWarned ? '（期间被上游限流过：确认那一步可能被挡掉了，重发一次通常就好）' : '',
+        ck ? `也可以直接粘贴凭据（私聊我）：${ck.command} ${ck.file ? '<整份 cookies 文件全文>' : '<cookie>'}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n')
+    )
     return true
   }
 
