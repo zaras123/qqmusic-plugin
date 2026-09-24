@@ -5,8 +5,10 @@
   <title>QQ音乐 · 平台状态</title>
   <!-- classic 兜底版：自带样式（不依赖 _base.css），视觉与经典绿卡一致 -->
   <style>
+@import url("resources/fonts/qqm-cjk.css");
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { width: fit-content; background: #e6f6ee !important; color: #143528; font-family: "Microsoft YaHei UI", "Microsoft YaHei", sans-serif; }
+    body { width: fit-content; background: #e6f6ee !important; color: #143528; font-family: "Microsoft YaHei UI", "Microsoft YaHei", "QQM CJK", sans-serif; }
     .page { padding: 16px; }
     .card { width: 600px; border-radius: 24px; overflow: hidden; background: linear-gradient(168deg, #f7fcf9, #eef8f3 40%, #e3f4eb); border: 1px solid rgba(49,194,124,0.18); box-shadow: 0 14px 28px rgba(20,90,58,0.12); }
     .hero { padding: 20px; color: #fff; background: linear-gradient(135deg, #36c580, #2ab06f 55%, #1fa968); }
@@ -18,7 +20,7 @@
     .main { flex: 1 1 auto; min-width: 0; }
     .name { font-size: 13.5px; font-weight: 700; }
     .sub { margin-top: 2px; font-size: 11.5px; color: #6b8a7c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sub.act { color: #17835a; font-family: ui-monospace, Consolas, monospace; }
+    .sub.act { color: #17835a; font-family: ui-monospace, Consolas, monospace, "QQM CJK"; }
     .tag { flex: none; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background: #8aa79a; }
     .tag.on { background: #1aa76a; } .tag.off { background: #d92d20; }
     .tip { padding: 8px 20px 14px; font-size: 11.5px; color: #6b8a7c; line-height: 1.6; }

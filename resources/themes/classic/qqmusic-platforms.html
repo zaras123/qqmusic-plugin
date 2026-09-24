@@ -8,10 +8,12 @@
     自带样式、不依赖 _base.css，视觉与经典绿卡一致 —— 内容与 multi 版相同。
   -->
   <style>
+@import url("resources/fonts/qqm-cjk.css");
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       width: fit-content; background: #e6f6ee !important; color: #143528;
-      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "QQM CJK", sans-serif;
       -webkit-font-smoothing: antialiased;
     }
     .page { padding: 16px; }
@@ -34,7 +36,7 @@
     .main { flex: 1 1 auto; min-width: 0; }
     .name { font-size: 13.5px; font-weight: 700; }
     .sub { margin-top: 2px; font-size: 11.5px; color: #6b8a7c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .sub.act { color: #17835a; font-family: ui-monospace, Consolas, monospace; }
+    .sub.act { color: #17835a; font-family: ui-monospace, Consolas, monospace, "QQM CJK"; }
     .sub.warn { color: #c2560f; }
     .tag {
       flex: none; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; color: #fff; background: #8aa79a;
@@ -59,7 +61,9 @@
             <div class="name truncate">{{row.label}}（{{row.kindText}}）{{if row.canQr}} · 可扫码{{/if}}</div>
             {{if row.detail}}<div class="sub">{{row.detail}}</div>{{/if}}
             {{if row.action}}<div class="sub act">下一步：{{row.action}}</div>{{/if}}
-            {{if row.unreliable}}<div class="sub warn">⚠️ {{row.unreliable}}</div>{{/if}}
+          <!-- classic 没有矢量图标系统（不引 theme-icons.css），这里用纯文字：
+               ⚠️ 带的 U+FE0F 变体选择符在裸 Linux 上没有字形（2026-09-25） -->
+          {{if row.unreliable}}<div class="sub warn">注意：{{row.unreliable}}</div>{{/if}}
           </div>
           <span class="tag {{if row.ready}}on{{else}}off{{/if}}">{{row.stateText}}</span>
         </div>

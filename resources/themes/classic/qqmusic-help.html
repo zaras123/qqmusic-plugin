@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QQ音乐 · 帮助</title>
   <style>
+@import url("resources/fonts/qqm-cjk.css");
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
@@ -26,7 +28,7 @@
       padding: 0;
       /* QQ 多数协议会把透明 PNG 填成白底，这里改用不透明浅绿底，避免“白框” */
       background: #e6f6ee !important;
-      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "QQM CJK", sans-serif;
       color: var(--text);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -251,7 +253,7 @@
       color: var(--qm-deep);
       font-size: 12px;
       font-weight: 700;
-      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace;
+      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace, "QQM CJK";
       letter-spacing: 0;
       white-space: nowrap;
       overflow: hidden;

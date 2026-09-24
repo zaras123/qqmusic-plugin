@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QQ音乐 · 设置</title>
   <style>
+@import url("resources/fonts/qqm-cjk.css");
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
@@ -28,7 +30,7 @@
       padding: 0;
       /* QQ 多数协议会把透明 PNG 填成白底，这里改用不透明浅绿底，避免“白框” */
       background: #e6f6ee !important;
-      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "QQM CJK", sans-serif;
       color: var(--text);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -90,6 +92,11 @@
       box-shadow: 0 8px 18px rgba(0,0,0,0.12);
       flex-shrink: 0;
     }
+    /* 品牌标里的图标用**内联 SVG**（原来是个 emoji ⚙）——
+       emoji 靠宿主机的 emoji 字体，精简 Linux 容器上会变方块（2026-09-25）。
+       SVG 是矢量的：零字体依赖、跟着 currentColor 走、任何系统都一样。 */
+    .brand-mark { color: #fff; }
+    .brand-mark svg { width: 24px; height: 24px; display: block; fill: currentColor; }
 
     .hero-text { flex: 1; min-width: 0; }
 
@@ -345,7 +352,7 @@
       color: var(--qm-deep);
       font-size: 12px;
       font-weight: 700;
-      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace;
+      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace, "QQM CJK";
       letter-spacing: 0;
       white-space: nowrap;
       overflow: hidden;
@@ -414,7 +421,7 @@
     <div class="card">
       <div class="hero">
         <div class="hero-top">
-          <div class="brand-mark">⚙</div>
+          <div class="brand-mark"><svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .05-.94 7.07 7.07 0 0 0-.05-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.66 8.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.05.62-.05.94 0 .32.01.63.05.94l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2Z"/></svg></div>
           <div class="hero-text">
             <div class="eyebrow">QQ MUSIC SETTINGS</div>
             <div class="title">{{data.title || '插件设置'}}</div>

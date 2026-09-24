@@ -43,7 +43,9 @@ export function buildListCardData(keyword, songs, options = {}) {
   if (hasMv) {
     commands.push({
       name: '#qqmMV 播放 序号',
-      desc: '播放 / 下载该曲 MV（列表带 🎬 即是有 MV 的歌曲）',
+      // 别用 emoji：这句会长在**卡片**上（宿主 Chromium 渲染，裸 Linux 没有 emoji 字体会变方块）；
+      // 而且列表卡的小标已经改成文字 MV 了，这里跟着改才一致
+      desc: '播放 / 下载该曲 MV（列表带 MV 即是有 MV 的歌曲）',
       example: '#qqmMV 播放 1',
     })
   }
@@ -374,7 +376,7 @@ export function buildPlatformCardData(status = {}, platformId = '') {
       row.ready
         ? (row.detail || '已就绪，可直接用上面的命令')
         : `下一步：${row.action || (row.kindText === '匿名' ? '无需配置（匿名可用）' : '见上方说明')}`,
-      row.unreliable ? `⚠️ ${row.unreliable}` : '',
+      row.unreliable ? `注意：${row.unreliable}` : '',
       row.ownersCount ? `已有 ${row.ownersCount} 人配了自己那份（他们各自用自己的）` : '',
     ].filter(Boolean),
   }
@@ -384,7 +386,7 @@ export function buildPlatformCardData(status = {}, platformId = '') {
 export function formatPlatformCardText(data) {
   const r = data.row || {}
   return [
-    `【${data.title}${r.ready ? ' ✅' : ' ⬜'}】${data.subtitle}`,
+    `【${data.title}${r.ready ? ' ●' : ' ○'}】${data.subtitle}`,
     r.detail || '',
     ...((data.commands || []).map((c) => `${c.example}   →  ${c.desc}`)),
     ...(data.tips || []),
@@ -435,7 +437,9 @@ export function buildPlatformsCardData(status = {}) {
       `「匿名可用」= 不需要登录就能取链${anonNames.length ? `（${anonNames.join('/')} 这类）` : ''}`,
       ...(optionalNames.length ? [`「免登录可用」= 不配也能用，配了账号能拿更高档（${optionalNames.join('/')}）`] : []),
       '「已登录」= 有账号凭据，能拿更高档位或 VIP 曲',
-      todo.length ? `还没配的：${todoHint}` : '所有能配的平台都配好了 🎉',
+      // 别在这句里放 emoji：它会长在**卡片**上，而卡片是宿主 Chromium 渲染的 ——
+      // 裸 Linux（没装 emoji 字体）会渲染成方块（2026-09-25）
+      todo.length ? `还没配的：${todoHint}` : '所有能配的平台都配好了',
     ],
   }
 }
@@ -447,10 +451,10 @@ export function formatPlatformsText(data = {}) {
     `【${data.title || '平台登录状态'}】${data.readyCount}/${data.total} 可用`,
     ...rows.map(
       (r) =>
-        `${r.ready ? '✅' : '⬜'} ${r.label}（${r.kindText}）${r.stateText}` +
+        `${r.ready ? '●' : '○'} ${r.label}（${r.kindText}）${r.stateText}` +
         (r.detail ? ` · ${r.detail}` : '') +
         (r.action ? ` · 下一步：${r.action}` : '') +
-        (r.unreliable ? `\n     ⚠️ ${r.unreliable}` : '')
+        (r.unreliable ? `\n     注意：${r.unreliable}` : '')
     ),
     '',
     '（这张卡只在 2.0 里可用；细节看 #qqm平台）',
@@ -535,14 +539,14 @@ export async function buildSettingsCardData(e = null) {
   const modePrefLabel =
     themeNow.darkPref === 'auto' ? `自动·${modeLabel}` : modeLabel
   const themeText = `${themeNow.manifest.name}（${themeNow.id} · ${themeNow.useTimeColor ? `${periodLabel}配色` : '固定配色'} · ${modePrefLabel}）${
-    themeNow.fallback ? ' ⚠️ 已回落' : ''
+    themeNow.fallback ? ' · 已回落' : ''
   } · 图片 ${imageFormatOf(c).toUpperCase()}`
   const publicAccountText = !publicAccount
     ? forceMasterAccount
-      ? '未登录 · ⚠️ 开了「一律走主人账号」但还没有扫码登录记录'
+      ? '未登录 · 注意：开了「一律走主人账号」但还没有扫码登录记录'
       : '未启用'
     : publicAccountReady === false
-      ? `${publicAccount} · ⚠️ 该账号未登录，回落不会生效`
+      ? `${publicAccount} · 注意：该账号未登录，回落不会生效`
       : forceMasterAccount
         ? `${publicAccount} · 所有人点歌一律走此号${autoTag}`
         : `${publicAccount} · 未登录者点歌回落${autoTag}`
@@ -799,6 +803,6 @@ export function formatDetailText(song, { qualityLabel = '', hasUrl = false } = {
   if (song.albumName) lines.push(`专辑：${song.albumName}`)
   if (song.duration) lines.push(`时长：${song.duration}`)
   if (qualityLabel) lines.push(`音质：${qualityLabel}`)
-  if (!hasUrl && isVip) lines.push('⚠️ 该曲需会员，请 #qqm登录')
+  if (!hasUrl && isVip) lines.push('注意：该曲需会员，请 #qqm登录')
   return lines.join('\n')
 }

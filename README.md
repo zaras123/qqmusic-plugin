@@ -175,6 +175,20 @@ cd qqmusic-plugin && pnpm install
 
 不过它只是**兜底**：想要 2.0 主题设计稿那套观感（MiSans / PingFang），还是建议在宿主机装字体。
 
+> **2026-09-25 补了三处漏网的** —— 都是同一类"裸机上悄悄画不出来"：字体早就随包发了，
+> 但没接到每一张卡上。
+>
+> | 漏的地方 | 现象 | 现在 |
+> |---|---|---|
+> | `classic`（1.x 默认皮肤）压根没引自带字体 | 用 classic 时中文全是方块 | 11 个模板**逐个**都引了 `fonts/qqm-cjk.css` —— 每张卡都是独立 HTML 文档，漏一个那张就方块 |
+> | 等宽字体栈（`--mono` / `ui-monospace`）没带 CJK | `#qqm点歌` 这类命令示例方块 | 四套主题的每条等宽栈都带 `"QQM CJK"`（等宽元素里也有中文） |
+> | 卡片上残留 emoji（`⚠️` `🎬` `🔥`） | emoji **不在**任何 CJK 字体里，裸机上是方框或空白 | 卡片里不留 emoji：图标走矢量 `.ic-*`（纯 SVG 遮罩，零字体依赖）；纯文本兜底改用 `● ○ 注意：` 这种一定画得出来的字 |
+>
+> `test.mjs` 里钉着这一节（「自带字体覆盖」）。判据不是"猜 emoji 码位"，而是**复算**
+> `scripts/build-fonts.py` 的覆盖集（声明的 unicode 区间 ∪ GBK 全集）—— 卡片模板 / 卡数据里
+> 出现清单外的字就报红，并指名道姓给出文件与码位。加主题也要守这条：
+> **引 `qqm-cjk.css`，并给等宽栈补 CJK**（内置主题的 mono 栈可以照 `nebula/_base.css` 的 `--mono` 抄）。
+
 先看日志：每个进程第一次出卡时会打一行
 
 ```
@@ -194,11 +208,10 @@ apt-get update && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-not
 dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 ```
 
-**emoji 也要装**：卡片上的 `🔒 会员` / `✅ 有播放链接` / `🔗 链接解析` 这类符号靠 **emoji 字体**渲染，
-没装就是空方框（"图标形容不出来"）。上面两条命令里的 `fonts-noto-color-emoji` /
-`google-noto-emoji-color-fonts` 就是它。顺带说明：**卡片模板本身已经不再依赖 emoji**
-（MV 标记改成了文字小标 "MV"），剩下这几处是数据层拼进去的符号；聊天里那批发给别处的
-emoji（帮助文本等）由 QQ 客户端渲染，跟宿主字体无关。
+**卡片不再需要 emoji 字体**（这两行以前写着"emoji 也要装"，已作废）：会员锁 / 链接勾这类符号
+都是 `.ic-*` 矢量图标（CSS 遮罩画 SVG，颜色跟 `currentColor` 走、尺寸跟字号走，不依赖任何
+字体或网络资源），"有 MV" 是文字小标 `MV` —— 所以上面两条命令里的 emoji 字体装不装都行。
+**聊天里**那批 emoji（帮助文本、纯文本兜底）由 QQ 客户端渲染，跟宿主字体无关，不受影响。
 
 > 想更贴近设计稿可以装 **MiSans**（小米开源，可商用）：把 `MiSans-Regular/Demibold` 丢进
 > `/usr/share/fonts/` 后 `fc-cache -fv`。**注意**：只装 Regular 一个字重时，卡片上的粗体

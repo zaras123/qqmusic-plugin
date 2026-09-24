@@ -16,7 +16,7 @@
   <style>
     /* 牌色圆点：与**标题行**对齐（.row 是 align-items:center，多行行里会掉到中间去） */
     .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; align-self: flex-start; margin-top: 8px; }
-    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace, "QQM CJK"; font-size: 13px; }
     .warn { color: var(--orange); }
     .plats .row { min-height: 0; padding: 13px 18px; }
     .plats .row-title { font-weight: 500; }
@@ -55,7 +55,7 @@
               <div class="row-title truncate">{{row.label}}</div>
               <div class="row-sub truncate">{{row.kindText}}{{if row.canQr}} · 可扫码{{/if}}{{if row.detail}} · {{row.detail}}{{/if}}</div>
               {{if row.action}}<div class="row-sub truncate mono accent">下一步：{{row.action}}</div>{{/if}}
-              {{if row.unreliable}}<div class="row-sub truncate warn">⚠️ {{row.unreliable}}</div>{{/if}}
+              {{if row.unreliable}}<div class="row-sub truncate warn"><i class="ic ic-warn"></i>{{row.unreliable}}</div>{{/if}}
             </div>
             <span class="pill {{if row.ready}}pill--green{{else}}pill--red{{/if}}">{{row.stateText}}</span>
           </div>

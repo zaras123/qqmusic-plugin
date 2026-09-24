@@ -104,6 +104,12 @@ sourceText  detail  canQr  ownersCount  unreliable  note  action(下一步该发
 - 最外层必须是 `.page` → `.card`（渲染器就截这个块）
 - 相对路径以 `resources/` 开头，渲染时会改写成绝对 `file://` URL。共享样式可以放主题目录里再 `<link rel="stylesheet" href="resources/themes/<id>/xxx.css">`（一份 CSS 服务多张卡）
 - `<html>` 上会被注入 `data-theme="<主题id>"` 与 `data-mode="light|dark"`，深浅色在 CSS 里用 `html[data-mode="dark"] { ... }` 覆盖变量即可 —— **不要**依赖 `prefers-color-scheme`（渲染时不一定一致）
+- **字体（必做）**：卡片是**宿主机 Chromium** 渲染的，精简 Linux 容器常常一个中文字体都没有 —— 所以主题必须 `<link rel="stylesheet" href="resources/fonts/qqm-cjk.css">`（插件自带的 CJK 兜底字体），并让**正文栈和等宽栈**都带上 `"QQM CJK"`（等宽元素里也有中文，如 `#qqm点歌`）。`classic` 的样式内联在模板里、每张卡是一份独立文档，所以它**逐个模板**都引了一遍；那 11 个模板可以照抄。mono 栈的写法看 `nebula/_base.css` 的 `--mono`。
+- **别在卡片上用 emoji（必做）**：emoji 不在任何 CJK 字体里，裸机上是方框或空白（"图标形容不出来"）。图标一律用矢量：`.ic-*`（`resources/shared/theme-icons.css`，CSS 遮罩画 SVG，颜色跟 `currentColor`）或内联 SVG；纯文本兜底用 `● ○ 注意：` 这种一定画得出来的字。
+
+> 上面两条不是建议，是**契约**：`test.mjs` 的「自带字体覆盖」一节会逐模板/逐声明检查
+> （判据是复算 `scripts/build-fonts.py` 的覆盖集：卡片里出现清单外的字就报红）。改主题前
+> 先跑一遍测试最省事。
 
 ## 支持自定义背景（可选）
 

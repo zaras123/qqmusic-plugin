@@ -14,6 +14,8 @@
     ⚠️ 未解锁 2.0 时**不会**渲染这张卡（走的是 qqmusic-help.html），所以这里可以放开设计。
   -->
   <style>
+@import url("resources/fonts/qqm-cjk.css");
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
     :root {
       --qm: #31c27c;
@@ -26,7 +28,7 @@
     html, body {
       width: fit-content; height: fit-content;
       background: #e6f6ee !important;
-      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "QQM CJK", sans-serif;
       color: var(--ink);
       -webkit-font-smoothing: antialiased;
       text-rendering: geometricPrecision;
@@ -89,7 +91,7 @@
     .item-desc { margin-top: 2px; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ex {
       flex: none; font-size: 10.5px; font-weight: 700; color: var(--qm-deep);
-      font-family: ui-monospace, Consolas, monospace;
+      font-family: ui-monospace, Consolas, monospace, "QQM CJK";
       background: rgba(49,194,124,0.1); border-radius: 8px; padding: 3px 7px;
       max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }

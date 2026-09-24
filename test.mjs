@@ -1802,6 +1802,173 @@ function v2Check(name, got, want) {
   }
 }
 
+// ──────────── 自带字体（裸 Linux 渲染兜底）────────────────────────────────
+//
+// 起因（2026-09-25）：卡片是**宿主机 Chromium** 渲染的，精简 Linux 容器常常一个中文字体
+// 都没有 —— 表现是中文变方块、或笔画残缺，浏览器还不报错。
+// 这里钉四件事（少任何一条都会在裸机上悄悄变方块）：
+//   ① 四套主题的**正文字体栈**都带 `QQM CJK`（自带字体）
+//   ② 四套主题的**等宽字体栈**也带它 —— 等宽元素里同样有中文（`#qqm点歌` 这种）
+//   ③ 自带字体的 @font-face 与文件在位（含 OFL 许可）
+//   ④ 卡片（模板 + 卡数据）里**不许有自带字体画不出来的字** —— 判据不是"猜 emoji 码位"，
+//      而是复算 build-fonts.py 的覆盖集（声明的 unicode 区间 ∪ GBK 全集）：清单里没有的
+//      字，裸机就是方块。图标一律用内联 SVG 或共享矢量图标（.ic-*），
+//      纯文本兜底用 `● ○ 注意：` 这类**一定画得出来**的字（emoji 也不进兜底文本）
+console.log('\n=== 自带字体覆盖 ===\n')
+let fontOk = 0
+let fontBad = 0
+function fontCheck(name, got, want) {
+  if (JSON.stringify(got) === JSON.stringify(want)) {
+    fontOk++
+    console.log(`✅ ${name}`)
+  } else {
+    fontBad++
+    allPassed = false
+    console.log(`❌ ${name} → 期望 ${JSON.stringify(want)}，实际 ${JSON.stringify(got)}`)
+  }
+}
+{
+  const fontsDir = path.join(pluginRoot, 'resources/fonts')
+  const fontCss = fs.readFileSync(path.join(fontsDir, 'qqm-cjk.css'), 'utf8')
+  fontCheck(
+    '自带字体文件齐（Regular/Medium/Bold + OFL 许可）',
+    ['QQM-CJK-Regular.woff2', 'QQM-CJK-Medium.woff2', 'QQM-CJK-Bold.woff2', 'LICENSE-NotoSansSC.txt'].filter((f) =>
+      fs.existsSync(path.join(fontsDir, f))
+    ).length,
+    4
+  )
+  fontCheck(
+    '三个字重都有 @font-face（400 / 500-600 / 700 —— 少一个就会拿合成粗体，笔画发糊）',
+    [400, '500 600', 700].every((w) => new RegExp(`font-weight:\\s*${w}`).test(fontCss)),
+    true
+  )
+  fontCheck('字体名固定为 "QQM CJK"（栈里、@font-face 里必须是同一个）', (fontCss.match(/font-family:\s*"QQM CJK"/g) || []).length, 3)
+
+  const THEMES = ['classic', 'apple', 'nebula', 'multi']
+  const noCssComment = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '')
+  // classic 的样式**内联在 11 个模板里**（每张卡是独立文档，各自都要能兜底）；其余三套共用 _base.css
+  const classicDir = path.join(pluginRoot, 'resources/themes/classic')
+  const classicTpls = fs
+    .readdirSync(classicDir)
+    .filter((f) => f.endsWith('.html'))
+    .map((f) => [f, fs.readFileSync(path.join(classicDir, f), 'utf8')])
+  const baseCss = ['apple', 'nebula', 'multi'].map((t) => [
+    `${t}/_base.css`,
+    fs.readFileSync(path.join(pluginRoot, 'resources/themes', t, '_base.css'), 'utf8'),
+  ])
+  // ⚠️ 模板是**页面**：渲染器会把产物写到 <yunzai>/temp/html/<插件>/<主题>/ 下，所以模板里引
+  //    资源必须写成 `resources/...`（这种写法会被改写成绝对 file:// URL）。写成 `../../fonts/...`
+  //    是按**页面**位置解析的 → 落到 temp/html/fonts/ 下，那儿没有这个文件。
+  //    2026-09-25 实测过这个坑：classic 11 个模板原本全是 `../../fonts/`，@import 全 404、
+  //    document.fonts 里一个 QQM CJK 都没有 —— 字体随包发了却根本没接到卡上。
+  //    （CSS 文件里反过来要用 `../..`：CSS 自己是按绝对 URL 加载的，见下面三套主题。）
+  const CLASSIC_FONT_IMPORT = /@import\s+url\((['"])resources\/fonts\/qqm-cjk\.css\1\)/
+  fontCheck(
+    `classic：${classicTpls.length} 个模板**逐个**引了自带字体，且用的是渲染器认得的写法（resources/fonts/...）`,
+    classicTpls.filter(([, s]) => !CLASSIC_FONT_IMPORT.test(s)).map(([f]) => f).join(','),
+    ''
+  )
+  fontCheck('classic：每个模板的正文栈都带 QQM CJK', classicTpls.filter(([, s]) => !/"QQM CJK"/.test(s)).map(([f]) => f).join(','), '')
+  const fontVarOf = (s) => noCssComment(s).match(/--font\s*:[^;}]*/g) || []
+  // CSS 里的 @import 是**按 CSS 自己的位置**解析的，所以判据可以更硬：把每条本地 @import
+  // 解析一遍，确认那个文件真在（路径写错 = 字体/图标静默失效，浏览器只报一个 404）
+  const localImports = (s) =>
+    (s.match(/@import\s+url\(([^)]*)\)/g) || [])
+      .map((d) => d.replace(/.*url\(\s*(["']?)([^"')]+)\1\s*\).*/, '$2'))
+      .filter((u) => !/^(https?:|data:)/.test(u))
+  for (const [unit, css] of baseCss) {
+    const baseDir = path.resolve(pluginRoot, 'resources/themes', path.dirname(unit))
+    const dead = localImports(css).filter((u) => !fs.existsSync(path.resolve(baseDir, u)))
+    fontCheck(`${unit}：@import 的路径都落在真实文件上（写错＝字体/图标静默失效）`, dead.join(','), '')
+    fontCheck(`${unit}：引了自带字体（@import .../fonts/qqm-cjk.css）`, /fonts\/qqm-cjk\.css/.test(css), true)
+    fontCheck(`${unit}：正文字体栈带 QQM CJK`, /"QQM CJK"/.test(css), true)
+    // 正文兜底的**实际机制**是 --font 这个变量（模板里是 font-family: var(--font)）
+    fontCheck(`${unit}：--font 变量里带 QQM CJK（正文兜底就靠它）`, /"QQM CJK"/.test(fontVarOf(css)[0] || ''), true)
+  }
+  // 等宽栈：判据是"一条声明里出现 monospace（`ui-monospace` 也算，它是个字体名）就必须出现
+  // QQM CJK" —— 别拿 `/monospace(?!, "QQM CJK")/` 去数：`ui-monospace` 会被它误伤。
+  // 两种写法都要认：模板里的内联 `font-family: ...` 和三套主题 _base.css 里的 `--mono: ...`
+  const monoOf = (s) => (noCssComment(s).match(/(?:font-family|--mono)\s*:[^;}]*/g) || []).filter((d) => /monospace/.test(d))
+  // apple 的等宽栈是**写在模板里**的（_base.css 里没有 --mono），所以模板也要逐个扫
+  const allTpls = THEMES.flatMap((t) => {
+    const dir = path.join(pluginRoot, 'resources/themes', t)
+    return fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith('.html'))
+      .map((f) => [t, `${t}/${f}`, fs.readFileSync(path.join(dir, f), 'utf8')])
+  })
+  const monoAll = [...allTpls, ...baseCss.map(([u, s]) => [u.split('/')[0], u, s])].flatMap(([t, u, s]) =>
+    monoOf(s).map((d) => [t, u, d])
+  )
+  fontCheck('等宽字体栈确实存在（别让下面那条空转）', new Set(monoAll.map(([t]) => t)).size, 4)
+  fontCheck(
+    '每条等宽字体栈都带 QQM CJK（等宽元素里的中文同样要兜底）',
+    monoAll.filter(([, , d]) => !/"QQM CJK"/.test(d)).map(([, u, d]) => `${u}: ${d}`).join(' | '),
+    ''
+  )
+  // ── 覆盖集：字体是照 build-fonts.py 的清单切的，所以"清单里没有的字 = 画不出来" ──
+  // （清单 = 声明的 unicode 区间 ∪ GBK 全集。它比字体**实际** cmap 宽 462 个生僻空格/箭头，
+  //   但对"别把 emoji 混进卡片"这个目的足够，而且纯 Node 就能算，不用解析 woff2。）
+  const fontPy = fs.readFileSync(path.join(pluginRoot, 'scripts/build-fonts.py'), 'utf8')
+  const uniRanges = [...fontPy.matchAll(/U\+([0-9A-Fa-f]{4,6})-([0-9A-Fa-f]{4,6})/g)].map((m) => [parseInt(m[1], 16), parseInt(m[2], 16)])
+  fontCheck('build-fonts.py 的 unicodes 清单读到了（下面几条判据全靠它）', uniRanges.length >= 10, true)
+  const gbk = new Set()
+  {
+    const dec = new TextDecoder('gbk', { fatal: false })
+    for (let b1 = 0x81; b1 <= 0xff; b1++) {
+      for (let b2 = 0x40; b2 <= 0xff; b2++) {
+        const s = dec.decode(new Uint8Array([b1, b2]))
+        if (s.length === 1 && s !== '\uFFFD') gbk.add(s.codePointAt(0))
+      }
+    }
+  }
+  fontCheck('GBK 全集能在 Node 里复算（TextDecoder 要有 gbk 解码器）', gbk.size > 20000, true)
+  const covered = (cp) =>
+    cp === 9 ||
+    cp === 10 ||
+    cp === 13 ||
+    (cp >= 0x20 && cp <= 0x7e) ||
+    uniRanges.some(([a, b]) => cp >= a && cp <= b) ||
+    gbk.has(cp)
+  // 注释里可以写 emoji 讲历史，**渲染出来的文字**不行
+  const stripComments = (s) => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
+  const uncoverable = (text) => {
+    const bad = new Map()
+    for (const ch of text) {
+      const cp = ch.codePointAt(0)
+      if (!covered(cp)) bad.set(ch, (bad.get(ch) || 0) + 1)
+    }
+    return [...bad].map(([c, n]) => `U+${c.codePointAt(0).toString(16).toUpperCase()}x${n}`)
+  }
+  const badTemplates = []
+  for (const [, unit, src] of allTpls) {
+    const bad = uncoverable(stripComments(src))
+    if (bad.length) badTemplates.push(`${unit}[${bad.join(' ')}]`)
+  }
+  fontCheck('四套主题的模板里没有画不出的字（图标一律走 SVG / .ic-*）', badTemplates.join(','), '')
+  const badSrc = ['utils/card-data.js', 'utils/help-card.js']
+    .map((f) => [f, uncoverable(stripComments(fs.readFileSync(path.join(pluginRoot, f), 'utf8')))])
+    .filter(([, bad]) => bad.length)
+    .map(([f, bad]) => `${f}[${bad.join(' ')}]`)
+  fontCheck('卡片数据源里也没有画不出的字（card-data / help-card）', badSrc.join(','), '')
+  // 上面两条是源码级（换成常量拼接就绕得过去）—— 这里把卡数据**真建出来**再扫一遍
+  {
+    const CD = await import('./utils/card-data.js')
+    const platList = [
+      { name: 'netease', label: '网易云', kind: 'credential', canQr: true, loggedIn: true, quality: '128k' },
+      { name: 'kuwo', label: '酷我', kind: 'credential', loggedIn: false, quality: '128k', unreliable: '上游偶尔抽风' },
+      { name: 'apple', label: 'Apple Music', kind: 'apple', configured: false, quality: '256k' },
+      { name: 'migu', label: '咪咕', kind: 'anonymous', quality: '128k' },
+    ]
+    const built = JSON.stringify([
+      CD.buildPlatformsCardData({ list: platList }).rows,
+      CD.buildPlatformsCardData({ list: platList }).tips,
+      CD.buildPlatformCardData({ list: platList }, 'kuwo').tips,
+    ])
+    fontCheck('平台卡/状态卡**建出来的数据**里也没有画不出的字', uncoverable(built).join(','), '')
+  }
+}
+
 // ──────────── 2.0 重构收口（账号口径 / 配置缓存 / 列表卡 / 渲染复用）────────────
 //
 // 这一段钉的是「抄了多份 → 分叉」和「每次现算 → 拖慢整机」这两类问题：
@@ -1949,6 +2116,7 @@ console.log(
     `\n纯函数 ${pureOk} 通过 / ${pureBad} 失败` +
     `\n异步兼容 ${asyncOk} 通过 / ${asyncBad} 失败` +
     `\n重构收口 ${refactorOk} 通过 / ${refactorBad} 失败` +
-    `\n2.0（平台 + ？？？）${v2Ok} 通过 / ${v2Bad} 失败`
+    `\n2.0（平台 + ？？？）${v2Ok} 通过 / ${v2Bad} 失败` +
+    `\n自带字体覆盖 ${fontOk} 通过 / ${fontBad} 失败`
 )
 process.exit(allPassed ? 0 : 1)

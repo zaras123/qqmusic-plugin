@@ -133,7 +133,7 @@
     "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "思源黑体", "WenQuanYi Micro Hei",
     "Droid Sans Fallback", "Helvetica Neue", Helvetica, Arial, "QQM CJK", "Noto Color Emoji",
     "Apple Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif;
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace, "QQM CJK";
 }
 
 html[data-mode="dark"] {

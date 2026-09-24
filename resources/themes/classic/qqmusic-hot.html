@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QQ音乐 · 热搜</title>
   <style>
+@import url("resources/fonts/qqm-cjk.css");
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
@@ -26,7 +28,7 @@
       padding: 0;
       /* QQ 多数协议会把透明 PNG 填成白底，这里改用不透明浅绿底，避免“白框” */
       background: #e6f6ee !important;
-      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "QQM CJK", sans-serif;
       color: var(--text);
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -88,6 +90,10 @@
       box-shadow: 0 8px 18px rgba(0,0,0,0.12);
       flex-shrink: 0;
     }
+    /* 品牌标的图标用**内联 SVG**（原来是个 emoji 🔥）：emoji 靠宿主机字体，
+       精简 Linux 容器上会变方块；SVG 零字体依赖，任何系统都一样（2026-09-25） */
+    .brand-mark { color: #fff; }
+    .brand-mark svg { width: 24px; height: 24px; display: block; fill: currentColor; }
 
     .hero-text { flex: 1; min-width: 0; }
 
@@ -257,7 +263,7 @@
       color: var(--qm-deep);
       font-size: 12px;
       font-weight: 700;
-      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace;
+      font-family: "Cascadia Code", "Consolas", "SF Mono", monospace, "QQM CJK";
       letter-spacing: 0;
       white-space: nowrap;
       overflow: hidden;
@@ -326,7 +332,7 @@
     <div class="card">
       <div class="hero">
         <div class="hero-top">
-          <div class="brand-mark">🔥</div>
+          <div class="brand-mark"><svg viewBox="0 0 24 24"><path d="M13.5 0.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67ZM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8Z"/></svg></div>
           <div class="hero-text">
             <div class="eyebrow">QQ MUSIC HOT</div>
             <div class="title">{{data.title || '热搜榜'}}</div>

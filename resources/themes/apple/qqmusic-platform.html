@@ -11,7 +11,7 @@
     苹果语汇：分组标题 + 行（左标题右值）+ 胶囊，不用色轨、不用彩色 hero。
   -->
   <style>
-    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; }
+    .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace, "QQM CJK"; font-size: 13px; }
     .warn { color: var(--orange); }
     .pill-row { margin-top: 10px; }
     .tip { padding: 14px var(--pad) 0; }
@@ -54,7 +54,9 @@
           {{if data.row.unreliable}}
           <div class="row row--plain">
             <div class="row-main">
-              <div class="row-title warn">⚠️ 注意</div>
+              <!-- ⚠️ 换成矢量图标（.ic-warn，本主题已 @import theme-icons.css）：
+                   emoji 靠宿主机的 emoji 字体，裸 Linux 上会变方块（2026-09-25） -->
+              <div class="row-title warn"><i class="ic ic-warn"></i>注意</div>
               <div class="row-sub warn">{{data.row.unreliable}}</div>
             </div>
           </div>

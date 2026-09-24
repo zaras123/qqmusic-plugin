@@ -44,7 +44,9 @@
                 {{if row.ownersCount}} · 已有 {{row.ownersCount}} 人配了自己那份{{/if}}
               </div>
               {{if row.action}}<div class="row-sub truncate" style="color:var(--accent);font-family:var(--mono)">下一步：{{row.action}}</div>{{/if}}
-              {{if row.unreliable}}<div class="row-sub" style="color:var(--orange)">⚠️ {{row.unreliable}}</div>{{/if}}
+              <!-- 用矢量图标（.ic-warn，_base.css 已 @import theme-icons.css）代替 ⚠️：
+                   emoji 靠宿主机 emoji 字体，裸 Linux 上不是方块就是变形（2026-09-25） -->
+              {{if row.unreliable}}<div class="row-sub" style="color:var(--orange)"><i class="ic ic-warn"></i>{{row.unreliable}}</div>{{/if}}
             </div>
             <span class="pill {{if row.ready}}pill--green{{else}}pill--red{{/if}}" style="flex:none">{{row.stateText}}</span>
           </div>
