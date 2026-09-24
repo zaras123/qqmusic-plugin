@@ -808,7 +808,8 @@ html[data-mode="dark"] .hero .pill-row > .src-chip.on {
 /* 底部提示条：压扁的玻璃条（不是一段裸文案贴在卡底） */
 .tip {
   display: block;
-  margin: 14px var(--pad) 0; padding: 11px 13px;
+  /* 同 nebula：上下内边距刻意不对称（中文字形墨迹在行盒里天然偏低，对称看着"字偏下"） */
+  margin: 14px var(--pad) 0; padding: 8px 13px 14px;
   border-radius: 15px;
   border: 1px solid transparent;
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.30), rgba(255, 255, 255, 0.10)),

@@ -818,7 +818,10 @@ html[data-mode="dark"] .src-chip {
  * 而不是一段裸文案贴在卡片底部（裸文案在多平台卡里会被当成"又一条命令"）。 */
 .tip {
   display: block;
-  margin: 14px var(--pad) 0; padding: 11px 13px;
+  /* ⚠️ 上下内边距**刻意不对称**（8/14 而不是 11/11）：中文字体的字形墨迹在行盒里天然偏低
+   *    （字体的 ascent 比字形实际高度大一截），对称内边距看着就是"字偏下、不居中"
+   *    （2026-09-24 反馈："字体高度不居中，偏下"）。光学微调 3px 上去就正了。 */
+  margin: 14px var(--pad) 0; padding: 8px 13px 14px;
   border-radius: 16px;
   border: 1px solid transparent;
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.12)),
