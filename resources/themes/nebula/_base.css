@@ -487,8 +487,10 @@ html[data-mode="dark"] .hero::before {
 }
 /* 烫金细线（hero 底部一道流金） */
 .hero::after {
-  content: ""; position: absolute; left: var(--pad); right: var(--pad); bottom: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  /* 原来两端各内缩 var(--pad) + 中间渐变淡出 → 看着比统计块窄（"大框超过线了"）。
+     改成通栏、两端 12% 才起色：线明确比统计块长，框落在"线内"。 */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 12%, var(--accent) 88%, transparent 100%);
   opacity: 0.8;
 }
 .hero-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -587,12 +589,16 @@ html[data-mode="dark"] .stat::after { background: linear-gradient(90deg, transpa
   background: var(--foil-soft);
   box-shadow: 0 0 0 2px rgba(156, 122, 65, 0.10);
 }
-.group-body { display: flex; flex-direction: column; gap: 0; }
+/* ⚠️ 有"壳"的行（.row 自带圆角玻璃片）之间**必须留缝**，否则看着是粘在一起的一坨
+ * （2026-09-24 实测反馈："下面三个框粘的有点近"）。面板里的行不用留缝 —— 它们被下面的
+ * 规则剥掉了壳、靠发丝线分隔，贴在一起才是想要的效果（见 .group.inset / --panel）。 */
+.group-body { display: flex; flex-direction: column; gap: 10px; }
 /* 成组面板 = 小号液态玻璃板（同一套折射边，只是更薄）
  * 填充 0.46/0.24 → 0.34/0.15、blur 18 → 14：面板压在卡片上，两层的透明度必须**拉开**
  * 才有"玻璃套玻璃"的层次；贴太实就会糊成一整块白。 */
 .group.inset > .group-body,
 .group-body--panel {
+  gap: 0;
   /* 第 1 层里那条 26% 处的渐隐 = HarmonyOS 的"流体带"：面板顶部一层极淡的色雾 */
   background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.09) 26%, rgba(255, 255, 255, 0.05) 100%),
     var(--rim-gradient);

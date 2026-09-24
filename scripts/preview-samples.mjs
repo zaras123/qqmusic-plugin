@@ -246,7 +246,8 @@ const samples = {
     // 只有「歌手搜索 / 专辑搜索」进来才有值，关键词搜索是空串
     singerInfo: '',
     albumInfo: '',
-    songs: SONGS.map((s, i) => ({ ...withSource(s), index: i + 1, cover: '' })),
+    // 第 2 首标 hasMv：让预览里能看见那枚红色「MV」小标（换掉 🎬 之后的产物）
+    songs: SONGS.map((s, i) => ({ ...withSource(s), index: i + 1, cover: '', hasMv: i === 1 })),
   },
   'qqmusic-hot': {
     title: 'QQ音乐热搜',

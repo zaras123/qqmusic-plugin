@@ -420,8 +420,9 @@ html[data-mode="dark"] .hero::before {
 }
 /* 底部一道钢蓝细线（冷色版的"流金"） */
 .hero::after {
-  content: ""; position: absolute; left: var(--pad); right: var(--pad); bottom: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  /* 通栏 + 两端 12% 起色：线要比统计块长（原来两端内缩 + 淡出，看着像"框超过了线"） */
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 12%, var(--accent) 88%, transparent 100%);
   opacity: 0.65;
 }
 .hero-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
