@@ -937,8 +937,9 @@ export async function deliverSong(e, song, play, options = {}) {
           filename: play.file,
           ekey: play.ekey,
           vkey: play.vkey,
-          // 与取播放链同一账号（开了「一律走主人账号」时是主人的 ck，不能再用请求者本人）
-          userKey: pickPlayUserKey(String(e.user_id || '')),
+          // 与取播放链同一账号：普通曲 = 主人账号（开了「一律走主人账号」时）；
+          // Apple 曲 = 请求者自己那份（sidecar 侧有共享回落，没配的人照样能下）
+          userKey: pickPlayUserKey(String(e.user_id || ''), { mediaId: play.mediaId }),
         })
         if (apiUrl) tryUrls[0] = apiUrl
       } catch {

@@ -37,6 +37,33 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true })
 }
 
+let fontProbeLogged = false
+
+/**
+ * 字体自检只报一次：卡片字体栈里**这台机器真的装了**的是哪几个
+ *
+ * 为什么需要（2026-09-24 用户反馈"2.0 主题字体残缺不全"）：浏览器**不会**告诉你
+ * 它最后用了哪个字体 —— 主机少装字体时会悄悄回落到别的字（甚至是衬线/合成粗体），
+ * 小字号中文的细横笔画就会被糊掉或撑没。这里主动探一次写进日志，排障一眼看清。
+ */
+function logFontProbeOnce(probe) {
+  if (fontProbeLogged || !probe) return
+  fontProbeLogged = true
+  const hit = Array.isArray(probe.hit) ? probe.hit : []
+  if (hit.length) {
+    logInfo(`[qqmusic-plugin] 卡片字体：命中 ${hit[0]}${hit.length > 1 ? `（本机可用：${hit.join('、')}）` : ''}`)
+  } else {
+    logWarn(
+      `[qqmusic-plugin] 卡片字体：字体栈里一个都没装 → 会回落到系统默认字体（"残缺/发虚"多半就是这么来的）。\n` +
+        `  修法（Linux 容器最常见）：Debian/Ubuntu 容器里` +
+        ` apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-noto-color-emoji；` +
+        `RHEL/CentOS 用 dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts。` +
+        `装完重启机器人即可（emoji 字体也要装：卡片上的 🔒/✅ 这类符号同样靠它）。\n` +
+        `  栈：${probe.stack}`
+    )
+  }
+}
+
 function loadArtTemplate() {
   const tries = [
     () => require('art-template'),
@@ -400,7 +427,7 @@ export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg =
       waitUntil: 'load',
       timeout: 60000,
     })
-    await page.evaluate(async (bg) => {
+    const fontProbe = await page.evaluate(async (bg) => {
       // 用不透明底色（由主题 manifest 给）：QQ 端会把透明 PNG 填成纯白，所以不能留透明
       document.documentElement.style.background = bg
       document.body.style.background = bg
@@ -415,7 +442,35 @@ export async function screenshotDirect(htmlFile, { viewportWidth = 640, pageBg =
           /* ignore */
         }
       }
+      // 顺手报一下：这台机器实际装了这个主题字体栈里的哪几个（见 logFontProbeOnce）
+      try {
+        const stack = String(getComputedStyle(document.body).fontFamily || '')
+        const families = stack
+          .split(',')
+          .map((s) => s.trim().replace(/^["']|["']$/g, ''))
+          .filter(Boolean)
+        // ⚠️ 别用 document.fonts.check()：它对系统字体**永远回 true**（假阳性，实测全绿）。
+        //    可靠的土办法是"量宽度"：同一个字符串换字体画出来宽度一样，说明前者没生效。
+        const measure = (fontFamily) => {
+          const ctx = document.createElement('canvas').getContext('2d')
+          ctx.font = `400 40px ${fontFamily}`
+          return ctx.measureText('中文测试 Ag').width
+        }
+        const base = measure('monospace')
+        const hit = families.filter((f) => {
+          if (/^(sans-serif|serif|monospace|system-ui)$/i.test(f)) return false
+          try {
+            return Math.abs(measure(`"${f}", monospace`) - base) > 0.5
+          } catch {
+            return false
+          }
+        })
+        return { stack, families, hit }
+      } catch {
+        return null
+      }
     }, pageBg)
+    logFontProbeOnce(fontProbe)
     await new Promise((r) => setTimeout(r, 200))
 
     // 截 .page（含浅绿底 + 卡片），整图不透明，避免协议把透明填白

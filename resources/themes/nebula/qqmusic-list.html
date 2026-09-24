@@ -45,7 +45,7 @@
             <span class="src-rail"></span>
             <span class="rank">{{song.index}}</span>
             <div class="row-main">
-              <div class="row-title truncate">{{song.songName}}{{if song.hasMv}} 🎬{{/if}}{{if song.payplay}} <span class="pill pill--gold" style="font-size:10px;padding:1px 6px">会员</span>{{/if}}</div>
+              <div class="row-title truncate">{{song.songName}}{{if song.hasMv}} <span class="pill pill--red" style="font-size:10px;padding:1px 6px">MV</span>{{/if}}{{if song.payplay}} <span class="pill pill--gold" style="font-size:10px;padding:1px 6px">会员</span>{{/if}}</div>
               <div class="row-sub truncate">
                 {{song.singerName}}{{if song.albumName}} · {{song.albumName}}{{/if}}
               </div>
@@ -58,7 +58,7 @@
       </div>
 
       <div class="tip t-foot">
-        🎬 = 有 MV（#qqmMV 播放 序号）· 付费标记 = 需要 QQ 会员登录
+        MV 标 = 有 MV（#qqmMV 播放 序号）· 付费标记 = 需要 QQ 会员登录
         {{if data.hasExternal}}· 彩色标签 = 其它平台的免费曲（免登录可直接播）{{/if}}
       </div>
       <div class="foot">

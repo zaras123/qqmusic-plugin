@@ -1,3 +1,4 @@
+@import url("../../fonts/qqm-cjk.css"); /* 自带 CJK 兜底字体：系统一个中文字体都没有时才下载 */
 /* ============================================================
  * 「多平台」主题 · 2.0 专版设计系统
  *
@@ -128,7 +129,9 @@
   --src-soft: rgba(49, 194, 124, 0.12);
 
   --font: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei",
-    "Helvetica Neue", Helvetica, Arial, sans-serif;
+    "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC", "思源黑体", "WenQuanYi Micro Hei",
+    "Droid Sans Fallback", "Helvetica Neue", Helvetica, Arial, "QQM CJK", "Noto Color Emoji",
+    "Apple Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
 }
 

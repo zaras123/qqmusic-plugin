@@ -10,7 +10,14 @@ import {
 } from './quality.js'
 import { logInfo, logWarn } from './log.js'
 import { resolvePublicAccount } from './account.js'
-import { platformIcon, platformIdOf, platformLabel, isExternalMid as isExternalPlatformMid } from './platforms.js'
+import {
+  PLATFORMS,
+  platformCookieOf,
+  platformIcon,
+  platformIdOf,
+  platformLabel,
+  isExternalMid as isExternalPlatformMid,
+} from './platforms.js'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -76,9 +83,42 @@ function isForceMasterAccount() {
 }
 
 /** 登录管理类接口：就算开了「一律走主人账号」也只看请求者本人，不能被主人账号顶掉 */
-function isLoginScopePath(pathname) {
+/**
+ * 「按请求者本人取槽位」的接口 —— 开了「一律走主人账号」也**不换**账号
+ *
+ * 凭据是**一人一号**（API 按 userKey 存）。如果把这些请求也换成主人账号，就等于
+ * "大家传的 cookie 都写进主人那一槽、互相覆盖" —— Apple 与四家平台的 ck 通道当场废掉。
+ * （2026-09-24 修：`#qqmappleck` 传上去的凭据会落到主人槽位，根因就是它不在这个名单里。）
+ *
+ * ⚠️ 路径**从平台注册表算**，别手抄：Apple 的字段叫 cookies、清除走 DELETE，
+ *    历史上"手抄漏掉这个例外"已经踩过一次（见 platforms.js 顶部注释）。
+ */
+export function isPerUserScopePath(pathname) {
   const p = String(pathname || '')
-  return p.startsWith('/login/') || p === '/user/refresh' || p === '/user/liked'
+  if (p.startsWith('/login/') || p === '/user/refresh' || p === '/user/liked') return true
+  for (const plat of PLATFORMS) {
+    const ck = platformCookieOf(plat.id)
+    if (!ck) continue
+    if (p === ck.post || p === ck.clear.path || p === `/${plat.id}/status`) return true
+  }
+  return p === '/apple/probe'
+}
+
+/**
+ * 这个请求是不是「Apple 音源」的 —— 它**不参与**「一律走主人账号」
+ *
+ * 为什么 Apple 特殊（2026-09-24，需求："Apple 可以每人一个号一个 cookie"）：
+ * Apple 的凭据是每人一份的 Netscape cookies（sidecar 按 userKey 存），而 sidecar 侧
+ * 有**共享回落**（自己那份不在 → 用共享/default 那份）。所以按"发送者自己"走是安全的：
+ * 有自己账号的人用自己的，没配的人自动回落到主人那份，两边都不坏。
+ */
+export function isAppleScopedRequest(pathname = '', params = {}) {
+  const p = String(pathname || '')
+  if (p.startsWith('/apple')) return true
+  if (p.startsWith('/resolve/apple')) return true
+  const mid = String((params && (params.id || params.mediaId || params.songmid)) || '')
+  if (/^ap_/.test(mid)) return true
+  return String((params && params.source) || '') === 'apple'
 }
 
 /**
@@ -86,10 +126,12 @@ function isLoginScopePath(pathname) {
  * 开了「一律走主人账号」且配了主人账号 → 返回主人账号（主人的 ck）；否则原样返回请求者。
  * /song/file 直链（buildSongFileUrl）不经过 request()，调用方用它保证取链和下载用同一个账号。
  */
-export function pickPlayUserKey(userKey = '') {
+export function pickPlayUserKey(userKey = '', params = {}) {
   const publicAccount = getPublicAccount()
-  if (publicAccount && isForceMasterAccount()) return publicAccount
-  return userKey
+  if (!publicAccount || !isForceMasterAccount()) return userKey
+  // Apple 音源按请求者自己那份走（sidecar 有共享回落兜底），见 isAppleScopedRequest
+  if (isAppleScopedRequest('', params)) return userKey
+  return publicAccount
 }
 
 let forceNoAccountWarned = false
@@ -126,8 +168,11 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
 
   // 一律走主人账号：播歌/取数据全按主人的 ck，不看请求者自己登录没有
   // （群友在别的机器人上扫码登录过也不影响）；登录管理类接口仍按请求者本人
-  const effectiveUserKey =
-    publicAccount && forceMaster && !isLoginScopePath(pathname) ? publicAccount : userKey
+  // 哪些接口按"请求者本人"取槽位：
+  //   · 登录 / 凭据类 —— 凭据是一人一号（isPerUserScopePath）
+  //   · Apple 音源     —— 每人一个号一个 cookie（isAppleScopedRequest）
+  const perUserScoped = isPerUserScopePath(pathname) || isAppleScopedRequest(pathname, params)
+  const effectiveUserKey = publicAccount && forceMaster && !perUserScoped ? publicAccount : userKey
 
   // 多账号：带 userKey（机器人侧调用者标识，通常是 QQ 号）
   // 仅作为 query/body 参数传递；header 版见下方 sanitizeForHeader

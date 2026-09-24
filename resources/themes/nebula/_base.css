@@ -1,3 +1,4 @@
+@import url("../../fonts/qqm-cjk.css"); /* 自带 CJK 兜底字体：系统一个中文字体都没有时才下载 */
 /**
  * 「星云 · 鎏光」2.0 —— 液态玻璃（Liquid Glass）主题
  *
@@ -172,7 +173,9 @@
   --src-soft: rgba(49, 194, 124, 0.14);
 
   --font: "MiSans", "HarmonyOS Sans SC", "SF Pro Display", "SF Pro Text", "PingFang SC",
-    "Microsoft YaHei UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", "Source Han Sans SC",
+    "思源黑体", "WenQuanYi Micro Hei", "Droid Sans Fallback", "Helvetica Neue", Helvetica, Arial,
+    "QQM CJK", "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif;
   --mono: "JetBrains Mono", "Cascadia Mono", ui-monospace, Consolas, monospace;
 }
 

@@ -32,33 +32,28 @@ export function getLocalVersion() {
 }
 
 /**
- * 2.0 专属版本号（**只在？？？打开时对外显示**）
+ * 2.0 占位版本号（**只在"发版前 + 解锁"这一格里用**）
  *
  * 需求原话：「版本也变，这个是 2.0 专属的，没开？？？之前和 2.0 之前一样」。
+ * 那说的是**发版前**：包版本还在 1.x，但解锁的人应该先看到 2.0。
  *
- * 两个号各自管一段：
- *   · `V2_DISPLAY_VERSION` —— **发版前**顶着它（包版本还在 1.x，但解锁的人要看到 2.0）；
- *   · `LEGACY_DISPLAY_VERSION` —— **发版后**顶着它（包版本进了 2.x，但没解锁的人
- *     必须继续看到 2.0 之前那张卡）。
- *
- * 为什么不直接拿 package.json 的 version 当展示版本：那个 version 是**更新器**的判据
- * （git pull 前后比对包版本），而展示版本要跟闸门走 —— 两者口径不同，别合并。
+ * ⚠️ 2026-09-24 改：**发版之后版本号就照实显示**（见 pickDisplayVersion）。
+ *    原来"发版后 + 没解锁 → 顶一个冻结的 1.10.5"是为了假装还停在 2.0 之前，
+ *    但 2.0 已经发出去了 —— 再冻结等于对自己撒谎（主人自己就撞上过
+ *    "更新完了、帮助卡右上角版本号却没动"，还以为没更新成功）。
+ *    闸门管的是**功能**（新命令、新帮助卡、锅巴分组），版本号照实说。
  */
 export const V2_DISPLAY_VERSION = '2.0.0'
 
 /**
- * 未解锁时对外顶的号 = **2.0 之前的最后一个版本**
- *
- * 2.0 发版后 package.json 是 2.x，但没开？？？的人看到的必须**仍然**是 2.0 之前的样子
- * （需求：『没开？？？之前和 2.0 之前一样』）。所以这里**冻结**，别跟着 package.json 走。
- */
-export const LEGACY_DISPLAY_VERSION = '1.10.5'
-
-/**
  * 展示版本的计算（纯函数，四个象限都可测）
  *
- *   解锁   → 发版前 = V2_DISPLAY_VERSION，发版后 = 真实包版本
- *   未解锁 → 发版前 = 真实包版本（那时它就是 1.x），发版后 = LEGACY_DISPLAY_VERSION
+ *   发版前 → 解锁 = V2_DISPLAY_VERSION；没解锁 = 真实包版本（那时它就是 1.x）
+ *   发版后 → **一律真实包版本**（解锁与否都一样：装成 1.x 只会骗到主人自己）
+ *
+ * 为什么不直接拿 package.json 的 version 当展示版本（发版前那一格）：那个 version 是
+ * **更新器**的判据（git pull 前后比对包版本），而"发版前解锁的人先看到 2.0"是产品口径 ——
+ * 两者只在发版前那一段不同，别合并。
  *
  * @param {string} local package.json 里的版本
  * @param {boolean} unlocked 闸门是否打开
@@ -68,12 +63,12 @@ export function pickDisplayVersion(local, unlocked) {
   const major = Number(String(local).split('.')[0])
   // 包版本进 2.x 才算"真发版了"；读不出来（'?'）就按没发版处理
   const released = Number.isFinite(major) && major >= 2
-  if (!unlocked) return released ? LEGACY_DISPLAY_VERSION : String(local)
-  return released ? String(local) : V2_DISPLAY_VERSION
+  if (released) return String(local)
+  return unlocked ? V2_DISPLAY_VERSION : String(local)
 }
 
 /**
- * 对外展示的版本号（解锁 = 2.0 专属版；未解锁 = 2.0 之前的号）
+ * 对外展示的版本号（发版后 = 真实包版本；发版前解锁 = 2.0 占位号）
  *
  * @param {object} [cfg] 配置（不给就现读 qqmusic 配置）
  * @returns {string} 形如 `v2.0.0` / `v1.10.5`

@@ -347,10 +347,11 @@ const samples = {
     footer: 'QQMusic Plugin · 状态卡片',
   },
   'qqmusic-help': {
-    // 版本徽标是 help 卡的**大标题**（apple 那张卡的设计），1.x 那张卡显示的是"2.0 之前的号"。
-    // 真值来自 utils/update.js 的 displayVersion() → 未解锁时 = LEGACY_DISPLAY_VERSION，
-    // 夹具只能写个字面量、随它手动跟（本模块不许 import utils/，只许 node 内置）。
-    version: 'v1.10.5',
+    // 版本徽标是 help 卡的**大标题**（apple 那张卡的设计）。
+    // 真值来自 utils/update.js 的 displayVersion() —— 2026-09-24 起**发版后一律显示真实包版本**
+    // （不再按闸门冻结成 1.x），所以这里跟着 package.json 的号手动跟。
+    // 夹具只能写个字面量（本模块不许 import utils/，只许 node 内置）。
+    version: 'v2.0.3',
     logo: logoUrl,
     statCommands: '40+',
     statQuality: 'FLAC',

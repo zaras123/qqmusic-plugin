@@ -167,6 +167,44 @@ cd qqmusic-plugin && pnpm install
 
 主人发送 `#qqm登录` 扫码即可开始使用。
 
+### 3.5 卡片字体（**Linux 容器必看**）
+
+卡片上的中文优先用**宿主机装的字体**渲染。**2026-09-24 起插件自带一份 CJK 兜底字体**
+（Noto Sans SC 子集，GBK 全集 21791 字，woff2 共约 13.7MB，SIL OFL 1.1 可随包分发）——
+所以"容器里一个中文字体都没有"**不会再变成方块**：系统里没有中文字体时才会下载这份兜底字体。
+
+不过它只是**兜底**：想要 2.0 主题设计稿那套观感（MiSans / PingFang），还是建议在宿主机装字体。
+
+先看日志：每个进程第一次出卡时会打一行
+
+```
+[qqmusic-plugin] 卡片字体：命中 MiSans（本机可用：…）
+```
+
+* 命中 `MiSans` / `PingFang SC` / `HarmonyOS Sans SC` → 用的就是设计的那套，没问题；
+* 命中别家（如 `Noto Sans SC`、`Microsoft YaHei`）→ 能用，但观感与设计稿有差；
+* 打出 **警告**「字体栈里一个都没装」→ 就是这一节要解决的情况。
+
+装字体（装完重启机器人即可，**不用**改任何配置）：
+
+```bash
+# Debian / Ubuntu 容器
+apt-get update && apt-get install -y fonts-noto-cjk fonts-wqy-microhei fonts-noto-color-emoji
+# RHEL / CentOS / Rocky
+dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
+```
+
+**emoji 也要装**：卡片上的 `🔒 会员` / `✅ 有播放链接` / `🔗 链接解析` 这类符号靠 **emoji 字体**渲染，
+没装就是空方框（"图标形容不出来"）。上面两条命令里的 `fonts-noto-color-emoji` /
+`google-noto-emoji-color-fonts` 就是它。顺带说明：**卡片模板本身已经不再依赖 emoji**
+（MV 标记改成了文字小标 "MV"），剩下这几处是数据层拼进去的符号；聊天里那批发给别处的
+emoji（帮助文本等）由 QQ 客户端渲染，跟宿主字体无关。
+
+> 想更贴近设计稿可以装 **MiSans**（小米开源，可商用）：把 `MiSans-Regular/Demibold` 丢进
+> `/usr/share/fonts/` 后 `fc-cache -fv`。**注意**：只装 Regular 一个字重时，卡片上的粗体
+> 只能由浏览器"撑"出来，小字号中文会出现笔画糊连（这正是"字体残缺"最常见的成因）——
+> 所以至少要装 Regular + 一个粗体。
+
 ### 4. 更新插件
 
 需通过 `git clone` 安装（目录内有 `.git`）。主人发送：

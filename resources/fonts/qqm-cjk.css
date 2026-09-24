@@ -1,0 +1,35 @@
+/* ============================================================================
+ * 插件自带的 CJK 兜底字体（Noto Sans SC 子集 · SIL OFL 1.1）
+ *
+ * 为什么随包发（2026-09-24）：卡片是**宿主机上的 Chromium** 渲染的，而精简 Linux
+ * 容器常常一个中文字体都没有 —— 表现是中文变方块、或笔画残缺（浏览器不报错）。
+ *
+ * 用法：各主题的 `--font` 把它放在**系统字体之后、emoji 字体之前**：
+ *   · 系统里有 MiSans / PingFang / 微软雅黑 → 压根不会下载它（设计观感不变）
+ *   · 一个中文字体都没有 → 由它兜底，中文不再变方块
+ *
+ * 子集内容：GBK 全集（21791 字，含繁体与常用生僻）+ ASCII/拉丁/常用标点/几何图形/全角。
+ * 重新生成：`python scripts/build-fonts.py`（需要 fonttools + brotli）。
+ * 授权与出处见同目录 LICENSE-NotoSansSC.txt。
+ * ========================================================================== */
+@font-face {
+  font-family: "QQM CJK";
+  src: url("./QQM-CJK-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "QQM CJK";
+  src: url("./QQM-CJK-Medium.woff2") format("woff2");
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "QQM CJK";
+  src: url("./QQM-CJK-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

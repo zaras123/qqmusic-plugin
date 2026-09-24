@@ -422,7 +422,8 @@ console.log('\n=== 纯函数抽查 ===\n')
 let pureOk = 0
 let pureBad = 0
 try {
-  const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint } = await import('./utils/api.js')
+  const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint, isPerUserScopePath, isAppleScopedRequest } =
+    await import('./utils/api.js')
   const { buildMusicFileName, formatSize } = await import('./utils/send.js')
   const { isPluginCommandMsg } = await import('./utils/common.js')
   // 一起听：插件侧只剩「协议端识别 + 开关」。
@@ -672,6 +673,21 @@ try {
     // 只有声明了 bg 能力的主题才接管背景配置
     ['主题能力：apple 支持自定义背景', resolveTheme({ uiTheme: 'apple' }).manifest.bg, true],
     ['主题能力：classic 不支持', resolveTheme({ uiTheme: 'classic' }).manifest.bg, false],
+    // 凭据接口必须按"发命令的人"取槽位 —— 否则大家传的 cookie 都写进主人那一槽（串号）
+    // 2026-09-24 修：`#qqmappleck` 之前就落到了主人槽位，根因是它不在这个名单里
+    ['槽位：Apple 凭据上传按本人', isPerUserScopePath('/apple/cookies'), true],
+    ['槽位：平台凭据上传按本人', isPerUserScopePath('/kugou/cookies'), true],
+    ['槽位：平台凭据清除按本人', isPerUserScopePath('/kugou/cookies/clear'), true],
+    ['槽位：平台状态按本人（看自己配没配）', isPerUserScopePath('/kugou/status'), true],
+    ['槽位：登录类按本人', isPerUserScopePath('/login/status'), true],
+    ['槽位：播放不在名单里（继续走主人账号）', isPerUserScopePath('/song/url'), false],
+    ['槽位：搜索不在名单里', isPerUserScopePath('/search'), false],
+    // Apple 音源按请求者本人（每人一个号一个 cookie）；没配的人由 sidecar 共享回落兜住
+    ['Apple：ap_ 曲目算 Apple', isAppleScopedRequest('/song/url', { mediaId: 'ap_1721464906' }), true],
+    ['Apple：/apple 接口算 Apple', isAppleScopedRequest('/apple/status'), true],
+    ['Apple：source=apple 算 Apple', isAppleScopedRequest('/resolve/apple', { source: 'apple' }), true],
+    ['Apple：QQ 曲目不算 Apple', isAppleScopedRequest('/song/url', { mediaId: '0039MnYb0qxYhV' }), false],
+    ['Apple：普通搜索不算 Apple', isAppleScopedRequest('/search', { key: '晴天' }), false],
   ]
 
   for (const [name, got, want] of pure) {
@@ -1164,13 +1180,17 @@ function v2Check(name, got, want) {
       v2Check('版本（纯函数）：发版前 + 解锁 = 2.0 占位号', U.pickDisplayVersion('1.10.5', true), U.V2_DISPLAY_VERSION)
       v2Check('版本（纯函数）：发版后 + 解锁 = 真实包版本', U.pickDisplayVersion('2.0.0', true), '2.0.0')
       v2Check('版本（纯函数）：2.x 的小版本照样透传', U.pickDisplayVersion('2.1.3', true), '2.1.3')
-      v2Check('版本（纯函数）：发版后 + 没解锁 = 冻结的 1.x 号', U.pickDisplayVersion('2.0.0', false), U.LEGACY_DISPLAY_VERSION)
+      // 2026-09-24 改：发版后**照实显示**（不再按闸门冻结成 1.x —— 那会把主人自己也骗到：
+      // 「更新完了，帮助卡右上角版本号却没动」就是这么来的）
+      v2Check('版本（纯函数）：发版后 + 没解锁 = 照实显示包版本', U.pickDisplayVersion('2.0.0', false), '2.0.0')
+      v2Check('版本（纯函数）：发版后没解锁也不装成 1.x', /^1\./.test(U.pickDisplayVersion('2.0.2', false)), false)
       v2Check('版本（纯函数）：包版本读不出来（?）不炸，按没发版算', U.pickDisplayVersion('?', true), U.V2_DISPLAY_VERSION)
       // 真机口径（走配置文件，不看纯函数）
       setCfg({ unlockV2: false })
-      v2Check('版本：关着？？？显示 2.0 之前的号（发版后是冻结那一版）', U.displayVersion(cfgNow()), `v${U.LEGACY_DISPLAY_VERSION}`)
-      v2Check('版本：关着时帮助卡上的版本号也是老的', HC.buildHelpCardData({}).version, `v${U.LEGACY_DISPLAY_VERSION}`)
-      v2Check('版本：关着时不会露出 2.0 的号', /^v1\./.test(U.displayVersion(cfgNow())), true)
+      v2Check('版本：关着？？？也显示真实包版本（发版后）', U.displayVersion(cfgNow()), `v${U.getLocalVersion()}`)
+      v2Check('版本：关着时帮助卡上的版本号同样是真的', HC.buildHelpCardData({}).version, `v${U.getLocalVersion()}`)
+      // 闸门管功能（命令/帮助卡/锅巴分组），版本号照实说 —— 所以关着时也应该是 v2.x
+      v2Check('版本：关着时照实露出 2.x', /^v2\./.test(U.displayVersion(cfgNow())), true)
       setCfg({ unlockV2: true })
       v2Check('版本：打开？？？显示 2.0 专属版本', U.displayVersion(cfgNow()), `v${U.getLocalVersion()}`)
       v2Check('版本：2.0 帮助卡用的是展示版本', HC.buildGuideCardData({}).version, `v${U.getLocalVersion()}`)
