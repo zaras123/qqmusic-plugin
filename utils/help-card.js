@@ -12,7 +12,7 @@ import { displayVersion } from './update.js'
 import { logoUrl } from './path.js'
 import { enabledPlatforms } from './v2.js'
 // 凭据通道（能扫码 / 只能粘贴）的事实来自注册表 —— 帮助卡里不许再手抄一份平台名单
-import { platformCanQrLogin, platformCanCookie, platformQrOf, platformCookieOf } from './platforms.js'
+import { platformCanQrLogin, platformCanCookie, platformQrOf, platformCookieOf, platformAuthTag } from './platforms.js'
 import { QUALITY_LABEL } from './quality.js'
 
 /** 全部帮助条目；master: true = 仅主人渲染（与 rule 的 permission: 'master' 对应） */
@@ -157,8 +157,21 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
   const multiPlatform = {
     title: '多平台音源',
     tag: plats.length ? `${plats.length} 家` : '未启用',
-    // classic 主题的 2.0 帮助卡把这一段渲染成**彩色平台条**（label + 品牌色 + 档位）
-    platforms: plats.map((p) => ({ id: p.id, label: p.label, color: p.color, quality: p.quality })),
+    /**
+     * classic/apple 主题的 2.0 帮助卡把这一段渲染成**彩色平台条**
+     * （label + 品牌色 + 档位 + 凭据小标）
+     *
+     * `authTag` 回答的正是用户会问的那句"哪几家能扫码、哪几家不行"——
+     * 值是 `platformAuthTag()` 算出来的（可扫码 / 仅粘贴 / 免凭据），
+     * 别再在模板或文案里手抄平台名单（抄一次漏一次，kugou 就漏过）。
+     */
+    platforms: plats.map((p) => ({
+      id: p.id,
+      label: p.label,
+      color: p.color,
+      quality: p.quality,
+      ...platformAuthTag(p.id),
+    })),
     items: plats.length
       ? [
           { name: '跨平台补歌', desc: 'QQ 结果尾部自动追加这些平台的可播曲（哪几家参与由锅巴决定）', example: '#qqm点歌 关键词' },
@@ -245,6 +258,8 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
       color: p.color,
       quality: p.quality,
       needsCredential: p.needsCredential === true,
+      // 凭据小标（可扫码 / 仅粘贴 / 免凭据）—— 与上面 platforms[] 同一份事实
+      ...platformAuthTag(p.id),
     })),
     statPlatformsTotal: String(plats.length + 1), // 含 QQ 本体（老模板的 statPlatforms 仍是"外源家数"）
     platformsText: plats.length ? `${plats.length} 家` : '未启用',

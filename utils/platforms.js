@@ -115,8 +115,30 @@ export const PLATFORMS = Object.freeze([
     icon: 'https://i.gtimg.cn/open/app_icon/00/95/17/76/100951776_100_m.png',
     color: '#fb7299',
     quality: '192k',
-    // 匿名：B站搜索/取链不要账号（要大会员的曲目上游也只给试听段，配了也白配）
-    auth: { mode: 'none', note: '免登录直接搜/播（192k），不需要配凭据' },
+    /**
+     * 凭据能力：扫码（API `/bilibili/login/qrcode`，哔哩哔哩 App 扫）+ 粘贴
+     * （`POST /bilibili/cookies`，认 SESSDATA）。
+     *
+     * ⚠️ 这家与网易云/酷我一样是**增强项**：不配也能匿名搜/播（192k），
+     *    配了才有多出来的 FLAC（大会员）档。所以它**不**标 needsCredential ——
+     *    标了会让状态卡把"没配"写成红牌"未配置"，而它其实是能用的。
+     *    以前这里写的是 `mode: 'none'`（"匿名，不需要配"），于是命令/帮助/锅巴
+     *    三处都不提它能扫码，直到 2026-09-24 补上 API 侧的扫码接口才一起改。
+     */
+    auth: {
+      mode: 'qr',
+      qr: { app: '哔哩哔哩 App' },
+      cookie: {
+        where: '登录 bilibili.com → F12 → Application → Cookies，复制整串（关键是 SESSDATA，别只复制 bili_jct）',
+        keys: 'SESSDATA',
+      },
+    },
+    // 与 API `QUALITY_OPTIONS.bilibili` 对齐；flac 要大会员账号，API 侧会按"有没有配 SESSDATA"复核
+    qualities: [
+      { value: 'auto', label: '自动（该平台最高可用）' },
+      { value: '192', label: '192K（免登录最高档）' },
+      { value: 'flac', label: 'FLAC 无损（要大会员）' },
+    ],
   },
   {
     id: 'kugou',
@@ -372,6 +394,41 @@ export function platformCanCookie(name = '') {
 }
 
 /**
+ * 这家**没配凭据就用不了**吗（`needsCredential`）
+ *
+ * 与"能不能配凭据"是两件事，别混：
+ *   · 酷狗/汽水/YouTube/Apple —— true：没配好整个音源就是关的（状态卡给红牌"未配置"）
+ *   · B站/网易云/酷我 —— false：**不配也能用**（匿名档），配了只是拿到更高的档
+ * 状态卡据此决定"红牌未配置"还是"免登录可用"，所以必须是一份事实、一个函数。
+ */
+export function platformNeedsCredential(name = '') {
+  return platformOf(name)?.needsCredential === true
+}
+
+/**
+ * 凭据通道的**一句话标签**（帮助卡/状态卡的"这家怎么配"小标）
+ *
+ * 三种取值正好回答"哪几家能扫码、哪几家不能"：
+ *   · `qr`     → 可扫码（有 `auth.qr`，命令是 `#qqm<平台>登录`）
+ *   · `cookie` → 仅粘贴（只能粘，Apple 粘的是一整份文件 → 文案分开）
+ *   · `none`   → 免凭据（没有账号体系，配了也没用）
+ *
+ * ⚠️ 色值的字段名是 `toneColor` 而**不是** `color`：这组字段会被 `...` 展开进
+ *    平台条数据里，而那里已经有一个 `color`（**品牌色**）。叫 color 会把它覆盖掉，
+ *    表现是"平台条的品牌色突然变成灰/绿"（这个 bug 就是这么写出来又抓回来的）。
+ *
+ * @returns {{tag:string, tone:'qr'|'cookie'|'none', toneColor:string}}
+ */
+export function platformAuthTag(name = '') {
+  const id = platformOf(name)?.id
+  if (!id) return { tag: '', tone: 'none', toneColor: '#8a8a8e' }
+  if (platformCanQrLogin(id)) return { tag: '可扫码', tone: 'qr', toneColor: '#31c27c' }
+  const ck = platformCookieOf(id)
+  if (ck) return { tag: ck.file ? '仅粘贴文件' : '仅粘贴', tone: 'cookie', toneColor: '#e6a23c' }
+  return { tag: '免凭据', tone: 'none', toneColor: '#8a8a8e' }
+}
+
+/**
  * 扫码通道的元信息 —— 认不出/不能扫码回 null
  *
  * @returns {{app:string, command:string}|null} command = 给用户抄的那条命令（用**最短平台名**）
@@ -488,6 +545,8 @@ export default {
   platformQrOf,
   platformCanCookie,
   platformCookieOf,
+  platformNeedsCredential,
+  platformAuthTag,
   platformCookieHelp,
   qrPlatforms,
   cookiePlatforms,

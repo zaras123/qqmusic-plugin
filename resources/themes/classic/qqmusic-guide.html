@@ -147,6 +147,8 @@
                 {{each section.platforms platform}}
                 <div class="plat">
                   <i style="background:{{platform.color}}"></i>{{platform.label}}<em>{{platform.quality}}</em>
+                  {{if platform.tag}}<span style="margin-left:6px;font-size:11px;
+                    color:{{platform.toneColor}}">{{platform.tag}}</span>{{/if}}
                 </div>
                 {{/each}}
               </div>

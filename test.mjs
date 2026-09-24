@@ -1099,7 +1099,9 @@ function v2Check(name, got, want) {
       /要账号|要会员/.test(JSON.stringify(P.platformQualities('netease'))) && /要账号|要会员/.test(JSON.stringify(P.platformQualities('kugou'))),
       true
     )
-    v2Check('锅巴：单档平台只给"自动"（酷我/咪咕只有 PQ 之类）', [P.platformHasQualityChoice('kuwo'), P.platformHasQualityChoice('bilibili')].join(','), 'false,false')
+    // 酷我/YouTube 是真·单档（给选择器只会骗人）；B站 2026-09-24 起有 192/flac 两档
+    v2Check('锅巴：单档平台只给"自动"（酷我/YouTube 这类）', [P.platformHasQualityChoice('kuwo'), P.platformHasQualityChoice('youtube')].join(','), 'false,false')
+    v2Check('锅巴：B站 的档位选择器有 192 与 flac 两档（与 API QUALITY_OPTIONS 对齐）', P.platformQualities('bilibili').map((x) => x.value).join(','), 'auto,192,flac')
     // ── 前缀识别（外源曲不能被当成 QQ 曲）──
     v2Check(
       '前缀认平台：把所有外源前缀都覆盖到（别只认 ne_/kw_/bi_）',
@@ -1344,6 +1346,17 @@ function v2Check(name, got, want) {
         return p && p.short === '网易' && p.color === '#c62f2f' && p.needsCredential === false
       })(), true)
       v2Check('帮助卡：需要凭据的平台被标出来（酷狗/汽水/YouTube/Apple）', P.VISIBLE_PLATFORMS.filter((x) => x.needsCredential).every((x) => guide.sources.find((s) => s.id === x.id)?.needsCredential === true), true)
+      // 凭据小标要**两种形状都有**：老的平台条（sections[0].platforms）与新的音源清单（sources）
+      // —— 四套主题分别吃这两份数据，缺一处就有主题看不见"哪几家能扫码"
+      v2Check('帮助卡：平台条与音源清单都带凭据小标（可扫码/仅粘贴/免凭据）', (() => {
+        const bar = guide.sections[0].platforms.find((x) => x.id === 'bilibili')
+        const src = guide.sources.find((x) => x.id === 'bilibili')
+        return [bar?.tag, src?.tag, bar?.tone, src?.tone].join('|')
+      })(), '可扫码|可扫码|qr|qr')
+      v2Check('帮助卡：小标不会覆盖平台品牌色（toneColor 是独立字段）', (() => {
+        const bar = guide.sections[0].platforms.find((x) => x.id === 'bilibili')
+        return bar.color === P.platformColor('bilibili') && bar.toneColor !== bar.color
+      })(), true)
       v2Check('帮助卡：统计口径含 QQ（8 家外源 → 9 个可用音源）', guide.statPlatformsTotal, String(P.VISIBLE_PLATFORMS.length))
       v2Check('帮助卡：音质显示人话（不再出现 AUTO）', guide.statQuality, '自动')
     v2Check('帮助卡：默认每段最多 8 条（太长 QQ 里看不清），full 可展开', [HC.buildGuideCardData({ isMaster: true }).full, HC.buildGuideCardData({ isMaster: true }, { full: true }).full].join(','), 'false,true')
@@ -1354,14 +1367,17 @@ function v2Check(name, got, want) {
       const fake = { list: [
         { name: 'netease', label: '网易云', kind: 'credential', canQr: true, loggedIn: true, source: 'user', sourceText: '自己那份', quality: '128k', owners: ['a'] },
         { name: 'qq', label: 'QQ音乐', kind: 'account', canQr: true, loggedIn: true, detail: { uin: '1152****' } },
-        { name: 'bilibili', label: 'B站', kind: 'anonymous', quality: '192k' },
+        { name: 'bilibili', label: 'B站', kind: 'credential', canQr: true, loggedIn: false, quality: '192k' },
+        { name: 'migu', label: '咪咕', kind: 'anonymous', quality: '128k' },
       ] }
       const one = CD2.buildPlatformCardData(fake, '网易云')
       v2Check('单平台卡：认中文别名（网易云 → netease 行）', [one.row.name, one.row.label, one.row.stateText].join('|'), 'netease|网易云|已登录')
       v2Check('单平台卡：命令清单齐（点歌/播放/歌词/设为当前音源/扫码登录/看全部平台）', one.commands.map((c) => c.name).join(','), '点歌,播放,歌词,设为当前音源,扫码登录,看全部平台')
       v2Check('单平台卡：最短写法在示例里（#qqm网易 关键词）', one.commands[0].example, '#qqm网易 关键词')
       v2Check('单平台卡：QQ 用 QQ 的命令写法', CD2.buildPlatformCardData(fake, 'qq').commands[0].example, '#qqm点歌 关键词')
-      v2Check('单平台卡：匿名平台不给扫码命令', CD2.buildPlatformCardData(fake, 'bilibili').commands.every((c) => c.example !== '#qqmB站登录'), true)
+      // B站 不是匿名平台了（2026-09-24 起：匿名能播、登录能拿大会员 FLAC）→ 单平台卡要给出扫码命令
+      v2Check('单平台卡：B站 现在会给扫码命令（注册表说了它能扫码）', CD2.buildPlatformCardData(fake, 'bilibili').commands.some((c) => c.example === '#qqmB站登录'), true)
+      v2Check('单平台卡：真正的匿名平台（咪咕）不给扫码命令', CD2.buildPlatformCardData(fake, 'migu').commands.every((c) => c.example !== '#qqm咪咕登录'), true)
       v2Check('单平台卡：认不出的平台回 null（不炸）', CD2.buildPlatformCardData(fake, 'nosuch'), null)
     }
 
@@ -1375,11 +1391,19 @@ function v2Check(name, got, want) {
       const fakeE = (msg, extra = {}) => ({ msg, user_id: 'u1', reply: async (t) => quoted.push(String(t)), ...extra })
 
       // ① 能力矩阵：与 API 侧**实际有的接口**对齐（API：只有 qq/netease/kugou/qishui 有 qrcode 模块）
-      v2Check('凭据：能扫码的外部平台 = 网易云/酷狗/汽水', P.qrPlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kugou,qishui')
+      v2Check('凭据：能扫码的外部平台 = 网易云/B站/酷狗/汽水', P.qrPlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,bilibili,kugou,qishui')
       v2Check('凭据：酷我**不能**扫码（曾经错标成能扫，用户照着帮助发命令只得到"没这条通道"）', P.platformCanQrLogin('kuwo'), false)
       v2Check('凭据：酷狗**能**扫码（曾经漏标，帮助/锅巴都不提它）', P.platformCanQrLogin('kugou'), true)
-      v2Check('凭据：能粘贴的外部平台 = 网易云/酷我/酷狗/汽水/Apple', P.cookiePlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kuwo,kugou,qishui,apple')
-      v2Check('凭据：匿名平台（B站/咪咕/YouTube）不收凭据', ['bilibili', 'migu', 'youtube'].map((id) => P.platformCanCookie(id)).join(','), 'false,false,false')
+      v2Check('凭据：B站**能**扫码也能粘贴（曾经是 mode:none —— 命令/帮助/锅巴三处都不提它有通道）', [P.platformCanQrLogin('bilibili'), P.platformCanCookie('bilibili')].join(','), 'true,true')
+      v2Check('凭据：能粘贴的外部平台 = 网易云/酷我/B站/酷狗/汽水/Apple', P.cookiePlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kuwo,bilibili,kugou,qishui,apple')
+      v2Check('凭据：真·匿名平台（咪咕/YouTube）不收凭据', ['migu', 'youtube'].map((id) => P.platformCanCookie(id)).join(','), 'false,false')
+      // "能不能配"与"没配能不能用"是两件事：B站/网易云/酷我都是"配了更强"，不能标成"没配用不了"
+      v2Check('凭据：B站 属"配了更强"（needsCredential=false，状态卡不能画成红牌未配置）', P.platformNeedsCredential('bilibili'), false)
+      v2Check('凭据：酷狗/汽水/Apple/YouTube 才是"没配用不了"', ['kugou', 'qishui', 'apple', 'youtube'].map((id) => P.platformNeedsCredential(id)).join(','), 'true,true,true,true')
+      // 帮助卡上的凭据小标（回答"哪几家能扫码"）：三档取值
+      v2Check('凭据小标：可扫码/仅粘贴/免凭据 三档取值正确', ['netease', 'kuwo', 'apple', 'migu', 'bilibili'].map((id) => P.platformAuthTag(id).tag).join(','), '可扫码,仅粘贴,仅粘贴文件,免凭据,可扫码')
+      // ⚠️ 色值字段必须叫 toneColor —— 叫 color 会覆盖平台条上的**品牌色**（写出来过又抓回来）
+      v2Check('凭据小标：色值不叫 color（会覆盖平台品牌色）', ['bilibili', 'kuwo'].every((id) => !('color' in P.platformAuthTag(id)) && /^#[0-9a-f]{6}$/i.test(P.platformAuthTag(id).toneColor)), true)
       // API 侧 audius 早就注册了（前缀 au_），插件注册表以前没登记 → au_xxx 被当成 QQ 曲
       v2Check('凭据：audius（au_）也登记进注册表（认得出外源曲）', P.platformOfMid('au_123')?.id, 'audius')
 
@@ -1389,6 +1413,7 @@ function v2Check(name, got, want) {
         kugou: ['/kugou/cookies', 'cookie', '/kugou/cookies/clear', 'post'],
         qishui: ['/qishui/cookies', 'cookie', '/qishui/cookies/clear', 'post'],
         kuwo: ['/kuwo/cookies', 'cookie', '/kuwo/cookies/clear', 'post'],
+        bilibili: ['/bilibili/cookies', 'cookie', '/bilibili/cookies/clear', 'post'],
         apple: ['/apple/cookies', 'cookies', '/apple/cookies', 'delete'], // 字段是 cookies、清除是 DELETE
       }
       v2Check('凭据：上传路径/字段名/清除方式与 API 一致', Object.entries(wantCk).every(([id, w]) => {
@@ -1397,15 +1422,16 @@ function v2Check(name, got, want) {
       }), true)
       // ③ 命令写法（帮助 / 锅巴 / 卡片 / handler 共用同一份）：用**最短平台名**
       v2Check(
-        '凭据：命令用最短平台名（#qqm网易登录 / #qqmamck / #qqm网易清ck）',
+        '凭据：命令用最短平台名（#qqm网易登录 / #qqmB站登录 / #qqmamck / #qqm网易清ck）',
         [
           P.platformQrOf('netease').command,
+          P.platformQrOf('bilibili').command,
           P.platformCookieOf('netease').command,
           P.platformCookieOf('netease').clearCommand,
           P.platformQrOf('apple'), // Apple **没有**扫码命令（空档位就是这条断言）
           P.platformCookieOf('apple').command,
         ].join('|'),
-        '#qqm网易登录|#qqm网易ck|#qqm网易清ck||#qqmamck'
+        '#qqm网易登录|#qqmB站登录|#qqm网易ck|#qqm网易清ck||#qqmamck'
       )
       // ④ Apple 的多行 cookies 全文：换行不能被吃掉
       v2Check('凭据：Apple 的多行 cookies 全文能整段解析', CMD.parsePlatformCkCmd('#qqmamck # Netscape HTTP Cookie File\n.music.apple.com\tTRUE\t/\tmedia-user-token\tAAA').cookie, '# Netscape HTTP Cookie File\n.music.apple.com\tTRUE\t/\tmedia-user-token\tAAA')
@@ -1415,8 +1441,24 @@ function v2Check(name, got, want) {
       let h = await loginApp.platformQrLogin(fakeE('#qqm酷我登录', { isMaster: true }))
       v2Check('凭据：酷我发"登录"时给出粘贴命令（不再只有一句"没通道"）', h === true && /#qqm酷我ck/.test(quoted.join('\n')), true)
       quoted.length = 0
-      h = await loginApp.platformQrLogin(fakeE('#qqmB站登录', { isMaster: true }))
-      v2Check('凭据：匿名平台发"登录"时说清"不需要配"', h === true && /不需要配/.test(quoted.join('\n')), true)
+      // ⚠️ B站 已经不是"匿名、没通道"了（2026-09-24 起能扫码）→ 这条换成真·匿名平台咪咕
+      h = await loginApp.platformQrLogin(fakeE('#qqm咪咕登录', { isMaster: true }))
+      v2Check('凭据：真·匿名平台（咪咕）发"登录"时说清"没有扫码通道"', h === true && /没有扫码通道/.test(quoted.join('\n')), true)
+      // ⑦' 扫码命令表 × 注册表：加一家平台却忘了同步 apps/login.js 的表 = 用户发命令"没反应"
+      //     （文案里一直写着"test.mjs 有断言钉着"，这次真的钉上）
+      quoted.length = 0
+      {
+        const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
+        const tableIds = [...loginSrc.matchAll(/^ {2}(\w+): \{ start: '(\/[^']+)'/gm)].map((m) => m[1]).sort()
+        v2Check(
+          '凭据：扫码命令表与注册表一一对应（少一家 = 命令没反应）',
+          tableIds.join(','),
+          // QQ 除外：它的登录命令是 #qqm登录/#qqm登录微信（在 apps/login.js 里各写一条），
+          // 不走 `#qqm<平台>登录` 这条通配规则
+          P.qrPlatforms().filter((x) => !x.own).map((x) => x.id).sort().join(',')
+        )
+        v2Check('凭据：B站 的扫码路径指向 API 的 B站 模块', /bilibili: \{ start: '\/bilibili\/login\/qrcode'/.test(loginSrc), true)
+      }
       // ⑥ 群里发凭据一律拒收（凭据按人存，群里发等于给全群用）——并且**不能**打到 API
       quoted.length = 0
       h = await loginApp.platformSetCookie(fakeE('#qqm网易ck MUSIC_U=xxx', { isGroup: true, group_id: 'g1' }))
@@ -1425,8 +1467,12 @@ function v2Check(name, got, want) {
       h = await loginApp.platformClearCookie(fakeE('#qqm网易清ck', { isGroup: true, group_id: 'g1' }))
       v2Check('凭据：群里发"清ck"也被拒收', h === true && /私聊/.test(quoted.join('\n')), true)
       quoted.length = 0
-      h = await loginApp.platformSetCookie(fakeE('#qqmB站ck whatever'))
-      v2Check('凭据：给匿名平台发 ck 时说清它不需要凭据', h === true && /不需要凭据/.test(quoted.join('\n')), true)
+      h = await loginApp.platformSetCookie(fakeE('#qqm咪咕ck whatever'))
+      v2Check('凭据：给真·匿名平台发 ck 时说清它不需要凭据', h === true && /不需要凭据/.test(quoted.join('\n')), true)
+      quoted.length = 0
+      // B站 现在收凭据：只发命令不带内容 → 回用法 + 关键字段（SESSDATA，来自注册表）
+      h = await loginApp.platformSetCookie(fakeE('#qqmB站ck'))
+      v2Check('凭据：B站 的用法提示点出关键字段 SESSDATA（不让用户去猜粘什么）', h === true && /用法：#qqmB站ck/.test(quoted.join('\n')) && /SESSDATA/.test(quoted.join('\n')), true)
       quoted.length = 0
       h = await loginApp.platformSetCookie(fakeE('#qqm网易ck'))
       v2Check('凭据：只发 #qqm网易ck（没带内容）时回用法与出处', h === true && /用法：#qqm网易ck/.test(quoted.join('\n')) && /MUSIC_U/.test(quoted.join('\n')), true)
@@ -1468,11 +1514,25 @@ function v2Check(name, got, want) {
           { name: 'kuwo', label: '酷我', kind: 'credential', canQr: false, loggedIn: false, quality: '128k' },
           { name: 'kugou', label: '酷狗', kind: 'credential', canQr: false, loggedIn: false, quality: '128k' },
           { name: 'apple', label: 'Apple Music', kind: 'apple', configured: false, quality: '256k' },
-          { name: 'bilibili', label: 'B站', kind: 'anonymous', quality: '192k' },
+          { name: 'bilibili', label: 'B站', kind: 'credential', canQr: true, optional: true, loggedIn: false, quality: '192k' },
+          { name: 'migu', label: '咪咕', kind: 'anonymous', quality: '128k' },
         ],
       }).rows
       const rowOf = (id) => rows.find((r) => r.name === id)
-      v2Check('状态卡：下一步是聊天命令（酷我=粘贴、酷狗=扫码、Apple=粘贴、匿名=空）', [rowOf('kuwo').action, rowOf('kugou').action, rowOf('apple').action, rowOf('bilibili').action].join('|'), '#qqm酷我ck|#qqm酷狗登录|#qqmamck|')
+      v2Check('状态卡：下一步是聊天命令（酷我=粘贴、酷狗=扫码、Apple=粘贴）', [rowOf('kuwo').action, rowOf('kugou').action, rowOf('apple').action].join('|'), '#qqm酷我ck|#qqm酷狗登录|#qqmamck')
+      // ⚠️ B站 是"配了更强"：**不能**画成红牌"未配置"，也不能把扫码塞进"下一步"（那不是必须做的）
+      v2Check('状态卡：B站 没配时是"免登录可用"而不是"未配置"（它是能用的）', [rowOf('bilibili').ready, rowOf('bilibili').stateText, rowOf('bilibili').action].join('|'), 'true|免登录可用|')
+      v2Check('状态卡：B站 的 detail 里点出"可选扫码拿更高档"', /可选：#qqmB站登录/.test(rowOf('bilibili').detail), true)
+      v2Check('状态卡：真·匿名平台仍是"匿名可用"且无下一步', [rowOf('migu')?.stateText, rowOf('migu')?.action].join('|'), '匿名可用|')
+      // ⚠️ 说明行里的平台名单必须**按这张卡的数据算**：以前写死"（B站/咪咕/YouTube 这类）"，
+      //    B站 转成"配了更强"那类之后这句话就成假话了
+      const tipsOf = (list) => CD3.buildPlatformsCardData({ list }).tips
+      const anonTip = tipsOf([
+        { name: 'bilibili', label: 'B站', kind: 'credential', canQr: true, optional: true, loggedIn: false, quality: '192k' },
+        { name: 'migu', label: '咪咕', kind: 'anonymous', quality: '128k' },
+      ])[0]
+      v2Check('状态卡：说明行的名单是算出来的（B站 不再出现在"匿名"那句里）', [/B站/.test(anonTip), /咪咕/.test(anonTip)].join(','), 'false,true')
+      v2Check('状态卡：有"配了更强"的平台时补一句说明它的状态词', tipsOf([{ name: 'bilibili', label: 'B站', kind: 'credential', optional: true, loggedIn: false, quality: '192k' }]).some((t) => /免登录可用/.test(t)), true)
       v2Check('状态卡：能不能扫码也按注册表算（酷狗能、酷我不能）', [rowOf('kugou').canQr, rowOf('kuwo').canQr].join(','), 'true,false')
       v2Check('状态卡：苹果没配时也提示贴凭据（以前是空的，只能自己去 curl）', /#qqmamck/.test(CD3.formatPlatformsText({ rows, title: 'x', readyCount: 1, total: 5 })), true)
       v2Check('单平台卡：QQ 不会拼出 #qqmQQ音乐登录 这种不存在的命令', CD3.buildPlatformCardData({ list: [{ name: 'qq', label: 'QQ音乐', kind: 'account', canQr: true, loggedIn: true }] }, 'qq').commands.every((c) => !/#qqmQQ音乐登录/.test(c.example)), true)
@@ -1505,7 +1565,9 @@ function v2Check(name, got, want) {
       v2Check('锅巴：凭据默认值是空串/关（不是 undefined）', [getConfigData().platforms.netease.ck, getConfigData().platforms.netease.ckClear, getConfigData().platforms.kuwo.ck].join('|'), '|false|')
       v2Check('锅巴：能扫码的页签里写了扫码命令', P.qrPlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}登录`))), true)
       v2Check('锅巴：能粘贴的页签里写了粘贴命令且注明"私聊"', P.cookiePlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}ck`) && /私聊/.test(String(s.label)))), true)
-      v2Check('锅巴：匿名页签里写清"不用配凭据"', ['bilibili', 'migu', 'youtube'].every((id) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('不用配凭据'))), true)
+      // B站 已经不是匿名了（能扫码 + 能粘贴）→ 这条只对真·匿名的两家成立
+      v2Check('锅巴：真·匿名页签里写清"不用配凭据"', ['migu', 'youtube'].every((id) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('不用配凭据'))), true)
+      v2Check('锅巴：B站 页签里既有扫码命令也有粘贴命令（与 #qqmB站登录/#qqmB站ck 同一份事实）', ['#qqmB站登录', '#qqmB站ck'].every((cmd) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(cmd))), true)
       await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})
       v2Check('锅巴：凭据不写进配置（明文 cookie 不进 yaml）', JSON.stringify(cfgNow()).includes('definitely-not-a-cookie'), false)
       v2Check('锅巴：保存后 ck/ckClear 两个界面键都不存在', [cfgNow().platforms?.netease?.ck, cfgNow().platforms?.netease?.ckClear].join('|'), '|')

@@ -15,6 +15,7 @@ import {
   platformCanQrLogin,
   platformQrOf,
   platformCookieOf,
+  platformNeedsCredential,
 } from './platforms.js'
 import { maskApiBase, apiHintFor } from './privacy.js'
 import { logoUrl } from './path.js'
@@ -243,8 +244,13 @@ export function buildLyricCardData({
  *
  * 三种 kind 的语义差别必须体现在卡上（否则用户会拿"匿名可用"当"已登录"）：
  *   · account   —— 账号级（QQ）：登录了才有无损/付费曲
- *   · credential—— 凭据级（网易云/酷狗/汽水/酷我）：自己那份 / 共享那份 / 未配置
- *   · anonymous —— 匿名即可（B站/咪咕/YouTube/JioSaavn）：**不需要登录**，只报档位
+ *   · credential—— 凭据级（网易云/酷狗/汽水/酷我/B站）：自己那份 / 共享那份 / 未配置
+ *   · anonymous —— 匿名即可（咪咕/YouTube/JioSaavn）：**不需要登录**，只报档位
+ *
+ * ⚠️ 凭据级里还有一小类是"**配了更强**"（B站：不配也能播 192k，配了才有大会员 FLAC 档）。
+ * 它不能被画成红牌"未配置" —— 那会把一个能用的音源说成坏的。
+ * 判据要**同时**看两边：API 行的 `optional`（谁可选）+ 注册表的 `platformNeedsCredential`
+ * （谁没配就用不了）—— 详见下面 platformStatusRow 里的注释。
  */
 
 /**
@@ -268,11 +274,36 @@ function platformStatusRow(p) {
   const color = known ? platformColor(p.name) : p.name === 'qq' ? '#31c27c' : '#8a8a8e'
   const anonymous = p.kind === 'anonymous'
   const apple = p.kind === 'apple'
-  const ready = anonymous ? true : apple ? Boolean(p.configured) : Boolean(p.loggedIn)
-  const stateText = anonymous ? '匿名可用' : apple ? (p.configured ? '已启用' : '未启用') : p.loggedIn ? '已登录' : '未配置'
+  /**
+   * "配了更强"的那一类（B站）：**不配也能用**，所以 ready 为真、状态词是"免登录可用"。
+   *
+   * ⚠️ 判据取 API 行的 `optional`（**不是** `needsCredential !== true`）：
+   *    网易云/酷我同样"不配也能用"，但它们的卡片一直是"未配置 + 下一步配一下"——
+   *    那是既有的、用户没抱怨过的口径，顺手改掉等于替他们做了个决定。
+   *    B站 是新加的这一类，由 API 明确标出来（`optional: true`），只影响它自己。
+   *    老版本 API 没有这个字段 → 退回原口径（不会因为少一个字段而崩）。
+   */
+  // 注册表与 API 两边**都**说"可选"才算：万一哪天 API 把某家错标成 optional，
+  // 而注册表里它明明是 needsCredential（没配就用不了），以注册表为准 —— 宁可显示得保守，
+  // 也别把一个真需要凭据的音源画成"免登录可用"
+  const optionalCred = p.kind === 'credential' && p.optional === true && !platformNeedsCredential(p.name)
+  const ready = anonymous ? true : apple ? Boolean(p.configured) : optionalCred ? true : Boolean(p.loggedIn)
+  const stateText = anonymous
+    ? '匿名可用'
+    : apple
+      ? (p.configured ? '已启用' : '未启用')
+      : p.loggedIn
+        ? '已登录'
+        : optionalCred
+          ? '免登录可用'
+          : '未配置'
   // QQ 是账号级音源，档位由你的会员决定（不是"免登录档位"），这里写它实际能到的顶
   const quality = p.quality || (p.name === 'qq' ? '无损 / Hi-Res（看会员）' : '')
   const srcText = p.sourceText && p.sourceText !== '未配置' ? `来源：${p.sourceText}` : ''
+  // 可选凭据的那家：在 detail 里点出"还能更高级"，但不把它塞进"下一步"（那不是必须做的）
+  const optionalHint = optionalCred && !p.loggedIn && platformCanQrLogin(p.name)
+    ? `可选：${platformQrOf(p.name)?.command}（配了能拿更高档）`
+    : ''
   return {
     name: p.name,
     label: p.label || p.name,
@@ -293,7 +324,7 @@ function platformStatusRow(p) {
     action: nextActionOf(p.name, ready),
     // ⚠️ 用上面算好的 quality/srcText —— 直接读 p.quality 会让 QQ 那行（API 不给 quality）
     //    明明有档位却显示空（实测踩过）
-    detail: [srcText, quality ? `档位：${quality}` : ''].filter(Boolean).join(' · '),
+    detail: [srcText, quality ? `档位：${quality}` : '', optionalHint].filter(Boolean).join(' · '),
   }
 }
 
@@ -380,6 +411,15 @@ export function buildPlatformsCardData(status = {}) {
       return ck ? `${r.label} 私聊 ${ck.command}` : `${r.label} 见 API 配置`
     })
     .join('；')
+  /**
+   * 说明行的平台名单**从当前这张卡的数据里算**，别手抄
+   *
+   * ⚠️ 以前这里写死"（B站/咪咕/YouTube 这类）" —— B站 2026-09-24 转成"配了更强"那类之后，
+   * 这句话当场成了假话（它已经不在匿名组里了）。名单会变，就别把它写进文案。
+   */
+  const namesOfKind = (text) => rows.filter((r) => r.kindText === text).map((r) => r.label)
+  const anonNames = namesOfKind('匿名')
+  const optionalNames = rows.filter((r) => r.stateText === '免登录可用').map((r) => r.label)
 
   return {
     title: '平台登录状态',
@@ -392,7 +432,8 @@ export function buildPlatformsCardData(status = {}) {
     themeText: resolveTheme(cfg).manifest.name,
     rows,
     tips: [
-      '「匿名可用」= 不需要登录就能取链（B站/咪咕/YouTube 这类）',
+      `「匿名可用」= 不需要登录就能取链${anonNames.length ? `（${anonNames.join('/')} 这类）` : ''}`,
+      ...(optionalNames.length ? [`「免登录可用」= 不配也能用，配了账号能拿更高档（${optionalNames.join('/')}）`] : []),
       '「已登录」= 有账号凭据，能拿更高档位或 VIP 曲',
       todo.length ? `还没配的：${todoHint}` : '所有能配的平台都配好了 🎉',
     ],

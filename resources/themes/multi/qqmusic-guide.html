@@ -57,6 +57,9 @@
             <span class="src-rail"></span>
             <span class="row-title truncate">{{p.label}}</span>
             {{if p.needsCredential}}<span class="pill pill--orange" style="flex:none">需配凭据</span>{{/if}}
+            <!-- 凭据小标：可扫码 / 仅粘贴（tone=none 的"免凭据"在这里**故意不画** ——
+                 这一行已经有"需配凭据"那枚 pill，两个一起出现会互相打架，比如 YouTube） -->
+            {{if p.tone !== 'none'}}<span class="pill" style="flex:none;font-size:10px;padding:1px 6px;color:{{p.toneColor}}">{{p.tag}}</span>{{/if}}
             <span class="pill" style="margin-left:auto;flex:none">{{p.quality}}</span>
             <span class="cmd-name" style="color:var(--accent);flex:none">#qqm{{p.short}}</span>
           </div>

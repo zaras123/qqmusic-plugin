@@ -43,6 +43,8 @@ const QR_PLATFORMS = {
   netease: { start: '/netease/login/qrcode', poll: (k) => `/netease/login/qrcode/check?key=${encodeURIComponent(k)}` },
   kugou: { start: '/kugou/login/qrcode', poll: (k) => `/kugou/login/qrcode/check?key=${encodeURIComponent(k)}` },
   qishui: { start: '/qishui/login/qrcode', poll: (k) => `/qishui/login/status?token=${encodeURIComponent(k)}`, qishui: true },
+  // B站：上游只给二维码**内容**，图由 API 侧用 qrcode 生成后当 data URL 回（三个字段形状一致）
+  bilibili: { start: '/bilibili/login/qrcode', poll: (k) => `/bilibili/login/qrcode/check?key=${encodeURIComponent(k)}` },
 }
 
 /** 扫码登录的轮询节奏：3s 一次、最多 40 次（≈2 分钟，与二维码有效期同量级） */
