@@ -254,7 +254,10 @@ export const PLATFORMS = Object.freeze([
     auth: {
       mode: 'file',
       cookie: {
-        where: 'tools/apple-dl 的导出脚本产出的 Netscape cookies 全文（必须含 music.apple.com 的行）',
+        // ⚠️ 这里以前写的是"tools/apple-dl 的导出脚本产出的 Netscape cookies 全文"——
+        //    **那个脚本不存在**，用户照着找不到（2026-09-25 有人直接问"这个凭证我怎么拿"）。
+        //    现在写的是真做得到的步骤：真正要用的只有 media-user-token 一个 cookie。
+        where: '浏览器登录 music.apple.com → F12 → Application → Cookies → 复制 media-user-token 的「值」（最省事；整份 Netscape 文件也认）',
         keys: 'media-user-token',
         file: true,
         // 这两项是 Apple 与别家的差别：字段名是 cookies（不是 cookie），清除走 DELETE 同一条路
@@ -495,10 +498,25 @@ export function platformCookieHelp(name = '') {
   const c = platformCookieOf(name)
   if (!c) return ''
   return [
-    `私聊发 ${c.command} ${c.file ? '<整份 cookies 文件全文>' : '<cookie>'}`,
+    `私聊发 ${c.command} ${platformCookieValueHint(name)}`,
     `从哪拿：${c.where || '（未登记）'}`,
     `关键字段：${c.keys || '（未登记）'}`,
   ].join('；')
+}
+
+/**
+ * 粘贴凭据时"该贴什么"的**占位说明**（命令提示、锅巴文案共用一份）
+ *
+ * ⚠️ Apple 是 `file` 型，但**不等于"必须整份文件"**（2026-09-25 用户问"这个凭证我怎么拿"时发现）：
+ *    API 侧现在也认 `media-user-token` 的**值**（DevTools 里复制的那一行/那一格），
+ *    见 module/apple.js 的 toNetscapeCookieFile。所以提示要写"值（或整份文件）"，
+ *    否则用户以为非得去装个导出扩展 —— 门槛比拿 cookie 本身还高。
+ */
+export function platformCookieValueHint(name = '') {
+  const c = platformCookieOf(name)
+  if (!c) return '<cookie>'
+  if (!c.file) return '<cookie>'
+  return `${c.keys || '凭据'} 的值（或整份 cookies 文件）`
 }
 
 /** 能扫码的平台（帮助卡文案 + 测试断言用） */
@@ -564,6 +582,7 @@ export default {
   platformQrOf,
   platformCanCookie,
   platformCookieOf,
+  platformCookieValueHint,
   platformNeedsCredential,
   platformAuthTag,
   platformCookieHelp,

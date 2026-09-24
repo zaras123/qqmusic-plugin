@@ -69,12 +69,14 @@ function credentialHints(p) {
  */
 function ckPlaceholder(ck) {
   if (!ck) return ''
-  if (ck.file) return '# Netscape HTTP Cookie File …'
   const keys = String(ck.keys || '')
     .split(/[/、,，\s]+/)
     .map((s) => s.trim())
     .filter(Boolean)
   if (!keys.length) return '从这里粘贴凭据'
+  // file 型（Apple）：**先给"只贴那一个值"的例子** —— 那是最省事的路径，
+  // 整份文件当然也行（API 两种都收）
+  if (ck.file) return `${keys[0]}=xxx（只贴这一个也行）`
   // 通配型的字段名（酷我的 Hm_Iuvt_*）直接举例，别写成 `Hm_Iuvt_*=xxx`
   if (keys[0].endsWith('*')) return `${keys[0].slice(0, -1)}xxx=yyy`
   if (keys.length >= 2) return `${keys[0]}=xxx; ${keys[1]}=yyy`
@@ -497,7 +499,9 @@ export function buildSchemas() {
             ? [
                 {
                   field: `platforms.${p.id}.ck`,
-                  label: ck.file ? '粘贴凭据（整份 cookies 文件全文）' : '粘贴凭据（cookie 整串）',
+                  // Apple 那种 file 型**不是"必须整份文件"**：API 也认 media-user-token 的值
+                  // （2026-09-25 用户问"这个凭证我怎么拿"，提示写窄了等于逼人去装导出扩展）
+                  label: ck.file ? `粘贴凭据（${ck.keys} 的值，或整份文件）` : '粘贴凭据（cookie 整串）',
                   // 凭据**从哪拿**只写在这里一处（别在别的行上再复述一遍 —— 那正是以前"看着杂乱"的主因）
                   bottomHelpMessage: `${ck.where}。关键字段：${ck.keys}（由 API 保管，不入库、不回显）`,
                   component: ck.file ? 'InputTextArea' : 'InputPassword',

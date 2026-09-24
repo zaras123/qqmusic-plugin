@@ -15,7 +15,15 @@ import { request, pullLoginMeta, refreshLogin, loginRenewHint } from '../utils/a
 import { getTempDir } from '../utils/send.js'
 import { buildQQMusicStatusData } from '../utils/status-card.js'
 import { renderStatusCard, formatStatusText } from '../utils/render.js'
-import { platformAliasPattern, platformOf, platformAuthOf, platformCookieHelp, platformCookieOf, platformQrOf } from '../utils/platforms.js'
+import {
+  platformAliasPattern,
+  platformOf,
+  platformAuthOf,
+  platformCookieHelp,
+  platformCookieOf,
+  platformCookieValueHint,
+  platformQrOf,
+} from '../utils/platforms.js'
 // 命令解析放 utils（见 utils/command.js 顶部注释：apps 里多导出函数会让加载器认错插件类）
 import { RE_PLATFORM_CK, RE_PLATFORM_CK_CLEAR, parsePlatformCkCmd, parsePlatformCkClearCmd } from '../utils/command.js'
 import { isV2Unlocked, platformEnabled } from '../utils/v2.js'
@@ -385,7 +393,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       await e.reply(
         [
           `${p.label} 没有扫码通道：${ck ? '它只能粘贴凭据' : platformAuthOf(p.id).note || '它不需要账号（匿名音源）'}`,
-          ck ? `粘贴入口（私聊我）：${ck.command} ${ck.file ? '<整份 cookies 文件全文>' : '<cookie>'}` : '',
+          ck ? `粘贴入口（私聊我）：${ck.command} ${platformCookieValueHint(p.id)}` : '',
         ]
           .filter(Boolean)
           .join('\n')
@@ -435,7 +443,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       [
         `请用「${qr.app}」扫码登录 ${p.label}（${Math.round(QR_TOTAL_MS / 60000)} 分钟内有效）`,
         spec.qishui ? '扫完在手机上确认（汽水上游会限流，机器人会自动放慢轮询，别急）' : '扫完在手机上点一次确认',
-        ck ? `扫码被上游挡住时：私聊发 ${ck.command} ${ck.file ? '<整份 cookies 文件全文>' : '<cookie>'}` : '',
+        ck ? `扫码被上游挡住时：私聊发 ${ck.command} ${platformCookieValueHint(p.id)}` : '',
       ]
         .filter(Boolean)
         .join('\n')
@@ -505,7 +513,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         await e.reply(
           [
             `${p.label} 提示需要安全验证，扫码这条路走不通`,
-            ck ? `改用粘贴（私聊我）：${ck.command} ${ck.file ? '<整份 cookies 文件全文>' : '<cookie>'}` : '',
+            ck ? `改用粘贴（私聊我）：${ck.command} ${platformCookieValueHint(p.id)}` : '',
           ]
             .filter(Boolean)
             .join('\n')
@@ -527,7 +535,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       [
         `${p.label} 扫码超时（没等到确认），重新发一次 ${qr.command}`,
         rateWarned ? '（期间被上游限流过：确认那一步可能被挡掉了，重发一次通常就好）' : '',
-        ck ? `也可以直接粘贴凭据（私聊我）：${ck.command} ${ck.file ? '<整份 cookies 文件全文>' : '<cookie>'}` : '',
+        ck ? `也可以直接粘贴凭据（私聊我）：${ck.command} ${platformCookieValueHint(p.id)}` : '',
       ]
         .filter(Boolean)
         .join('\n')
@@ -575,7 +583,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
 
     // 群聊一律拒收（凭据 = 账号）。`e.isGroup` / `e.group_id` 两种都判：
     // 不同协议端给的字段不一样，漏判一个就等于没拦
-    const want = ck.file ? '<整份 cookies 文件全文>' : '<cookie>'
+    const want = platformCookieValueHint(p.id)
     if (e.isGroup || e.group_id) {
       await e.reply(`别在群里发凭据（那等于把账号借给全群用）—— 请**私聊**我发：${ck.command} ${want}`)
       return true

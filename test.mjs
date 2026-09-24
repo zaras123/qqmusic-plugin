@@ -1442,6 +1442,22 @@ function v2Check(name, got, want) {
       )
       // ④ Apple 的多行 cookies 全文：换行不能被吃掉
       v2Check('凭据：Apple 的多行 cookies 全文能整段解析', CMD.parsePlatformCkCmd('#qqmamck # Netscape HTTP Cookie File\n.music.apple.com\tTRUE\t/\tmedia-user-token\tAAA').cookie, '# Netscape HTTP Cookie File\n.music.apple.com\tTRUE\t/\tmedia-user-token\tAAA')
+      // ⑤ Apple 的凭据"怎么拿"：以前写的是"tools/apple-dl 的导出脚本"——**那个脚本不存在**，
+      //    用户照着找不到（2026-09-25 直接问"apple 这个凭证我怎么拿"）
+      v2Check(
+        '凭据：Apple 的出处写的是真做得到的步骤（F12 里复制 media-user-token 的值）',
+        (() => {
+          const w = P.platformCookieOf('apple').where
+          return /F12/.test(w) && /media-user-token/.test(w) && !/导出脚本/.test(w)
+        })(),
+        true
+      )
+      v2Check(
+        '凭据：Apple 的"该贴什么"提示是"值（或整份文件）"，不是只认整份文件',
+        /media-user-token 的值（或整份 cookies 文件）/.test(P.platformCookieValueHint('apple')) &&
+          P.platformCookieValueHint('netease') === '<cookie>',
+        true
+      )
 
       setCfg({ enable: true, unlockV2: true, platforms: {} })
       // ⑤ handler：不能再扫码的那家要说清"怎么粘贴"（用户原来就是卡在这一步）
@@ -1637,9 +1653,10 @@ function v2Check(name, got, want) {
             const row = tabRows(p).find((r) => r.field === `platforms.${p.id}.ck`)
             const ph = String(row?.componentProps?.placeholder || '')
             if (!ph) return false
-            if (ck.file) return /Netscape/.test(ph)
             const first = String(ck.keys || '').split(/[/、,，\s]+/).filter(Boolean)[0] || ''
             if (!first) return true
+            // file 型（Apple）现在给的是"只贴 media-user-token 值"的例子（整份 Netscape 文件也认）
+            if (ck.file) return ph.includes(first) || /Netscape/.test(ph)
             // 通配型字段名（Hm_Iuvt_*）比前缀，其余要求字段名原样出现在占位里
             return first.endsWith('*') ? ph.startsWith(first.slice(0, -1)) : ph.includes(first)
           }),
