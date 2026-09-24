@@ -28,7 +28,6 @@ import {
   platformCanCookie,
   platformQrOf,
   platformCookieOf,
-  platformCookieHelp,
 } from '../utils/platforms.js'
 import { V2_FIELD, isV2Unlocked, platformEnabled, platformQualityPref, platformFillEnabled } from '../utils/v2.js'
 
@@ -47,10 +46,39 @@ function credentialHints(p) {
   const qr = platformQrOf(p.id)
   const ck = platformCookieOf(p.id)
   const out = []
-  if (qr) out.push(`扫码登录（主人）：${qr.command}　用「${qr.app}」扫`)
-  if (ck) out.push(`粘贴凭据：${platformCookieHelp(p.id)}`)
-  if (!qr && !ck) out.push(`不用配凭据：${platformAuthOf(p.id).note || '匿名音源'}`)
+  // ⚠️ **别在这里复述"从哪拿"**（2026-09-24 瘦身）：那段文字以前既出现在这一行、
+  //    又出现在粘贴框的 bottomHelpMessage 里 —— 同一句话看两遍，整页就显得杂乱。
+  //    现在这一行只说**命令**，出处只写在粘贴框那一处（一个平台页签的说明文字从 ~7 行降到 ~3 行）。
+  //    扫码与粘贴也合成**一行**：两者都是"这家怎么配凭据"，分两行只是把页签拉长。
+  const parts = []
+  if (qr) parts.push(`${qr.command} 扫码（主人，用「${qr.app}」）`)
+  if (ck) parts.push(`${ck.command} ${ck.file ? '<整份 cookies 文件>' : '<cookie>'} 私聊粘贴`)
+  if (parts.length) out.push(`凭据：${parts.join('　·　')}`)
+  if (!qr && !ck) out.push('不用配凭据（匿名音源，免登录直接搜/播）')
   return out
+}
+
+/**
+ * 粘贴框里的**占位提示**：用这家自己的关键字段举例
+ *
+ * ⚠️ 以前所有平台都写死 `MUSIC_U=xxx; __csrf=yyy`（那是网易云的字段）——
+ *    于是 B站 / 酷狗 / 汽水 / YouTube 的页签里都摆着一个**错的**示例，
+ *    用户照着填只会更迷糊（2026-09-24 从锅巴截图里抓到的）。
+ *
+ * @param {object} ck platformCookieOf(p.id) 的结果
+ */
+function ckPlaceholder(ck) {
+  if (!ck) return ''
+  if (ck.file) return '# Netscape HTTP Cookie File …'
+  const keys = String(ck.keys || '')
+    .split(/[/、,，\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (!keys.length) return '从这里粘贴凭据'
+  // 通配型的字段名（酷我的 Hm_Iuvt_*）直接举例，别写成 `Hm_Iuvt_*=xxx`
+  if (keys[0].endsWith('*')) return `${keys[0].slice(0, -1)}xxx=yyy`
+  if (keys.length >= 2) return `${keys[0]}=xxx; ${keys[1]}=yyy`
+  return `${keys[0]}=xxx`
 }
 
 /**
@@ -406,10 +434,11 @@ export function buildSchemas() {
         // 现在：一家一个页签，页签里就是"这家自己的开关 + 条数 + 用法"，互不干扰。
         {
           component: 'Divider',
+          // 一行说清三件事：叫什么、免登录什么档、要不要先配凭据
+          // （平台自己的说明 `auth.note` 太长了不往这儿塞 —— 它留给命令回执与状态卡）
           label:
-            '#qqm<平台> 关键词 点歌 · #qqm<平台>播放 直搜直播 · ' +
-            `#qqm<平台>登录 扫码（主人；${qrNames}）· #qqm<平台>ck <cookie> 私聊粘贴凭据（${ckNames}）· ` +
-            '#qqm源 切换默认音源（主人=全群、成员=只对自己）· #qqm平台 看清单 · #qqm平台状态 看各家登录状态卡',
+            '一个平台一个页签：#qqm<平台> 关键词 点歌 · #qqm<平台>登录 扫码 · #qqm<平台>ck 粘贴凭据 · ' +
+            `#qqm源 设默认音源 · #qqm平台状态 看各家状态（能扫码：${qrNames}；能粘贴：${ckNames}）`,
         },
         ...VISIBLE_PLATFORMS.filter((p) => !p.own).flatMap((p) => {
           // 这家能粘贴凭据吗（决定页签里要不要出现粘贴框）
@@ -425,16 +454,14 @@ export function buildSchemas() {
           {
             field: `platforms.${p.id}.enabled`,
             label: `启用 ${p.label}`,
-            bottomHelpMessage: `关掉后：#qqm${p.label}点歌 不响应、帮助卡与锅巴里也不再出现这一家`,
+            bottomHelpMessage: '关掉后这一家完全不出现（命令不响应，帮助卡与锅巴里也是）',
             component: 'Switch',
           },
           // ── 这家平台**自己的功能**（不是每家都一样的通用开关）──
           {
             field: `platforms.${p.id}.fill`,
             label: '参与「跨平台补歌」',
-            bottomHelpMessage:
-              '开启：#qqm点歌 的结果尾部会补上这家的免费曲；关闭：只在 #qqm' +
-              `${p.label}点歌 里出现（不想让某个普通关键词结果被这家占位就关掉）`,
+            bottomHelpMessage: '开启：点歌结果尾部补上这家的免费曲；关闭：只在自己页签里出现',
             component: 'Switch',
           },
           // 音质档位：只有真有多档可选的平台才显示（数据源与 API 的 QUALITY_OPTIONS 对齐）
@@ -444,7 +471,7 @@ export function buildSchemas() {
                   field: `platforms.${p.id}.quality`,
                   label: '音质档位',
                   bottomHelpMessage:
-                    '点名这一家的取链档位。标"要账号/会员"的档位在没配时**会自动回落**（响应里会写明实际档位），不会点了没声',
+                    '标"要账号/会员"的档位在没配时会自动回落（响应里写明实际档位），不会点了没声',
                   component: 'Select',
                   componentProps: {
                     options: platformQualities(p.id),
@@ -456,13 +483,13 @@ export function buildSchemas() {
           {
             field: `platforms.${p.id}.maxList`,
             label: '列表条数',
-            bottomHelpMessage: `#qqm${p.label}点歌 一次列几首；留空 = 跟随「① 基础设置」里的点歌列表数量`,
+            bottomHelpMessage: '留空 = 跟随「① 基础设置」里的点歌列表数量',
             component: 'InputNumber',
             componentProps: { min: 1, max: 20, placeholder: '留空 = 跟随全局' },
           },
           {
             component: 'Divider',
-            label: `用法：#qqm${p.short || p.label} 关键词（最短）；也可以 #qqm${p.label}点歌 / #qqm${p.label}播放 —— 都只在 ${p.label} 里搜`,
+            label: `用法：#qqm${p.short || p.label} 关键词（最短）· #qqm${p.short || p.label}点歌 · #qqm${p.short || p.label}播放 · #qqm${p.short || p.label}歌词`,
           },
           // ── 凭据通道（与 #qqm<平台>登录 / #qqm<平台>ck 同一份事实，全部由注册表生成）──
           ...credentialHints(p).map((label) => ({ component: 'Divider', label })),
@@ -471,17 +498,17 @@ export function buildSchemas() {
                 {
                   field: `platforms.${p.id}.ck`,
                   label: ck.file ? '粘贴凭据（整份 cookies 文件全文）' : '粘贴凭据（cookie 整串）',
-                  bottomHelpMessage: `填好再点「保存」即上传（不写进插件配置、不回显）。${ck.where}。关键字段：${ck.keys}`,
+                  // 凭据**从哪拿**只写在这里一处（别在别的行上再复述一遍 —— 那正是以前"看着杂乱"的主因）
+                  bottomHelpMessage: `${ck.where}。关键字段：${ck.keys}（由 API 保管，不入库、不回显）`,
                   component: ck.file ? 'InputTextArea' : 'InputPassword',
                   componentProps: {
-                    placeholder: ck.file ? '# Netscape HTTP Cookie File …' : 'MUSIC_U=xxx; __csrf=yyy',
+                    placeholder: ckPlaceholder(ck),
                   },
                 },
                 {
                   field: `platforms.${p.id}.ckClear`,
                   label: '清除已保存的凭据',
-                  bottomHelpMessage:
-                    '打开后点「保存」：清掉这份凭据（共享那份与别人的都不动）。上面填了内容时以「上传」为准',
+                  bottomHelpMessage: '打开后点「保存」即清掉这一份（共享那份与别人的都不动）',
                   component: 'Switch',
                 },
               ]

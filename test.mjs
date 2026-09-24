@@ -1585,6 +1585,67 @@ function v2Check(name, got, want) {
       v2Check('锅巴：YouTube 页签里没有任何"扫码"命令（它没有扫码通道）', unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('#qqmyt登录')), false)
       // "卡的是代理不是凭据"这件事必须能在页签上看见（光看"免登录 128k"看不出来）
       v2Check('锅巴：YouTube 页签里点出"必须配 YOUTUBE_PROXY"（代理才是硬前提）', unlockedSchemas.some((s) => s.component === 'Divider' && /YouTube/.test(String(s.label || '')) && /YOUTUBE_PROXY/.test(String(s.label || ''))), true)
+      // ── 页签瘦身（2026-09-24，用户反馈"锅巴显得太杂乱"）──────────────────
+      //    以前同一段"从哪拿"在**凭据提示行**和**粘贴框的说明**里各写一遍，
+      //    加上三行长的开关说明，一个页签能堆到 700+ 字。这里的阈值是防回归的：
+      //    再加文案时先想想"这句是不是已经在别处说过了"。
+      {
+        const tabRows = (p) => {
+          const i = unlockedSchemas.findIndex((s) => s.component === 'SOFT_GROUP_BEGIN' && s.label === p.label)
+          if (i < 0) return []
+          const rest = unlockedSchemas.slice(i + 1)
+          const end = rest.findIndex((s) => s.component === 'SOFT_GROUP_BEGIN')
+          return end < 0 ? rest : rest.slice(0, end)
+        }
+        const others = P.VISIBLE_PLATFORMS.filter((p) => !p.own)
+        v2Check(
+          '锅巴：页签里的"从哪拿"只出现一次（以前在提示行与粘贴框里各写一遍 = 看着杂乱的主因）',
+          others.every((p) => {
+            const ck = P.platformCookieOf(p.id)
+            if (!ck?.where) return true
+            const text = tabRows(p).map((r) => `${r.label || ''} ${r.bottomHelpMessage || ''}`).join(' ')
+            return text.split(ck.where).length - 1 === 1
+          }),
+          true
+        )
+        v2Check(
+          '锅巴：粘贴框的说明里不再复述命令（命令归上面那行"凭据："）',
+          others.every((p) => {
+            const ck = P.platformCookieOf(p.id)
+            if (!ck) return true
+            const row = tabRows(p).find((r) => r.field === `platforms.${p.id}.ck`)
+            return row && !String(row.bottomHelpMessage || '').includes(ck.command)
+          }),
+          true
+        )
+        const sizes = others.map((p) => {
+          const text = tabRows(p).map((r) => `${r.label || ''} ${r.bottomHelpMessage || ''}`).join(' ')
+          return { label: p.label, rows: tabRows(p).length, len: text.length }
+        })
+        v2Check(
+          '锅巴：每个平台页签 ≤ 9 行、说明文字 ≤ 500 字（一眼能看完；现在最长 489）',
+          sizes.every((s) => s.rows <= 9 && s.len <= 500),
+          true
+        )
+        // 粘贴框的占位提示以前**所有平台都写网易云的** `MUSIC_U=xxx; __csrf=yyy` ——
+        // B站 / 酷狗 / 汽水 / YouTube 页签里那个例子是错的（锅巴截图里一眼就看得出来）
+        v2Check(
+          '锅巴：粘贴框的占位提示是这家自己的字段（不再是所有平台都写着 MUSIC_U）',
+          others.every((p) => {
+            const ck = P.platformCookieOf(p.id)
+            if (!ck) return true
+            const row = tabRows(p).find((r) => r.field === `platforms.${p.id}.ck`)
+            const ph = String(row?.componentProps?.placeholder || '')
+            if (!ph) return false
+            if (ck.file) return /Netscape/.test(ph)
+            const first = String(ck.keys || '').split(/[/、,，\s]+/).filter(Boolean)[0] || ''
+            if (!first) return true
+            // 通配型字段名（Hm_Iuvt_*）比前缀，其余要求字段名原样出现在占位里
+            return first.endsWith('*') ? ph.startsWith(first.slice(0, -1)) : ph.includes(first)
+          }),
+          true
+        )
+      }
       await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})
       v2Check('锅巴：凭据不写进配置（明文 cookie 不进 yaml）', JSON.stringify(cfgNow()).includes('definitely-not-a-cookie'), false)
       v2Check('锅巴：保存后 ck/ckClear 两个界面键都不存在', [cfgNow().platforms?.netease?.ck, cfgNow().platforms?.netease?.ckClear].join('|'), '|')

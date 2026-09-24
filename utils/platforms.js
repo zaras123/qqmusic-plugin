@@ -207,7 +207,8 @@ export const PLATFORMS = Object.freeze([
     // 匿名（也是本项目唯一能走的通道）只有 PQ —— "自动"与"PQ"结果完全一样，
     // 所以**不给档位选择器**（给一个二选一但没有区别的开关就是噪声）。
     // API 侧仍登记了 PQ（`QUALITY_OPTIONS.migu`），将来接入 VIP 凭据再在这里补 HQ/SQ。
-    auth: { mode: 'none', note: '免登录直接搜/播（PQ 128k）；要 VIP 档位得等接入凭据' },
+    // 说明要短：它还会被锅巴的页签表头直接顶到后面（太长会把那一行撑成两行）
+    auth: { mode: 'none', note: '要 VIP 档位得等接入凭据' },
   },
   {
     id: 'youtube',
@@ -232,10 +233,11 @@ export const PLATFORMS = Object.freeze([
     auth: {
       mode: 'cookie',
       cookie: {
-        where: '浏览器登录 youtube.com → F12 → Network 里任一请求的 Cookie 头整串（SID/HSID/SSID/SAPISID…）；也可以直接贴一份 Netscape cookies 文件全文（两种都认）',
+        // 字段名不再写在这里 —— 下面 `keys` 已经列了，重复一遍只会把页签撑长
+        where: '浏览器登录 youtube.com → F12 → 任一请求的 Cookie 头整串；或整份 Netscape cookies 文件全文（两种都认）',
         keys: 'SID / HSID / SSID / SAPISID / LOGIN_INFO',
       },
-      note: '免登录也能取链（但 API 侧必须配 YOUTUBE_PROXY 才通）；配 cookies 能过机器人校验 / 年龄限制 / 会员曲目',
+      note: 'API 侧必须配 YOUTUBE_PROXY；配 cookies 可过机器人校验/年龄限制/会员曲',
     },
   },
   {
