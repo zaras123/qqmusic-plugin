@@ -222,6 +222,9 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
       err.pay = data.pay
       err.retcode = data.retcode
       err.tip = data.tip
+      // howto 是 API 给的"照着做就行"的分步清单（比如 Apple 的 sidecar 三步）——
+      // 不带上它，调用方只能显示一句 errMsg，用户不知道该去哪儿改
+      err.howto = data.howto
       throw err
     }
     return data

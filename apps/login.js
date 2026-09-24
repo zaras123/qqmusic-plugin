@@ -611,7 +611,11 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       await e.reply(
         [
           `保存 ${p.label} 凭据失败：${err.message}`,
-          ck.file ? '（这家要的是**整份 Netscape cookies 文件全文**，必须含 music.apple.com 那几行）' : '',
+          // API 的 tip/howto 是**照着做就行**的步骤（比如 Apple 那条"先起 sidecar 再填 APPLE_DL_URL"）——
+          // 只显示 errMsg 的话用户不知道该去哪儿改（2026-09-25 实撞）
+          err.tip ? String(err.tip) : '',
+          ...(Array.isArray(err.howto) ? err.howto.map((x) => String(x)) : []),
+          ck.file ? `（这家要的是 ${ck.keys} 的值，或**整份 Netscape cookies 文件全文**）` : '',
           platformCookieHelp(p.id),
         ]
           .filter(Boolean)

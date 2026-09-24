@@ -1458,6 +1458,18 @@ function v2Check(name, got, want) {
           P.platformCookieValueHint('netease') === '<cookie>',
         true
       )
+      // ⑤b 上传失败的回执（2026-09-25 实撞：「⚠️ 凭据上传失败：…；保存成功」——
+      //     一边说失败一边说保存成功，还没说凭据到底存没存）
+      {
+        const guobaSrc = fs.readFileSync(path.join(pluginRoot, 'guoba', 'schemas.js'), 'utf8')
+        const apiSrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'api.js'), 'utf8')
+        const loginSrc3 = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
+        v2Check('锅巴：上传失败说的是"凭据**没传上去**"（不再只说"上传失败"就完事）', /凭据\*\*没传上去\*\*/.test(guobaSrc), true)
+        v2Check('锅巴：把 API 的 tip 与 howto 分步清单一起显示（照着做就行）', /e\.tip/.test(guobaSrc) && /Array\.isArray\(e\.howto\)/.test(guobaSrc), true)
+        v2Check('锅巴：提醒粘贴框不保留内容（修好后要重新粘一次）', /粘贴框不保留内容/.test(guobaSrc), true)
+        v2Check('聊天命令：失败回执也带 tip/howto（以前只有一句 errMsg）', /err\.tip \? String\(err\.tip\)/.test(loginSrc3) && /Array\.isArray\(err\.howto\)/.test(loginSrc3), true)
+        v2Check('插件请求层把 howto 挂到 Error 上（不然上面两处拿不到）', /err\.howto = data\.howto/.test(apiSrc), true)
+      }
 
       setCfg({ enable: true, unlockV2: true, platforms: {} })
       // ⑤ handler：不能再扫码的那家要说清"怎么粘贴"（用户原来就是卡在这一步）

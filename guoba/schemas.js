@@ -656,7 +656,17 @@ export async function setConfigData(data, { Result } = {}) {
           const d = body?.data || body || {}
           credMsgs.push(`【${p.label}】凭据已上传${d.note ? `：${d.note}` : ''}`)
         } catch (e) {
-          credMsgs.push(`⚠️ 【${p.label}】凭据上传失败：${e.message}`)
+          /**
+           * ⚠️ 2026-09-25 用户撞到的回执长这样：「⚠️ 【Apple Music】凭据上传失败：未配置 Apple
+           * 取流 sidecar；保存成功」—— 一边说失败一边说保存成功，而且**没说凭据到底存没存**。
+           * 这里改成三件事说清楚：① 明确"没传上去"（不是在说配置保存失败）
+           * ② 带上 API 给的 tip/howto（可照做）③ 提醒**粘贴框不会保留内容**，改好后要重新粘一次。
+           */
+          const steps = Array.isArray(e.howto) ? `；${e.howto.join('；')}` : ''
+          credMsgs.push(
+            `❌ 【${p.label}】凭据**没传上去**：${e.message}${e.tip ? `；${e.tip}` : ''}${steps}` +
+              '（粘贴框不保留内容：修好后要重新粘一次）'
+          )
         }
       } else if (wantClear) {
         try {
