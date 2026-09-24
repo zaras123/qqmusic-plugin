@@ -532,7 +532,10 @@ html[data-mode="dark"] .ver {
 /* ---------- 统计：OriginOS 式"浮岛"（四块悬浮小玻璃，不再是一条灰格子） ----------
  * "原子组件"的三件事：**浮**（投影要沉）、**薄**（填充更透）、**有边**（顶部一道金发丝）。
  * 三缺一就退回成"四个灰格子"（第一轮那样）。 */
-.stat-row { display: flex; gap: 9px; margin-top: 20px; }
+/* ⚠️ 这排统计块必须和下面的正文用**同一个左右内边距**：原来只有它没写 padding: 0 var(--pad)，
+ *    结果左右各比正文宽出一个 --pad（实测 正文 166..1897 / 统计块 105..1958），
+ *    看着就是"三个大框超过线了"（2026-09-24 反馈）。同主题的 .plats / .tiles 都是这个写法，别漏。 */
+.stat-row { display: flex; gap: 9px; margin-top: 20px; padding: 0 var(--pad); }
 .stat {
   position: relative;
   flex: 1 1 0; min-width: 0; padding: 13px 8px 11px; text-align: center;

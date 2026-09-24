@@ -473,7 +473,8 @@ html[data-mode="dark"] .ver {
 }
 
 /* 统计：OriginOS 式"浮岛"（四块悬浮小玻璃） */
-.stat-row { display: flex; gap: 8px; margin-top: 14px; }
+/* 同 nebula：统计块要和正文同一个左右内边距，否则比正文宽出一个 --pad（"大框超过线"） */
+.stat-row { display: flex; gap: 8px; margin-top: 14px; padding: 0 var(--pad); }
 .stat {
   position: relative;
   flex: 1 1 0;
