@@ -64,11 +64,16 @@ const QR_PLATFORMS = {
  * ⚠️ 用**总时长**而不是"固定次数"当上限（2026-09-25 改）：限流退避会把单次间隔拉到
  *    十几秒，按"40 次"算就等于把有效期拖到 10 分钟以后 —— 二维码早过期了。
  */
-const QR_POLL_MS = 3000
+/**
+ * ⚠️ 默认 5s（不是 3s）：汽水的上游（抖音 passport）对这个端点预算很紧，
+ *    实测 3s 一轮会在扫码后立刻撞 `error_code 7 访问太频繁`，而且**两分钟都不解封**。
+ *    API 侧还会回 `retryAfterMs` 覆盖这个值（限流退避时会更大）。
+ */
+const QR_POLL_MS = 5000
 const QR_TOTAL_MS = 150000 // ≈2.5 分钟，与二维码有效期同量级
 const QR_MAX_TRIES = 60 // 兜底：退避到很大间隔时也不会无限轮
 const QR_POLL_MIN_MS = 2000
-const QR_POLL_MAX_MS = 20000
+const QR_POLL_MAX_MS = 60000 // 上限跟着 API 的退避上限（60s）走
 
 /** 退避上限：把不可信的值夹在合理区间里（API 说 30s 也别真睡 30s） */
 function clampPollMs(v) {
@@ -456,6 +461,9 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const deadline = Date.now() + QR_TOTAL_MS
     // 限流只提醒一次（每一轮都刷屏才是最烦的）
     let rateWarned = false
+    // 首次限流提醒（轻）/ 持续限流提醒（重，带"换条路"的建议）各只说一次
+    let rateWarnedOnce = false
+    let rateHardWarned = false
     // ⚠️ 循环变量别用 `i`：本文件其它 handler 也裸用 i（作用域检查会把它当跨函数引用），
     //    用一个专属名字就互不干扰
     for (let tick = 0; tick < QR_MAX_TRIES && Date.now() < deadline; tick += 1) {
@@ -477,10 +485,25 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         scopeText = String(d.scopeText || '')
         // 上游限流：API 已经替我们退避了，这里只把节奏跟上 + 提醒一次
         waitMs = clampPollMs(d.retryAfterMs)
-        if (d.rateLimited === true && !rateWarned) {
+        if (d.rateLimited === true) {
           rateWarned = true
-          // eslint-disable-next-line no-await-in-loop
-          await e.reply(`${p.label} 上游限流（访问太频繁），已自动放慢轮询；请尽快在手机上点「确认」`)
+          // ⚠️ 连撞 3 次就不是"偶发限流"了：上游给这个端点的封禁比二维码寿命还长，
+          //    继续等下去只会熬到二维码过期 —— 这时候必须给出**另一条路**，
+          //    而不是让用户傻等（2026-09-25 用户日志：扫码成功后一路 error 7 到超时）
+          if (Number(d.rateLimitHits || 0) >= 3 && !rateHardWarned) {
+            rateHardWarned = true
+            const ckHint = ck ? `或者直接私聊粘贴凭据（最稳）：${ck.command} ${platformCookieValueHint(p.id)}` : ''
+            // eslint-disable-next-line no-await-in-loop
+            await e.reply(
+              [`${p.label} 上游**持续**限流（访问太频繁），这个二维码多半等不到确认了`, '建议：等 1~2 分钟再发一次；', ckHint]
+                .filter(Boolean)
+                .join('\n')
+            )
+          } else if (!rateWarnedOnce) {
+            rateWarnedOnce = true
+            // eslint-disable-next-line no-await-in-loop
+            await e.reply(`${p.label} 上游限流（访问太频繁），已自动放慢轮询；请尽快在手机上点「确认」`)
+          }
         }
         if (spec.qishui) {
           // 汽水的状态词不同：new/waiting → 待扫；scanned/confirmed → 待确认；success → 成功
@@ -534,7 +557,8 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     await e.reply(
       [
         `${p.label} 扫码超时（没等到确认），重新发一次 ${qr.command}`,
-        rateWarned ? '（期间被上游限流过：确认那一步可能被挡掉了，重发一次通常就好）' : '',
+        // 被限流过就别再让用户"马上重发"（上游的封禁比二维码寿命长，立刻重扫还会撞上）
+        rateWarned ? '⚠️ 过程中上游一直在限流：建议**等 1~2 分钟**再发，不然大概率还是扫不通' : '',
         ck ? `也可以直接粘贴凭据（私聊我）：${ck.command} ${platformCookieValueHint(p.id)}` : '',
       ]
         .filter(Boolean)

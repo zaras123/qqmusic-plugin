@@ -1683,10 +1683,13 @@ function v2Check(name, got, want) {
       {
         const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
         v2Check('扫码轮询：间隔读 API 的 retryAfterMs（节奏由 API 一处定）', /waitMs = clampPollMs\(d\.retryAfterMs\)/.test(loginSrc), true)
-        v2Check('扫码轮询：间隔夹在 2~20s（API 说 30s 也不真睡 30s）', /QR_POLL_MIN_MS = 2000/.test(loginSrc) && /QR_POLL_MAX_MS = 20000/.test(loginSrc), true)
+        v2Check('扫码轮询：间隔夹在 2~60s（上限跟着 API 的退避上限走）', /QR_POLL_MIN_MS = 2000/.test(loginSrc) && /QR_POLL_MAX_MS = 60000/.test(loginSrc), true)
+        v2Check('扫码轮询：默认 5s 一轮（3s 会烧光上游预算，实测扫码后立刻被限流）', /const QR_POLL_MS = 5000/.test(loginSrc), true)
         v2Check('扫码轮询：用**总时长**封顶而不是固定次数（退避会把"多少次"算爆）', /QR_TOTAL_MS = 150000/.test(loginSrc) && /Date\.now\(\) < deadline/.test(loginSrc), true)
-        v2Check('扫码轮询：上局限流只提醒一次（不刷屏）', /rateLimited === true && !rateWarned/.test(loginSrc), true)
-        v2Check('扫码轮询：超时提示给出粘贴入口（被限流挡掉时还有第二条路）', /期间被上游限流过/.test(loginSrc) && /也可以直接粘贴凭据/.test(loginSrc), true)
+        v2Check('扫码轮询：上局限流轻提醒只一次（不刷屏）', /rateWarnedOnce = true/.test(loginSrc) && /if \(d\.rateLimited === true\)/.test(loginSrc), true)
+        // 连撞 ≥3 次要给"重"提醒：等 1~2 分钟再试 + 粘贴那条路（让用户傻等是最差的选择）
+        v2Check('扫码轮询：持续限流时给第二次（更明确）提醒', /rateLimitHits \|\| 0\) >= 3/.test(loginSrc) && /rateHardWarned/.test(loginSrc) && /等 1~2 分钟再发一次/.test(loginSrc), true)
+        v2Check('扫码轮询：超时提示不再让人"立刻重发"（上游封禁比二维码寿命长）', /等 1~2 分钟\*\*再发/.test(loginSrc) && /也可以直接粘贴凭据/.test(loginSrc), true)
         v2Check('扫码轮询：不再有"固定 40 次 × 3s"的老写法（超时按它算会拖到二维码过期后）', !/QR_MAX_TRIES \* \(QR_POLL_MS/.test(loginSrc), true)
       }
       await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})
