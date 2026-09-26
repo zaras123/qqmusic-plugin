@@ -19,7 +19,10 @@ export const QQMUSIC_QUALITY_LIST = Object.freeze([
   { label: 'Hi-Res', value: 'hires' },
   { label: '臻品全景声', value: 'atmos' },
   { label: '臻品母带', value: 'master' },
-  { label: '臻品母带2.0', value: 'atmos_master' },
+  // ⚠️ 显示名随 QQ 官方改（2026-09-26 用户要求）：过去叫「臻品母带2.0」，
+  //    官方现在叫「臻品母带4.0」；`atmos_master` 是 API 侧的档位标识（= RS01 母带族最高档），
+  //    **实际拿到哪份文件由 API 按体积认档**，改这里只影响卡片上的字样。
+  { label: '臻品母带4.0', value: 'atmos_master' },
 ])
 
 /** 从高到低完整阶梯（与 API 侧 util/quality.js 的 LADDER 保持一致，已核对） */
