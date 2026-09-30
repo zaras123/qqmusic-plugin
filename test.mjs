@@ -424,7 +424,7 @@ let pureBad = 0
 try {
   const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint, isPerUserScopePath, isAppleScopedRequest } =
     await import('./utils/api.js')
-  const { buildMusicFileName, formatSize } = await import('./utils/send.js')
+  const { buildMusicFileName, formatSize, sniffAudioContainer } = await import('./utils/send.js')
   const { isPluginCommandMsg } = await import('./utils/common.js')
   // 一起听：插件侧只剩「协议端识别 + 开关」。
   // 协议字段、编排、限流、文案全在 API 侧（qqmusic-api-enhanced/scripts/test-together.js 有 48 项单测），
@@ -688,6 +688,38 @@ try {
     ['Apple：source=apple 算 Apple', isAppleScopedRequest('/resolve/apple', { source: 'apple' }), true],
     ['Apple：QQ 曲目不算 Apple', isAppleScopedRequest('/song/url', { mediaId: '0039MnYb0qxYhV' }), false],
     ['Apple：普通搜索不算 Apple', isAppleScopedRequest('/search', { key: '晴天' }), false],
+    // 音频容器嗅探：**下载成功 ≠ 拿到的是音频**
+    // 起因（2026-09-30 用户反馈"ffmpeg 识别不了母带格式 → 发不出语音"）：高规格档
+    // （母带/全景声）上游常只给加密的 .mflac/.mgg，一旦哪条路把密文原样落盘成 .flac，
+    // ffmpeg 只会回一句 Invalid data found，而日志里看不出"这份文件根本不该能用"。
+    // 所以下载后按魔数体检：认不出 = 当下载失败，绝不交给 ffmpeg / 协议端。
+    ['嗅探：flac 头', sniffAudioContainer(Buffer.concat([Buffer.from('fLaC'), Buffer.alloc(20)])), 'flac'],
+    ['嗅探：ogg 头（解密出来的全景声）', sniffAudioContainer(Buffer.concat([Buffer.from('OggS'), Buffer.alloc(20)])), 'ogg'],
+    ['嗅探：wav（RIFF+WAVE）', sniffAudioContainer(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WAVE'), Buffer.alloc(8)])), 'wav'],
+    ['嗅探：ape（Monkey）', sniffAudioContainer(Buffer.concat([Buffer.from('MAC '), Buffer.alloc(20)])), 'ape'],
+    ['嗅探：webm（YouTube 那路 opus）', sniffAudioContainer(Buffer.concat([Buffer.from([0x1a, 0x45, 0xdf, 0xa3]), Buffer.alloc(20)])), 'webm'],
+    ['嗅探：m4a/mp4（ftyp 在偏移 4）', sniffAudioContainer(Buffer.concat([Buffer.alloc(4), Buffer.from('ftypM4A '), Buffer.alloc(20)])), 'mp4'],
+    // 带 ID3 的 flac 很常见：要跳过 ID3 头里**声明的长度**再看里面是什么
+    //（头固定 10 字节：`ID3` + 版本 3 + 长度 4；这里声明长度 6，再垫 6 字节，fLaC 落 16）
+    [
+      '嗅探：带 ID3 的 flac（跳过头再看里层）',
+      sniffAudioContainer(
+        Buffer.concat([
+          Buffer.from('ID3'),
+          Buffer.alloc(3),
+          Buffer.from([0, 0, 0, 6]),
+          Buffer.alloc(6),
+          Buffer.from('fLaC'),
+          Buffer.alloc(20),
+        ])
+      ),
+      'flac',
+    ],
+    ['嗅探：裸 mp3 帧同步（无 ID3）', sniffAudioContainer(Buffer.concat([Buffer.from([0xff, 0xfb]), Buffer.alloc(20)])), 'mp3'],
+    // ⭐ 这条是整件事的关键：QMC2 密文没有任何魔数，必须**认不出**
+    //（认得出就等于放它一路走到 ffmpeg 和协议端 —— 那正是用户遇到的那条语音发不出去）
+    ['嗅探：加密密文认不出（不能当音频放行）', sniffAudioContainer(Buffer.from('9f3c7a1d24e5b806a1c93f7d20be45aa', 'hex')), ''],
+    ['嗅探：太短认不出（不足 12 字节）', sniffAudioContainer(Buffer.from('fLaC')), ''],
   ]
 
   for (const [name, got, want] of pure) {

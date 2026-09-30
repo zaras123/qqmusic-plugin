@@ -308,7 +308,22 @@ export async function prepareVocalFile(
     if (/ENOENT|not found|spawn\s+\S+\s+ENOENT/i.test(err?.message || '')) {
       logWarn(`未检测到 ffmpeg，无法压缩语音。高音质（FLAC 等）文件可能无法作为语音发送，请安装 ffmpeg 或调低音质`)
     } else {
-      logWarn(`语音压缩失败，回退原文件: ${err.message}`)
+      /**
+       * 把 ffmpeg **自己说的话**带出来。
+       *
+       * 以前只打 `err.message`，而 execFile 的 message 永远是
+       * `Command failed: ffmpeg -y -i …` —— 真正的成因（识别不了格式 / 缺编码器 /
+       * 超时被杀）全在 `err.stderr` 里。于是每次都得靠猜：
+       * 2026-09-30 用户反馈"ffmpeg 识别不了母带格式"就是这么推出来的
+       * （推对了，但本可以一眼看到）。stderr 只留最后两行，避免刷屏。
+       */
+      const detail = String(err?.stderr || '')
+        .trim()
+        .split('\n')
+        .filter((l) => l.trim())
+        .slice(-2)
+        .join(' | ')
+      logWarn(`语音压缩失败，回退原文件: ${err.message}${detail ? `（ffmpeg: ${detail}）` : ''}`)
     }
   }
   return abs
@@ -411,6 +426,64 @@ export async function sendVocal(e, fileOrUrl, httpFallback) {
   }
 }
 
+/**
+ * 音频容器魔数嗅探（纯函数，导出给单测）
+ *
+ * **下载成功 ≠ 拿到的是音频** —— 这是 2026-09-30「ffmpeg 识别不了母带格式 → 发不出语音」
+ * 那条反馈的根：
+ *   · 高规格档（母带 / 全景声 / Hi-Res）上游常**只给加密文件**（`.mflac` / `.mgg`，QMC2）。
+ *     正常链路是 API 的 `/song/file` 下载并**解密**后回明文；但只要有一次走岔
+ *     （重试链直接推上游 purl、API 没解开仍回 200、CDN 给了 404 错误体……），
+ *     密文就会以 HTTP 200 原样落盘成一个 `.flac`。
+ *   · 之后没有任何一步会怀疑它：ffmpeg 拿到密文只会说
+ *     `Invalid data found when processing input`，而日志里只有一句 `Command failed: ffmpeg …`
+ *     —— 看不出"这份文件根本不该能用"。
+ * 这里按魔数认容器：**认不出 = 这份不可用**（当下载失败处理，交给上层刷新播放链 / 换档位）。
+ *
+ * ⚠️ 认得宽一点没关系（多认一种就少一次误杀），但**绝不能认不出还放行** ——
+ * 放行等于让密文一路走到 ffmpeg 和协议端。已知会经过这条路的音频：
+ * QQ 的 mp3 / m4a / flac / ape、API 解密出来的 flac / ogg、各外源（含 YouTube 的 webm/opus）。
+ *
+ * @returns {'flac'|'ogg'|'mp3'|'mp4'|'wav'|'ape'|'webm'|''} 空串 = 认不出
+ */
+export function sniffAudioContainer(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 12) return ''
+  const at = (s, off = 0) => {
+    for (let i = 0; i < s.length; i++) if (buf[off + i] !== s.charCodeAt(i)) return false
+    return true
+  }
+  if (at('fLaC')) return 'flac'
+  if (at('OggS')) return 'ogg'
+  if (at('RIFF') && at('WAVE', 8)) return 'wav'
+  if (at('MAC ')) return 'ape' // Monkey's Audio
+  // EBML：webm / mkv（YouTube 的 opus 音轨走这里）
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return 'webm'
+  // MP4 / M4A：`ftyp` 在偏移 4
+  if (buf[4] === 0x66 && buf[5] === 0x74 && buf[6] === 0x79 && buf[7] === 0x70) return 'mp4'
+  // ID3v2 头：跳过头里声明的长度再看里面是什么（带 ID3 的 flac / mp3 都很常见）
+  if (buf[0] === 0x49 && buf[1] === 0x44 && buf[2] === 0x33) {
+    const size =
+      ((buf[6] & 0x7f) << 21) | ((buf[7] & 0x7f) << 14) | ((buf[8] & 0x7f) << 7) | (buf[9] & 0x7f)
+    const off = 10 + size
+    if (off + 12 <= buf.length) return sniffAudioContainer(buf.subarray(off)) || 'mp3'
+    return 'mp3'
+  }
+  // MPEG 帧同步（0xFFEx/0xFFFx）—— ADTS AAC 也长这样，归到 mp3 这档（只用来定扩展名）
+  if (buf[0] === 0xff && (buf[1] & 0xe0) === 0xe0) return 'mp3'
+  return ''
+}
+
+/** 容器 → 磁盘扩展名。按**真实容器**定名（解密出来的全景声其实是 ogg、m4a 其实是 mp4） */
+const CONTAINER_EXT = {
+  flac: '.flac',
+  ogg: '.ogg',
+  mp3: '.mp3',
+  mp4: '.m4a',
+  wav: '.wav',
+  ape: '.ape',
+  webm: '.webm',
+}
+
 export async function downloadAudio(url, saveDir, filename = 'song', timeout = 90000, qualityHint = '') {
   if (!url) throw new Error('空下载地址')
   fs.mkdirSync(saveDir, { recursive: true })
@@ -443,7 +516,8 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
   else if (u.includes('.ogg')) ext = '.ogg'
   else if (u.includes('m800') || u.includes('m500') || u.includes('.mp3')) ext = '.mp3'
 
-  const filePath = path.join(saveDir, `${safe}_${Date.now()}${ext}`)
+  // ⚠️ 落盘路径挪到循环里算：扩展名要等**看过字节**之后才定得下来（见下面的魔数体检）
+  const savePathOf = (e) => path.join(saveDir, `${safe}_${Date.now()}${e}`)
 
   const candidates = buildDownloadCandidates(url)
   let lastErr = null
@@ -480,8 +554,26 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
         lastErr = new Error('下载到 HTML 页面，链接可能失效')
         continue
       }
+      let realExt = ext
+      // 魔数体检（只对音频做：MV 走的是 mp4/fmp4，别拿音频白名单去卡它）
+      if (q !== 'video') {
+        const container = sniffAudioContainer(buf)
+        if (!container) {
+          lastErr = new Error('拿到的不是可解码的音频（可能仍是加密文件或假档链接）')
+          logWarn(
+            `下载到的字节不像音频（首 4 字节 ${buf.subarray(0, 4).toString('hex')}，共 ${buf.length}B）——` +
+              `多半是没解开的 .mflac/.mgg，换下一个候选: ${tryUrl.slice(0, 80)}…`
+          )
+          continue
+        }
+        // 扩展名按**真实容器**定：解密出来的全景声是 ogg、m4a 其实住在 mp4 里。
+        // 名字说谎会一路骗到"群文件展示名 / 语音白名单"（下面那段按 .mgg 改名的补丁
+        // 就是为这个写的，现在已经没必要了 —— 这里一次说准）
+        realExt = CONTAINER_EXT[container] || ext
+      }
+      const filePath = savePathOf(realExt)
       fs.writeFileSync(filePath, buf)
-      return { filePath, size: buf.length, ext, url: tryUrl }
+      return { filePath, size: buf.length, ext: realExt, url: tryUrl }
     } catch (err) {
       lastErr = err
       logWarn(`下载异常: ${err.message}`)
@@ -833,6 +925,46 @@ async function syncTogetherAfterSend(e, song, cfg) {
 }
 
 /**
+ * 把一条播放链换算成"插件**真正该去下载**的地址"
+ *
+ * ⚠️ 高规格档（母带 / 全景声 / Hi-Res）**必须**过这里 —— 这是 2026-09-30
+ * 「ffmpeg 识别不了母带格式 → 语音发不出去」那条反馈的来路：
+ *
+ *   加密件（.mflac/.mgg）**不能**直接下。QQ 给的就是密文，得让 API 的 `/song/file`
+ *   下载并用 ekey/vkey 解密后回明文（解密算法在 API 侧 util/drm.js）。插件直接把上游
+ *   purl 拿去下载的话，落盘的是一个 HTTP 200 的**密文**，扩展名还是 `.flac` ——
+ *   于是 ffmpeg 只会回一句 `Invalid data found when processing input`，语音怎么都发不出去。
+ *
+ * 原来的代码只在**首次**下载时做了这层换算；下面「刷新播放链」那条重试路是把上游 purl
+ * 直接 push 进 tryUrls 的 —— 高规格档第一次取流失败（CDN 404 / 解密失败 / 超时）后
+ * 走到重试，就正好踩在上面的坑里，而且日志上完全看不出来。
+ *
+ * 判据不只信 `encrypted` 标记，也看**文件名后缀**：上游有时只给一条
+ * `AIM0<media_mid>.mflac` 却没把标记带回来，而名字本身就是证据。
+ */
+async function downloadUrlFor(play, userKey = '') {
+  const url = play?.url
+  if (!url) return ''
+  const looksEncrypted =
+    play.encrypted === true || /\.(mflac|mgg)(\?|$)/i.test(String(play.file || url))
+  if (!looksEncrypted) return url
+  try {
+    const { buildSongFileUrl } = await import('./api.js')
+    return (
+      buildSongFileUrl({
+        url,
+        filename: play.file,
+        ekey: play.ekey,
+        vkey: play.vkey,
+        userKey,
+      }) || url
+    )
+  } catch {
+    return url // 构造失败就用原地址（沿用老行为）
+  }
+}
+
+/**
  * 综合发送（点歌 / 卡片解析共用）
  * 流程: (可选文案/音乐卡) → 下载 → 语音 → 群文件
  */
@@ -927,25 +1059,16 @@ export async function deliverSong(e, song, play, options = {}) {
   try {
     const dir = getTempDir()
     const timeout = Number(cfg.downloadTimeout) || 120000
-    const tryUrls = [play.url]
-    // 加密曲目：改走服务端（API 下载并解密后回明文）—— 解密主逻辑在 API，插件不再做
-    if (play.encrypted) {
-      try {
-        const { buildSongFileUrl, pickPlayUserKey } = await import('./api.js')
-        const apiUrl = buildSongFileUrl({
-          url: play.url,
-          filename: play.file,
-          ekey: play.ekey,
-          vkey: play.vkey,
-          // 与取播放链同一账号：普通曲 = 主人账号（开了「一律走主人账号」时）；
-          // Apple 曲 = 请求者自己那份（sidecar 侧有共享回落，没配的人照样能下）
-          userKey: pickPlayUserKey(String(e.user_id || ''), { mediaId: play.mediaId }),
-        })
-        if (apiUrl) tryUrls[0] = apiUrl
-      } catch {
-        /* 构造失败就用原地址 */
-      }
+    // 下载走哪个账号槽：与取播放链同一套规则（普通曲 = 主人账号（开了「一律走主人账号」时）；
+    // Apple 曲 = 请求者自己那份）。取播放链与下载用**同一个槽**，否则会"取得到、下不到"。
+    let playUserKey = ''
+    try {
+      const { pickPlayUserKey } = await import('./api.js')
+      playUserKey = pickPlayUserKey(String(e.user_id || ''), { mediaId: play.mediaId })
+    } catch {
+      /* 拿不到就当公共账号 */
     }
+    const tryUrls = [await downloadUrlFor(play, playUserKey)]
     let dl = null
     let lastErr = null
     for (let i = 0; i < tryUrls.length; i++) {
@@ -977,8 +1100,12 @@ export async function deliverSong(e, song, play, options = {}) {
               fallback: true,
             })
             if (fresh?.url && fresh.url !== tryUrls[0]) {
-              tryUrls.push(fresh.url)
               play = { ...play, ...fresh }
+              // ⚠️ 刷新回来的链**也要过 downloadUrlFor**。高规格档刷新回来多半还是一条
+              //    加密链（.mflac/.mgg）—— 直接 push 上游 purl 就是把密文当音频下载下来，
+              //    交给 ffmpeg 时只会说"识别不了"（2026-09-30 那条语音反馈的来路）。
+              const next = await downloadUrlFor(play, playUserKey)
+              if (next && next !== tryUrls[0]) tryUrls.push(next)
             }
           } catch (e2) {
             logWarn(`刷新播放链失败: ${e2.message}`)
@@ -989,20 +1116,12 @@ export async function deliverSong(e, song, play, options = {}) {
     if (!dl) throw lastErr || new Error('下载失败')
     localPath = dl.filePath
     size = dl.size
-    // 加密文件（.mflac/.mgg）：VIP 曲目服务端只给加密文件，先解密再用。
-    // 解不开时 API 会直接返回错误（它那边有魔数校验），插件按下载失败回落 ——
-    // 绝不把解不开的文件当音频发出去
-    // 加密曲目：改从**服务端**取（API 下载并解密后回明文）—— 主逻辑在 API，插件不再解密
-    if (play.encrypted && dl.filePath && !/\.(flac|ogg|mp3|m4a|ape)$/i.test(dl.filePath)) {
-      const want = /\.mgg$/i.test(play.file || play.url || '') ? '.ogg' : '.flac'
-      const fixed = dl.filePath.replace(/\.[^.]+$/, '') + want
-      try {
-        fs.renameSync(dl.filePath, fixed)
-        localPath = fixed
-      } catch {
-        /* 改名失败就用原路径 */
-      }
-    }
+    // 加密文件（.mflac/.mgg）走的是 API 的 /song/file（下载 + 解密后回明文，见 downloadUrlFor）；
+    // 解不开时那边直接回 4xx/502，这里当下载失败回落。
+    // ⚠️ 原先这里还有一段"按 play.file 后缀把 .flac 改成 .ogg"的补丁 —— 已删：
+    //    它的条件（`!play.encrypted || !/\.(flac|ogg|…)$/`）从来没成立过，是死代码；
+    //    而**真的**搞错扩展名的那种情况（全景声解出来是 ogg、m4a 住在 mp4 里）现在由
+    //    downloadAudio 按**真实容器魔数**定名，一次说准，不再靠事后改名。
     // 群文件展示名：歌手-歌名.ext（规整，不含时间戳）
     const fileExt = path.extname(localPath) || '.mp3'
     displayName = buildMusicFileName(
@@ -1020,7 +1139,14 @@ export async function deliverSong(e, song, play, options = {}) {
     await e.reply(
       `下载音频失败：${err.message}\n可尝试 #qqm登录 后重发，或换一首歌`
     )
-    if (cfg.sendVocal) {
+    /**
+     * 拿原链兜底当语音：**只对明文链有意义**。
+     *
+     * 加密曲目（母带/全景声那类）的 `play.url` 就是那份 DRM 文件本身，协议端拉下来
+     * 仍是一坨密文 —— 发出去只会是一条**播不响的语音**（还会让人以为"发了但没声"）。
+     * 宁可什么都不发：上面那句回复已经说清失败原因了。
+     */
+    if (cfg.sendVocal && !play.encrypted) {
       await sendVocal(e, play.url)
     }
     return { ok: false, reason: 'download_fail', error: err.message, adapter: adapter.kind }
@@ -1051,7 +1177,8 @@ export async function deliverSong(e, song, play, options = {}) {
     const vocalSend = vocalPath || localPath
     let ok = false
     try {
-      ok = await withRetry(() => sendVocal(e, vocalSend, play.url), {
+      // httpFallback 传明文链：加密曲目的 url 是 DRM 文件，回退发它只会是条播不响的语音
+      ok = await withRetry(() => sendVocal(e, vocalSend, play.encrypted ? '' : play.url), {
         times: adapter.kind === 'qqbot' ? 3 : 1,
         retryIf: (_e, msg) => adapter.kind === 'qqbot' && QQ_RETRYABLE.test(msg),
         tag: '语音 ',
@@ -1059,7 +1186,7 @@ export async function deliverSong(e, song, play, options = {}) {
     } catch (err) {
       logWarn(`语音最终失败: ${err.message}`)
     }
-    if (!ok) {
+    if (!ok && !play.encrypted) {
       await sendVocal(e, play.url)
     }
   }
