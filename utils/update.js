@@ -104,9 +104,31 @@ async function git(args, { timeout = 120000 } = {}) {
   }
 }
 
-async function getCommitShort() {
+/**
+ * 读当前提交号；**读不到时把 git 自己说的话一起带回来**
+ *
+ * 为什么要把错误带回来：`git` 不可用（没装 / 不在机器人进程的 PATH 里 / 目录不是完整仓库 /
+ * 没权限）时 `rev-parse` 只会**静默返回空**，而更新器需要据此判断"这个环境到底能不能知道更新到哪了"。
+ *
+ * 2026-10-01 用户反馈：更新回了「更新成功 / 提交: -」，其实什么都没拉下来。根因就在这里：
+ * 提交号读成空之后，下面「已是最新」的判据（要求前后两个提交号都在）**必然为假**，
+ * 于是顺手落进了「更新成功」那一支 —— 一句谎话，比报错更难查。
+ */
+async function readCommit() {
   const r = await git(['rev-parse', '--short', 'HEAD'])
-  return r.ok ? r.stdout : ''
+  if (r.ok && r.stdout) return { commit: r.stdout, err: '' }
+  return {
+    commit: '',
+    // 「命令成功但一个字都没输出」也要当成失败：正常的 git 一定会打印哈希，
+    // 这种"假成功"恰恰是最坑的 —— 旧代码正是被它骗出一句「更新成功 / 提交: -」
+    err: r.ok
+      ? 'git 退出码是 0 却没有任何输出 —— 这个 git 不像是真的（被包装过？PATH 里被同名程序抢了？）'
+      : r.stderr || r.stdout || 'git 没有任何输出（多半是这台机器上没有可用的 git）',
+  }
+}
+
+async function getCommitShort() {
+  return (await readCommit()).commit
 }
 
 async function getCommitTime() {
@@ -205,12 +227,36 @@ export async function updatePlugin({ force = false } = {}) {
 
   updating = true
   const type = force ? '强制更新' : '更新'
-  const oldCommit = await getCommitShort()
+  const before = await readCommit()
+  const oldCommit = before.commit
   const oldVersion = getLocalVersion()
   const branch = await getBranch()
   const remoteUrl = await getRemoteUrl()
 
   logInfo(`开始${type} ${pluginName} @ ${oldCommit || '?'}`)
+
+  /**
+   * 读不到当前提交号 = 这个环境**判断不了**"更新到哪了"。必须在动手前就说清楚：
+   * 一是这种机器上拉取本来也不会成功，二是绝不能让后面的「更新成功」替 git 撒谎
+   *（见 readCommit 头部那条 2026-10-01 的反馈：回「更新成功 / 提交: -」，其实什么都没动）。
+   */
+  if (!oldCommit) {
+    logWarn(`${type}中止：读不到当前提交（${before.err}）`)
+    return {
+      ok: false,
+      message:
+        `${type}中止：读不到当前的 git 提交号，**没有执行任何拉取**。\n` +
+        `git 说：${before.err}\n` +
+        '常见原因：这台机器没装 git / git 不在机器人进程的 PATH 里 / ' +
+        '插件目录的 .git 不完整（比如是拷来的、不是 clone 的）或没有权限。\n' +
+        '在机器人所在机器上执行这条看真实报错：\n' +
+        `  git -C "${pluginPath}" status`,
+      remoteUrl,
+      branch,
+      oldCommit,
+      oldVersion,
+    }
+  }
 
   try {
     // 先 fetch，拿最新引用
@@ -285,12 +331,30 @@ export async function updatePlugin({ force = false } = {}) {
       }
     }
 
-    const newCommit = await getCommitShort()
+    const after = await readCommit()
+    const newCommit = after.commit
     const newVersion = getLocalVersion()
     const time = await getCommitTime()
     const out = `${pullRet.stdout}\n${pullRet.stderr}`.trim()
-    const already =
-      oldCommit && newCommit && oldCommit === newCommit && /Already up|已经是最新|up to date/i.test(out)
+    // 更新前后都有一个**真的**提交号，这一句才成立（上面已经拦掉"读不到"的情况）
+    const already = oldCommit === newCommit && /Already up|已经是最新|up to date/i.test(out)
+
+    if (!newCommit) {
+      // 更新命令跑完了却读不到提交号（git 中途变不可用？）——结果**无法确认**，不许报成功
+      logWarn(`${type}结束但读不到新提交（${after.err}）`)
+      return {
+        ok: false,
+        message: `${type}命令跑完了，但读不到更新后的提交号，**结果无法确认**。\n` +
+          `git 说：${after.err}\n` +
+          `请手动确认：git -C "${pluginPath}" log --oneline -3`,
+        remoteUrl,
+        branch,
+        oldCommit,
+        newCommit,
+        oldVersion,
+        newVersion,
+      }
+    }
 
     // 对比是否动到依赖文件
     let depDiff = out
@@ -302,9 +366,9 @@ export async function updatePlugin({ force = false } = {}) {
 
     const lines = [
       `【${pluginName} ${type}】`,
-      already || (oldCommit && oldCommit === newCommit)
-        ? '已是最新'
-        : '更新成功',
+      // 走到这里两个提交号都**读到了**（读不到在上面就中止了）——
+      // 所以"已是最新"可以放心判：提交号没动 = 没更新，不再有"空提交号落进成功支"这种事
+      already || oldCommit === newCommit ? '已是最新' : '更新成功',
       // 这一行说的是**仓库包版本**（git pull 前后的 package.json），不是界面上那个展示版本
       `包版本: v${oldVersion}${oldVersion !== newVersion ? ` → v${newVersion}` : ''}`,
       `提交: ${oldCommit || '-'}${oldCommit !== newCommit ? ` → ${newCommit || '-'}` : ''}`,

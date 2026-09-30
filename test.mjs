@@ -1231,6 +1231,37 @@ function v2Check(name, got, want) {
       v2Check('版本：已发版（package.json 进 2.x）', /^2\./.test(pkgVersion), true)
       v2Check('版本：展示口径与包版本同源（打包时别只改一处）', U.getLocalVersion(), pkgVersion)
       setCfg({ unlockV2: true, platforms: {} })
+
+      // ── 更新器的"诚实"守卫 ──
+      // 2026-10-01 用户反馈：`#qqm更新` 回了「更新成功 / 包版本: v2.0.3 / 提交: -」，
+      // 一查才发现**那次什么都没拉下来**。来路是：git 读不到提交号时（空串），
+      // 「已是最新」的判据 `oldCommit && newCommit && oldCommit === newCommit && …` 必然为假，
+      // 于是顺手落进「更新成功」那一支 —— 一句谎话，比报错难查得多。
+      {
+        const usrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'update.js'), 'utf8')
+        v2Check('更新：读提交号要把 git 的报错一起拿回来', /async function readCommit\(\)/.test(usrc), true)
+        v2Check(
+          '更新：读不到提交号就**中止并报错**，绝不再回「更新成功」',
+          /if \(!oldCommit\) \{[\s\S]{0,900}?ok: false/.test(usrc),
+          true
+        )
+        // 「退出码 0 但一个字都没输出」也要当失败 —— 这一条正是"假 git"骗出「更新成功」的入口
+        v2Check(
+          '更新：git 退出码 0 却没输出也算失败（假 git 不许骗过守卫）',
+          /r\.ok && r\.stdout/.test(usrc) && /退出码是 0 却没有任何输出/.test(usrc),
+          true
+        )
+        v2Check(
+          '更新：更新完读不到新提交号 → 明说"结果无法确认"',
+          /if \(!newCommit\) \{[\s\S]{0,400}?ok: false/.test(usrc),
+          true
+        )
+        v2Check(
+          '更新：「已是最新」不再依赖"两个提交号都存在"这种必然为假的组合',
+          /already \|\| oldCommit === newCommit/.test(usrc),
+          true
+        )
+      }
     }
     // ── 2.0 是一套**新 UI**（多平台主题），且不能污染 1.9 ──
     {
