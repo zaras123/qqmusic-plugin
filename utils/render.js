@@ -400,6 +400,68 @@ process.once('exit', () => {
 // 这里**转发导出**，免得调用方为了三个常量去记两个地方。
 export { DEFAULT_IMAGE_FORMAT, IMAGE_QUALITY, imageFormatOf } from './theme.js'
 
+/**
+ * 卡片的 devicePixelRatio：按**像素预算**定，不再对每张卡一律 3
+ *
+ * 实测（2026-09-30 本机 Chrome，2.0 帮助卡 648×2115 CSS，见 temp/bench-dpr.mjs）：
+ *   dpr3 = 1944×6345 = **1230 万像素** → 单张 JPEG 897KB，截图 344ms
+ *   dpr2 = 1296×4230 = **548 万像素** → 单张 JPEG 494KB，截图 152ms（≈ 像素比的 2.26×）
+ * 像素数直接决定光栅与 JPEG 编码的耗时 —— 在**性能不高的服务器**上（尤其缺 GPU 的容器，
+ * 光栅走 SwiftShader 软件合成）这是最贵的一步；而这**张图每发一次都要上传给 QQ**，
+ * 体积减半就是上传时间减半（"卡片半天发不出去"多半就是它）。
+ *
+ * 观感上 2 倍足够：卡片显示宽度约 400~600 CSS px，1296px 的源图在手机上已接近 1:1。
+ *
+ * 预算 8M 的取法（对着现有真卡片高度逐张算过，数据见 temp/preview/*.png）：
+ *   · 超预算 → 降 2：2.0 帮助卡 12.3M、2.0 设置卡 9.0M、`#qqm帮助 全部` ≈20M
+ *   · 不超   → 保持 3（小字更锐）：状态 3.9M、详情 4.8M、热搜 5.9M、列表 6.2M、平台 ≈6.5M
+ */
+export const CARD_PIXEL_BUDGET = 8e6
+
+/** 纯函数，便于单测：给定卡片 CSS 宽高，返回该用几倍（1/2/3） */
+export function deviceScaleFor(cssWidth, cssHeight, budget = CARD_PIXEL_BUDGET) {
+  const w = Number(cssWidth) > 0 ? Number(cssWidth) : 0
+  const h = Number(cssHeight) > 0 ? Number(cssHeight) : 0
+  if (!w || !h) return 3 // 量不到尺寸时保持老行为，别猜
+  return w * h * 9 <= budget ? 3 : 2
+}
+
+/**
+ * 等「页面真的落定」：连等 n 帧（默认 2 帧 = 一次布局 + 一次绘制）再截图。
+ *
+ * 为什么不再用固定睡眠（原来是 `setTimeout(200)`，重设视口后再 `setTimeout(80)`）：
+ * 那是**赌** —— 赌这台机器 200ms 内画完了。实测（temp/bench-help.mjs）：
+ *   · 快机器上纯属白等：真正需要的只有 ~30ms（双 rAF 实测 31 / 21ms），单张卡白扔 ~200ms；
+ *   · 慢机器上又赌不赢：2C2G 上一帧就可能上百毫秒，200ms 根本不够。
+ * rAF 是浏览器自己给的信号——帧真出来了才回调：快机器立刻过，慢机器自动多等，两头都对。
+ * 实测两张真帮助卡「死等 vs 双 rAF」截图字节**完全一致**（像素没变，只是不白等了）。
+ *
+ * ⚠️ 兜底（timeoutMs）：**后台标签页不派发 rAF**（Chrome 对不可见页面会挂起动画帧）。
+ * 同时渲染两张卡时就有页面可能不是前台 —— 纯 rAF 会永远等不到回调、卡死不发图。
+ * 所以封一个上限：到点就走（截图本身会强制把元素画出来，结果仍然是对的）。
+ * 正常路径永远走不到这个兜底（实测 20~35ms），它只是"绝不死等"的保险丝。
+ */
+function waitFrames(page, n = 2, timeoutMs = 1000) {
+  return page.evaluate(
+    (k, t) =>
+      new Promise((resolve) => {
+        let done = false
+        const finish = () => {
+          if (done) return
+          done = true
+          clearTimeout(timer)
+          resolve(1)
+        }
+        const timer = setTimeout(finish, t)
+        let left = k
+        const tick = () => (--left <= 0 ? finish() : requestAnimationFrame(tick))
+        requestAnimationFrame(tick)
+      }),
+    n,
+    timeoutMs
+  )
+}
+
 export async function screenshotDirect(
   htmlFile,
   { viewportWidth = 640, pageBg = '#F2F2F7', format = 'png', quality = IMAGE_QUALITY } = {}
@@ -487,7 +549,9 @@ export async function screenshotDirect(
       }
     }, pageBg)
     logFontProbeOnce(fontProbe)
-    await new Promise((r) => setTimeout(r, 200))
+    // 字体就绪（上面 evaluate 里等过 document.fonts.ready）后再等两帧，让重排的结果画出来。
+    // 这一句以前是 `setTimeout(200)`（见 waitFrames 头部的实测：白等 ~170ms/张）
+    await waitFrames(page)
 
     // 截 .page（含浅绿底 + 卡片），整图不透明，避免协议把透明填白
     const el = (await page.$('.page')) || (await page.$('.card')) || (await page.$('body'))
@@ -496,13 +560,17 @@ export async function screenshotDirect(
       const needW = Math.ceil(box.x + box.width + 4)
       const needH = Math.ceil(box.y + box.height + 4)
       const cur = page.viewport()
-      if (needW > cur.width || needH > cur.height) {
+      // 长卡按**像素预算**降 dpr（见 deviceScaleFor 头部的实测：帮助卡 1230 万 → 548 万像素）。
+      // 短卡 want === 3 === 初值 → 条件不成立，一次 setViewport 都不多花，行为与以前逐字一致。
+      const want = deviceScaleFor(box.width, box.height)
+      if (needW > cur.width || needH > cur.height || want !== dpr) {
         await page.setViewport({
           width: Math.max(cur.width, needW),
           height: Math.max(cur.height, needH),
-          deviceScaleFactor: dpr,
+          deviceScaleFactor: want,
         })
-        await new Promise((r) => setTimeout(r, 80))
+        // 换 dpr = 整页重排重画：等两帧再截，别拿重排前的画面（以前死等 80ms）
+        await waitFrames(page)
       }
     }
 
@@ -561,53 +629,120 @@ export async function renderStatusCard(e, data) {
   return renderCard(e, data, 'qqmusic-status')
 }
 
-export async function renderHelpCard(e, data) {
-  return renderCard(e, data, 'qqmusic-help')
+/**
+ * 帮助图缓存：1.x 老帮助卡（qqmusic-help）与 2.0 帮助卡（qqmusic-guide）**共用**一套
+ *
+ * 为什么必须缓存：帮助卡的内容**只跟"身份 + 配置 + 模板"有关**，跟"谁在什么时候发"
+ * 无关 —— 十个人连发 `#qqm帮助` 没必要截十次图。直连 puppeteer 一次 1~2s
+ * （2C2G 这种机器上更久：见 README「性能红线」，帮助卡还是最高的一张，1.x 卡 592×3654 CSS）。
+ *
+ * ⚠️ 以前只有 **2.0** 那条路有缓存，1.x 的老帮助卡是**一遍一遍现截**的 ——
+ *    而默认配置（没开「？？？」）走的恰恰是老卡，于是"每次发帮助都要等好几秒"。
+ *    现在两条路都过这里，键 = 模板指纹 + 主题/配置摘要 + **data 整体**（模板能看到的都在里面），
+ *    所以锅巴改了开关/平台、换了主题、改了模板、甚至只是 `#qqm帮助 全部`，下一次都会重新渲染，
+ *    **不发过期图**；而同一张图正在截的时候，后面的人**跟车**（不重复开 Chrome page）。
+ */
+const helpCache = new Map() // key → { img, at }
+/** key → Promise<img>：同一张图正在截时的"跟车"表（见 renderHelpCardCached） */
+const helpInflight = new Map()
+/** 代际：clearGuideCache() 时 +1，用来丢掉"重载期间还在画的那张旧图" */
+let helpCacheGen = 0
+const HELP_CACHE_TTL_MS = 10 * 60 * 1000
+/** 上限：键会随「配置 / 身份 / 主题」变，改一次锅巴就多一个键，别让它无限长 */
+const HELP_CACHE_MAX = 8
+
+/**
+ * 缓存键（导出给单测断言"配置变了键就变"）
+ *
+ * **数据整体进键**，不再逐字段手抄一份 —— 手抄必然漏，原来就漏了三处：
+ *   · `data.full`：nebula / multi 的帮助模板用它决定"每段只列 8 条"（`{{if data.full || index < 8}}`）
+ *     → `#qqm帮助 全部` 紧跟在 `#qqm帮助` 后面会拿到**被截断的那张图**；
+ *   · `data.currentSource`：nebula / multi 顶部那颗 pill 显示的就是它（按群/按人变）；
+ *   · `data.apiHint`：页脚那行 API 提示。
+ * 判据很简单：**模板能看到的，键里就得有**。JSON.stringify 一份 data 只要几十微秒，
+ * 而它挡掉的是一次上千毫秒的重截 —— 这点成本不用省。
+ */
+export function guideCacheKey(data, themeId = '') {
+  const cfg = getCfg()
+  let payload
+  try {
+    payload = JSON.stringify(data) || ''
+  } catch {
+    // 真有循环引用/不可序列化：宁可每次都重截，也不能把两张不同的卡当成同一张
+    payload = String(Math.random())
+  }
+  return [themeId, cfg.uiTheme || '', String(cfg.uiDark ?? ''), cfg.quality || '', payload].join('\u0000')
 }
 
 /**
- * 2.0 帮助卡（解锁后才走这里；未解锁时老帮助卡一个字都不变）
- *
- * 为什么要单独一层缓存：帮助卡的内容**只跟"身份 + 配置"有关** —— 同一群里
- * 十个人连发 `#qqm帮助` 没必要截十次图（直连 puppeteer 一次 1~2s）。
- * 缓存键里带上"会改变卡片内容的配置摘要"，所以锅巴改了开关/平台、或换了主题，
- * 下一次就会重新渲染，**不会发出过期的图**。
+ * 模板指纹（文件名 + mtime）：模板被改过（比如 `#qqm更新` 拉了新版本）而进程没重启时，
+ * 光靠 guideCacheKey 是看不出来的 —— 那样会发出**旧模板截的图**。加上它就安全了。
  */
-const guideCache = new Map() // key → { img, at }
-const GUIDE_TTL_MS = 10 * 60 * 1000
-
-/** 缓存键（导出给单测断言"配置变了键就变"） */
-export function guideCacheKey(data, themeId = '') {
-  const cfg = getCfg()
-  return [
-    themeId,
-    cfg.uiTheme || '',
-    String(cfg.uiDark ?? ''),
-    cfg.quality || '',
-    data?.isMaster ? 'master' : 'user',
-    data?.version || '',
-    data?.statPlatforms || '',
-    data?.statCommands || '',
-    data?.statMode || '',
-    (data?.sections || []).map((s) => `${s.title}:${(s.items || []).length}`).join('|'),
-  ].join('\u0000')
+function templateStamp(theme, card) {
+  try {
+    const f = templateFile(theme, card).file
+    return f ? `${path.basename(f)}@${fs.statSync(f).mtimeMs}` : ''
+  } catch {
+    return ''
+  }
 }
 
-export async function renderGuideCard(e, data) {
+/** 帮助卡统一走这里：命中就出图，没命中截一张存起来（失败**不缓存**，下次还能重试） */
+async function renderHelpCardCached(e, data, card) {
   const cfg = getCfg()
   const theme = resolveTheme(cfg)
-  const key = guideCacheKey(data, theme.id)
-  const hit = guideCache.get(key)
-  if (hit && Date.now() - hit.at < GUIDE_TTL_MS) return hit.img
+  const key = `${card}\u0000${templateStamp(theme, card)}\u0000${guideCacheKey(data, theme.id)}`
+  const hit = helpCache.get(key)
+  if (hit && Date.now() - hit.at < HELP_CACHE_TTL_MS) return hit.img
 
-  const img = await renderCard(e, data, 'qqmusic-guide')
-  if (img) guideCache.set(key, { img, at: Date.now() })
-  return img
+  /**
+   * 同一张图**正在截**时，后面的人跟着它走，别再开一个 page。
+   * 这条是给弱机器上的"开团"准备的：缓存冷的时候十个人连发 `#qqm帮助`，
+   * 没有这一层就是十个 page 同时光栅化同一张 8.7M 像素的图 —— 2G 内存的机器最容易
+   * 在这一下被自己拖垮（表现还是"发不出去"）。等同一个 Promise 就行。
+   */
+  const running = helpInflight.get(key)
+  if (running) return running
+
+  const gen = helpCacheGen
+  const job = (async () => {
+    const img = await renderCard(e, data, card)
+    // gen 变了 = 渲染期间有人调了 clearGuideCache（`#qqm界面 重载`）→ 这张是旧模板的，别存
+    if (img && gen === helpCacheGen) {
+      helpCache.set(key, { img, at: Date.now() })
+      if (helpCache.size > HELP_CACHE_MAX) {
+        const now = Date.now()
+        for (const [k, v] of helpCache) if (now - v.at >= HELP_CACHE_TTL_MS) helpCache.delete(k)
+        // 还超就先丢最早进去的那个（Map 保序）
+        while (helpCache.size > HELP_CACHE_MAX) helpCache.delete(helpCache.keys().next().value)
+      }
+    }
+    return img
+  })()
+
+  helpInflight.set(key, job)
+  try {
+    return await job
+  } finally {
+    if (helpInflight.get(key) === job) helpInflight.delete(key)
+  }
 }
 
-/** 清帮助卡缓存（改主题 / 热重载模板时调用） */
+/** 1.x 老帮助卡（未解锁时走这张；改动前它没有缓存 → 每次都要重新截图） */
+export async function renderHelpCard(e, data) {
+  return renderHelpCardCached(e, data, 'qqmusic-help')
+}
+
+/** 2.0 帮助卡（解锁后走这里；未解锁时老帮助卡一个字都不变） */
+export async function renderGuideCard(e, data) {
+  return renderHelpCardCached(e, data, 'qqmusic-guide')
+}
+
+/** 清帮助图缓存（改主题 / 热重载模板时调用） */
 export function clearGuideCache() {
-  guideCache.clear()
+  helpCacheGen++
+  helpCache.clear()
+  helpInflight.clear() // 正在截的那些跟着作废（代际对不上，画完也不会存）
 }
 
 export async function renderListCard(e, data) {

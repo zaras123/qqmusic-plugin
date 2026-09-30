@@ -188,6 +188,10 @@ const samples = {
       {
         title: '平台凭据',
         tag: '3 家可扫 / 5 家可粘',
+        // ⚠️ 与 utils/help-card.js 的 credentialSection 同步：这一段在 apple 的两列网格里
+        //    横跨整行（说明是成句的人话，半列只露十几个字）。夹具漏了它，预览就会把真机
+        //    "整行铺开"的那段画成半列截断 —— 2026-09-30 的"渲染不全"就是这么漏掉的
+        wide: true,
         items: [
           { name: '扫码登录（主人）', desc: '用手机 App 扫，凭据按你的槽位存（想让全站共用 → 开「一律走主人账号」）。支持：网易云 / 酷狗 / 汽水', example: '#qqm网易登录' },
           { name: '粘贴 cookie（私聊）', desc: '不能扫码、或扫码被上游风控挡住时走这条（凭据按人存，只对你自己生效）。支持：网易云 / 酷我 / 酷狗 / 汽水 / Apple Music', example: '#qqm网易ck <cookie>' },
@@ -200,9 +204,9 @@ const samples = {
           { name: '搜索点歌', desc: '按关键词搜索并展示列表', example: '#qqm点歌 七里香' },
           { name: '选择曲目', desc: '播放当前列表第 N 首', example: '#qqm听1' },
           { name: '直接播放', desc: '搜索并立即播放第一条', example: '#qqm播放 晴天' },
-          { name: '查看歌词', desc: '按歌名/mid 取歌词', example: '#qqm歌词 七里香' },
+          { name: '查看歌词', desc: '按歌名/mid 取歌词；点歌后 #qqm歌词1 取列表第 1 首歌词', example: '#qqm歌词 七里香' },
           { name: '热搜榜', desc: '查看 QQ 音乐热搜', example: '#qqm热搜' },
-          { name: '一起听', desc: '把列表第 N 首加进群里的一起听', example: '#qqm一起听 1' },
+          { name: '一起听', desc: '把列表第 N 首加进群里的一起听（ICQQ / NapCat / SnowLuma）', example: '#qqm一起听 1' },
         ],
       },
       {
@@ -220,6 +224,9 @@ const samples = {
         tag: 'Master',
         items: [
           { name: '查看配置', desc: 'API、开关、音质与发送方式', example: '#qqm设置' },
+          // 这一条是全卡说明最长的（真机里 33 字 + 一个很宽的示例 pill）——
+          // 留一条在夹具里，"长说明把两列顶宽"这类版式 bug 才骗不过预览
+          { name: '一起听探测', desc: '探测一起听参数；加「写入」= 主动开房探测（会在本群真的建房间，探到即自动写配置）', example: '#qqm一起听 探测 写入' },
           { name: '切换界面', desc: '换一套卡片 UI / 深浅色', example: '#qqm界面' },
         ],
       },
@@ -365,7 +372,7 @@ const samples = {
         items: [
           { name: '搜索点歌', desc: '按关键词搜索并展示列表', example: '#qqm点歌 七里香' },
           { name: '选择曲目', desc: '播放当前列表第 N 首', example: '#qqm听1' },
-          { name: '一起听', desc: '把列表第 N 首加进群里的一起听', example: '#qqm一起听 1' },
+          { name: '一起听', desc: '把列表第 N 首加进群里的一起听（ICQQ / NapCat / SnowLuma）', example: '#qqm一起听 1' },
         ],
       },
       {

@@ -35,7 +35,29 @@
     .tip { padding: 14px var(--pad) 0; }
     /* 只有这张卡用两列（其余卡保持 _base.css 的列表行样式）——
        作用域限定在 .guide 里，别去改共享的 _base.css */
-    .guide .group-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    /**
+     * ⚠️ 两列**必须写 `minmax(0, 1fr)`**，不能写 `1fr`（2026-09-30 用户截图"帮助渲染不全"）
+     *
+     * `1fr` = `minmax(auto, 1fr)`：轨道的**最小**宽度 = 条目的 min-content。而条目里的
+     * `.row-sub` 是 `.truncate`（`white-space: nowrap`），它的 min-content 就是**整串文案**
+     * 的宽度 —— 于是任何一条长说明都会把整条网格顶宽。真机数据实测（54 条 / 7 段，
+     * 容器 542px，见 temp/bench-guide.mjs）：
+     *   平台凭据 内容 1572px（列 = 683 + 883）→ "粘贴 cookie"那条被推到卡片外 **1001px**，
+     *            被 `.card { overflow: hidden }` 整条裁掉 —— 卡片上压根看不到它
+     *   主人管理 915px / 点歌播放 732px / 发现音乐 694px … 每一段都在顶宽，
+     *            右列被裁、左右列还忽宽忽窄（278/447、602/306 交替）
+     * 换成 `minmax(0, 1fr)` 后轨道能收缩，`.row-main { min-width: 0 }` 这才真正生效 ——
+     * 说明文字按设计走省略号，列宽恒等，任何一段都不会再把卡片撑破。
+     */
+    .guide .group-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+    /**
+     * 「平台凭据」那一段（`section.wide`）横跨整行。
+     *
+     * 它只有两条，但说明是**成句的人话**（"凭据按你的槽位存…想全站共用就开…"）——
+     * 半列只有 269px，一句 50 字的话只能露十几个字，等于把这步最难的配置说明藏了。
+     * 整行铺开后配合模板里"不加 .truncate"允许换行，两条都能完整读。
+     */
+    .guide .group-body--wide { grid-template-columns: minmax(0, 1fr); }
     .guide .row { padding: 8px 10px; border-radius: 12px; background: var(--fill-3); }
     .guide .row-title { font-size: 13px; line-height: 1.25; }
     .guide .row-sub { font-size: 11px; }
@@ -98,12 +120,14 @@
             <span class="t-caption">{{section.title}}</span>
             {{if section.tag}}<span class="pill">{{section.tag}}</span>{{/if}}
           </div>
-          <div class="group-body">
+          <div class="group-body{{if section.wide}} group-body--wide{{/if}}">
             {{each section.items item}}
             <div class="row row--plain">
               <div class="row-main">
                 <div class="row-title cmd-name truncate">{{item.name}}</div>
-                <div class="row-sub truncate">{{item.desc}}</div>
+                <!-- wide 段（平台凭据）的说明许它换行：那一句是"凭据存哪、怎么全站共用"的
+                     完整交代，截断掉就等于没写；其余条目保持"一行 + 省略号"的紧凑设计 -->
+                <div class="row-sub{{if !section.wide}} truncate{{/if}}">{{item.desc}}</div>
               </div>
               {{if item.example}}<span class="pill pill--accent cmd-example">{{item.example}}</span>{{/if}}
             </div>

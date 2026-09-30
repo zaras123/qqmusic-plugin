@@ -1300,6 +1300,52 @@ function v2Check(name, got, want) {
         true
       )
 
+      // ── 版式陷阱 + 像素预算（2026-09-30 用户报"帮助渲染不全" + "弱服务器渲染过慢"）──
+      {
+        const RS = await import('./utils/render.js')
+        const guideHtml = fs.readFileSync(
+          path.join(pluginRoot, 'resources', 'themes', 'apple', 'qqmusic-guide.html'),
+          'utf8'
+        )
+        // ⚠️ `1fr` = `minmax(auto, 1fr)`：轨道**最小**宽度 = 条目 min-content，而条目里的
+        //    `.row-sub` 是 nowrap 的，min-content 就是**整串文案** —— 任何一条长说明都会把
+        //    网格顶宽，第二列被推到卡片外、被 .card 的 overflow:hidden 整条裁掉。
+        //    真机实测（54 条 / 7 段，容器 542px）：内容最宽 1572px，"粘贴 cookie"那条被推到
+        //    卡片外 **1001px**，卡片上完全看不见 —— 用户截图里的"渲染不全"就是它。
+        v2Check(
+          '主题：2.0 帮助卡的两列网格必须是 minmax(0,1fr)（写 1fr 会被长文案顶宽、整列被裁）',
+          /grid-template-columns:\s*minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)/.test(guideHtml),
+          true
+        )
+        // 长说明那一段要整行铺开、且允许换行（半列 269px 一句 50 字的话只露十几个字）
+        v2Check(
+          '帮助卡：平台凭据段既标了 wide，模板也真的给整行 + 换行',
+          HC.buildGuideCardData({ isMaster: true }).sections.find((s) => s.title === '平台凭据')?.wide === true &&
+            /group-body--wide/.test(guideHtml) &&
+            /\{\{if !section\.wide\}\} truncate\{\{\/if\}\}/.test(guideHtml),
+          true
+        )
+        // 预览夹具得跟真机同形：漏了 wide，预览会把"整行铺开"画成半列截断，评图看走眼
+        const { samples: fx } = await import('./scripts/preview-samples.mjs')
+        v2Check(
+          '预览夹具：平台凭据那段也标了 wide（与真机数据同形）',
+          (fx['qqmusic-guide'].sections.find((s) => s.title === '平台凭据') || {}).wide,
+          true
+        )
+        // 像素预算（实测：dpr3 → 1944×6345 = 1230 万像素 / 897KB；dpr2 → 548 万像素 / 494KB）
+        v2Check(
+          '卡片 dpr：长卡按像素预算降到 2，短卡保持 3（小字要锐）',
+          [
+            RS.deviceScaleFor(648, 2115), // 2.0 帮助卡（真机数据）→ 12.3M 像素
+            RS.deviceScaleFor(648, 1539), // 2.0 设置卡 → 9.0M
+            RS.deviceScaleFor(648, 1068), // 列表卡 → 6.2M，不该降
+            RS.deviceScaleFor(648, 674), // 状态卡 → 3.9M
+            RS.deviceScaleFor(0, 0), // 量不到尺寸 → 保持老行为，别猜
+          ].join(','),
+          '2,2,3,3,3'
+        )
+      }
+
       // 详情卡的「付费/免费」徽章必须跟着 payplay 走。apple 以前写成
       // `{{if data.showPay || data.payplay}}付费曲{{/if}}` 而输出是**固定文案**，
       // 于是每一首（包括免登录就能播的外源曲）都被标成"付费曲" —— showPay 的语义是
@@ -1775,6 +1821,75 @@ function v2Check(name, got, want) {
     v2Check('帮助缓存：改配置就换键', k1 !== R.guideCacheKey(guide, 'classic'), true)
     v2Check('模板就位：两个主题都有 2.0 帮助模板', ['classic', 'apple'].every((t) => fs.existsSync(path.join(pluginRoot, 'resources', 'themes', t, 'qqmusic-guide.html'))), true)
     v2Check('模板已登记（theme.js 的 CARDS）', (await import('./utils/theme.js')).CARDS.includes('qqmusic-guide'), true)
+
+    // ── 1.x 老帮助卡也必须走缓存 ──
+    // 2026-09-30「2C2G 上帮助图渲染过慢」：默认配置（没开「？？？」）走的是**老帮助卡**，
+    // 而缓存以前只挂在 2.0 那条路上 —— 老卡一遍一遍现截（592×3654 CSS，本机 ~1s、2C2G 更久）。
+    {
+      const rsrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'render.js'), 'utf8')
+      v2Check(
+        '帮助缓存：renderHelpCard 也走缓存（1.x 老卡不许每次现截）',
+        /export async function renderHelpCard\(e, data\) \{\s*return renderHelpCardCached\(e, data, 'qqmusic-help'\)/.test(rsrc),
+        true
+      )
+      v2Check(
+        '帮助缓存：两张帮助卡共用一套缓存',
+        /return renderHelpCardCached\(e, data, 'qqmusic-guide'\)/.test(rsrc),
+        true
+      )
+      // 键里必须带模板指纹：`#qqm更新` 拉了新模板而进程没重启时，光看配置是发现不了的
+      v2Check('帮助缓存：键里带模板指纹（改了模板不发过期图）', /templateStamp\(theme, card\)/.test(rsrc), true)
+      v2Check('帮助缓存：有上限（改一次锅巴多一个键，别无限长）', /HELP_CACHE_MAX/.test(rsrc), true)
+      // 老帮助卡的数据也要算得出稳定的键：同输入同键、换身份换键
+      const h1 = HC.buildHelpCardData({ isMaster: true })
+      v2Check(
+        '帮助缓存：1.x 帮助卡同输入稳定命中',
+        R.guideCacheKey(h1, 'classic') === R.guideCacheKey(HC.buildHelpCardData({ isMaster: true }), 'classic'),
+        true
+      )
+      v2Check(
+        '帮助缓存：主人/成员两种身份不同键（别把主人的图发给成员）',
+        R.guideCacheKey(h1, 'classic') !== R.guideCacheKey(HC.buildHelpCardData({}), 'classic'),
+        true
+      )
+
+      // 键必须跟着**模板看得到的东西**走。这三处原来都漏在键外（手抄字段必然漏）：
+      //   full        → nebula/multi 靠它决定「每段只列 8 条」，漏了就会把"全部"那张截断图发出去
+      //   currentSource → nebula/multi 顶上那颗 pill 显示的就是它（按群/按人变）
+      //   apiHint     → 页脚那行 API 提示
+      const mkKey = (opts, extra, themeId = 'nebula') =>
+        R.guideCacheKey(HC.buildGuideCardData({ isMaster: true }, { ...opts, ...extra }), themeId)
+      v2Check(
+        '帮助缓存：#qqm帮助 全部 与默认版不同键（nebula 的截断就靠 full）',
+        mkKey({}) !== mkKey({ full: true }),
+        true
+      )
+      v2Check(
+        '帮助缓存：换「当前音源」就换键（nebula/multi 顶上那颗 pill）',
+        mkKey({}, { currentSource: '当前音源：网易' }) !== mkKey({}, { currentSource: '当前音源：QQ 曲库' }),
+        true
+      )
+      setCfg({ apiBase: 'http://127.0.0.1:3300' })
+      const keyApiOn = R.guideCacheKey(HC.buildHelpCardData({ isMaster: true }), 'classic')
+      setCfg({ apiBase: '' })
+      v2Check(
+        '帮助缓存：API 提示变了也换键（页脚那行）',
+        keyApiOn !== R.guideCacheKey(HC.buildHelpCardData({ isMaster: true }), 'classic'),
+        true
+      )
+    }
+
+    // ── 落定方式：不许再用固定 sleep 赌（见 utils/render.js waitFrames） ──
+    {
+      const rsrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'render.js'), 'utf8')
+      v2Check(
+        '截图：落定改成等帧（rAF），不再 setTimeout 死等',
+        /function waitFrames\(page, n = 2/.test(rsrc) &&
+          /await waitFrames\(page\)/.test(rsrc) &&
+          !/new Promise\(\(r\) => setTimeout\(r, \d+\)\)/.test(rsrc),
+        true
+      )
+    }
 
     // ── 配置读写：嵌套字段 ──
     setCfg({ unlockV2: true, platforms: {} })

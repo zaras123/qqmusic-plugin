@@ -227,6 +227,16 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
     tag: [qrPlats.length ? `${qrPlats.length} 家可扫` : '', ckPlats.length ? `${ckPlats.length} 家可粘` : '']
       .filter(Boolean)
       .join(' / '),
+    /**
+     * 这一段在**两列网格**的主题（apple）里横跨整行渲染。
+     *
+     * 原因是这段的 desc 和其它段不是一个量级：别段是"按关键词搜索并展示列表"这种**短语**，
+     * 这两条却是**成句的操作说明**（凭据存哪、怎么全站共用、谁能看见）。
+     * 半列只有 269px、一行连 12 个字都放不下，截断掉就正好把最关键的半句藏了
+     * （2026-09-30 用户截图："帮助渲染不全"）。
+     * 标记只对用网格的主题有意义；classic / 星云 / 多平台的条目本来就一行一条，无影响。
+     */
+    wide: true,
     items: credentialItems,
   }
 

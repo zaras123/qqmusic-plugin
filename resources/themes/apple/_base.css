@@ -129,13 +129,24 @@ html[data-time="night"] .page {
 }
 
 /* ---------- 玻璃卡：白玻璃 + 细边 + 极轻投影 ---------- */
+/* ⚠️ 没有自定义背景时**不要**在这张卡上做 backdrop blur（2026-09-30 性能）
+ *
+ * 卡底下只有 `.page` 的**纯线性渐变** —— 高斯模糊一个线性函数在数学上≈恒等，
+ * 30px 的模糊是纯白烧的 CPU。实测（本机 Chrome，2.0 帮助卡 1296×4230，逐像素比对
+ * `blur(30px) saturate(160%)` 与 `saturate(160%)`）：**平均差 0.156/255、最大差 1、差>8 的
+ * 通道占 0.000%** —— 数值与肉眼都看不出。
+ * 而这张卡在"性能不高的服务器"上是最贵的一步：缺 GPU 的容器里 backdrop filter 走
+ * SwiftShader 软件合成，一张帮助卡是千万像素级的全卡模糊，纯属替渐变色打工。
+ * `saturate` 保留 —— 它才是卡面颜色的来源（模糊只影响明暗，对渐变看不见）。
+ * 有自定义背景（data-bg=1）时下面那套 `.card` 规则会整体覆盖这里，模糊照旧保留：
+ * 那时候底下是**照片**，模糊正是玻璃感的来源。 */
 .card {
   position: relative;
   width: 600px;
   border-radius: var(--radius-card);
   background: var(--glass);
-  -webkit-backdrop-filter: blur(var(--blur)) saturate(160%);
-  backdrop-filter: blur(var(--blur)) saturate(160%);
+  -webkit-backdrop-filter: saturate(160%);
+  backdrop-filter: saturate(160%);
   border: 1px solid var(--rim);
   box-shadow: var(--shadow), 0 0 0 1px var(--hairline);
   overflow: hidden;
