@@ -75,6 +75,7 @@ const { qqmusicResolve } = await import('./apps/resolve.js')
 const { qqmusicSong } = await import('./apps/song.js')
 const { qqmusicTogether } = await import('./apps/together.js')
 const { qqmusicAdmin } = await import('./apps/admin.js')
+const { qqmusicExtras } = await import('./apps/extras.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
 
@@ -86,6 +87,7 @@ const modules = [
   { name: '点歌', class: qqmusicSong },
   { name: '一起听', class: qqmusicTogether },
   { name: '管理', class: qqmusicAdmin },
+  { name: '试听/海报/订阅/定时', class: qqmusicExtras },
 ]
 
 let allPassed = asyncGateOk
@@ -188,6 +190,25 @@ const cases = [
   ['#qqm专辑 叶惠美', 'album'],
   ['#qqm歌单 华语', 'playlist'],
   ['#qqm评论 晴天', 'getComment'],
+  // 四件套：试听 / 海报 / 订阅 / 定时（apps/extras.js）
+  ['#qqm试听 晴天', 'previewCmd'],
+  ['#qqm试听2', 'previewCmd'], // 序号走点歌会话（与 #qqm听2 同源）
+  ['#qqm试听', 'previewCmd'], // 不带参数 → 回用法提示，不静默
+  ['#qqm海报 晴天', 'posterCmd'],
+  ['#qqm海报3', 'posterCmd'],
+  ['#qqm订阅 周杰伦', 'subAdd'],
+  ['#qqm关注 周杰伦', 'subAdd'],
+  ['#qqm退订 1', 'subDel'],
+  ['#qqm退订 周杰伦', 'subDel'],
+  ['#qqm订阅列表', 'subList'],
+  ['#qqm我的订阅', 'subList'],
+  ['#qqm定时 8:30 晴天', 'schedAdd'],
+  ['#qqm定时 8点半 晴天', 'schedAdd'],
+  ['#qqm定时 20:00 七里香', 'schedAdd'],
+  ['#qqm定时列表', 'schedList'],
+  ['#qqm定时任务', 'schedList'],
+  ['#qqm取消定时 1', 'schedDel'],
+  ['#qqm删除定时 2', 'schedDel'],
   // 登录 / 账号
   ['#qqm登录', 'startWebQrLogin'],
   ['#QQ音乐登录', 'startWebQrLogin'],
@@ -443,7 +464,11 @@ try {
     fileChanged,
     timePeriodOf,
     darkPrefOf,
+    CARDS: CARD_LIST,
   } = await import('./utils/theme.js')
+  // 四件套（试听/海报/订阅/定时）的可测逻辑全在 utils/extras.js —— 纯函数，不碰框架
+  const { parseScheduleTime, chorusSegment, pickLyricLines, parseLrcLines, dueSchedules, dayKey, diffNewSongs } =
+    await import('./utils/extras.js')
   const themeIds = listThemeIds()
   const classicTheme = resolveTheme({ uiTheme: 'classic' })
   const fallbackTheme = resolveTheme({ uiTheme: '__不存在的主题__' })
@@ -720,6 +745,81 @@ try {
     //（认得出就等于放它一路走到 ffmpeg 和协议端 —— 那正是用户遇到的那条语音发不出去）
     ['嗅探：加密密文认不出（不能当音频放行）', sniffAudioContainer(Buffer.from('9f3c7a1d24e5b806a1c93f7d20be45aa', 'hex')), ''],
     ['嗅探：太短认不出（不足 12 字节）', sniffAudioContainer(Buffer.from('fLaC')), ''],
+    // ── 四件套（试听/海报/订阅/定时）的纯函数 ──
+    // 海报卡要进 CARDS（内置主题"必须实现全卡"的闸会顺带拦住缺模板的主题）
+    ['海报卡：已登记 CARDS', CARD_LIST.includes('qqmusic-poster'), true],
+    // 定时点歌的时间解析：中国用户最顺手的几种写法都要认
+    ['定时时间：HH:MM', parseScheduleTime('08:30')?.text, '08:30'],
+    ['定时时间：H:MM', parseScheduleTime('8:05')?.text, '08:05'],
+    ['定时时间：全角冒号', parseScheduleTime('8：30')?.text, '08:30'],
+    ['定时时间：X点Y分', parseScheduleTime('8点30分')?.text, '08:30'],
+    ['定时时间：X点半', parseScheduleTime('8点半')?.text, '08:30'],
+    ['定时时间：X点整', parseScheduleTime('8点')?.text, '08:00'],
+    ['定时时间：非法小时拒绝', parseScheduleTime('25:00'), null],
+    ['定时时间：非法分钟拒绝', parseScheduleTime('8:60'), null],
+    ['定时时间：乱写拒绝', parseScheduleTime('早上'), null],
+    // 副歌窗口：流行歌 40% 进度起；短歌收紧、未知时长兜底
+    ['试听片段：4 分钟歌取 40%', chorusSegment(240, { sec: 30 }).start, 96],
+    ['试听片段：dur 封顶 30 秒', chorusSegment(240, { sec: 30 }).dur, 30],
+    ['试听片段：临近结尾往回收', chorusSegment(40, { sec: 30 }).start, 10],
+    ['试听片段：比片段还短的歌从头放', chorusSegment(20, { sec: 30 }).start, 0],
+    ['试听片段：未知时长从 60s 起', chorusSegment(0).start, 60],
+    // 歌词海报选句：LRC 时间戳 + QRC 字级标签 + 元数据行都要处理对
+    [
+      '海报选句：按副歌窗口取连续几句',
+      pickLyricLines(
+        '[00:10.00]前奏就一句\n[01:36.50]副歌第一句<00:01.00>字\n[01:41.00]副歌第二句\n[01:46.00]副歌第三句\n作词 : 某人\n[02:10.00]尾声',
+        240,
+        { max: 3 }
+      ),
+      ['副歌第一句字', '副歌第二句', '副歌第三句'],
+    ],
+    ['海报选句：无时间戳取中段', pickLyricLines('一\n二\n三\n四\n五\n六\n七\n八', 0, { max: 2 }), ['五', '六']],
+    ['海报选句：纯歌词为空回空数组', pickLyricLines('', 240), []],
+    ['LRC 解析：一行双时间戳拆两行', parseLrcLines('[00:10.0][01:20.0]副歌').length, 2],
+    // 定时触发窗口：到点才响、当天只响一次、晚到 10 分钟内补发、过了窗口不补
+    [
+      '定时触发：到点该响',
+      dueSchedules([{ time: '08:00' }], new Date('2026-10-01T08:01:00')).length,
+      1,
+    ],
+    [
+      '定时触发：未到点不响',
+      dueSchedules([{ time: '08:00' }], new Date('2026-10-01T07:59:00')).length,
+      0,
+    ],
+    [
+      '定时触发：今天发过不重响',
+      dueSchedules([{ time: '08:00', lastDate: '2026-10-01' }], new Date('2026-10-01T08:01:00')).length,
+      0,
+    ],
+    [
+      '定时触发：晚到 10 分钟内补发',
+      dueSchedules([{ time: '08:00' }], new Date('2026-10-01T08:09:00')).length,
+      1,
+    ],
+    [
+      '定时触发：过窗口不补发',
+      dueSchedules([{ time: '08:00' }], new Date('2026-10-01T08:11:00')).length,
+      0,
+    ],
+    [
+      '定时触发：跨零点窗口（23:56 的任务 00:02 补发）',
+      dueSchedules([{ time: '23:56' }], new Date('2026-10-02T00:02:00')).length,
+      1,
+    ],
+    ['定时触发：停用的不响', dueSchedules([{ time: '08:00', enabled: false }], new Date('2026-10-01T08:01:00')).length, 0],
+    ['日期键：本地日期', dayKey(new Date('2026-10-01T23:59:59')), '2026-10-01'],
+    // 订阅扫描：按 songmid 找增量
+    [
+      '订阅：能认出新歌',
+      diffNewSongs(
+        [{ songmid: 'a' }, { songmid: 'b' }],
+        [{ songmid: 'a' }]
+      ).map((s) => s.songmid),
+      ['b'],
+    ],
+    ['订阅：没有增量就是空', diffNewSongs([{ songmid: 'a' }], [{ songmid: 'a' }]).length, 0],
   ]
 
   for (const [name, got, want] of pure) {
@@ -929,9 +1029,9 @@ function asyncCheck(name, got, want) {
   const rOk = await new (A.hardenPlugin(ReplyPlugin, 'replyfake'))().r(ev)
   asyncCheck('hardenPlugin：处理前补齐回复通道（e.reply 缺失也能发出去）', [rOk, guarded.join('|')].join(','), 'true,guarded')
 
-  // 真实 app 类也要包得住（test.mjs 顶部已经 import 了这 7 个）
+  // 真实 app 类也要包得住（test.mjs 顶部已经 import 了这 8 个）
   const hardenedClasses = modules.map((m) => A.hardenPlugin(m.class, m.name))
-  asyncCheck('hardenPlugin：7 个 app 类都能包', hardenedClasses.length, 7)
+  asyncCheck('hardenPlugin：8 个 app 类都能包', hardenedClasses.length, 8)
   asyncCheck('hardenPlugin：包装后 instanceof 原类不变', hardenedClasses.every((c, i) => new c() instanceof modules[i].class), true)
   asyncCheck('hardenPlugin：原始类留了痕（__qqmBase）', hardenedClasses.every((c, i) => c.__qqmBase === modules[i].class), true)
   const indexSrc = fs.readFileSync(path.join(pluginRoot, 'index.js'), 'utf8')

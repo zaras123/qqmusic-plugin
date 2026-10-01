@@ -8,6 +8,7 @@ import path from 'node:path'
 import { pluginPath } from './utils/path.js'
 import { ensureSegment } from './utils/adapter.js'
 import { hardenPlugin } from './utils/async.js'
+import { startScheduler } from './utils/scheduler.js'
 import Config from './components/Config.js'
 
 const log = global.logger || console
@@ -46,5 +47,8 @@ const msg = `qqmusic-plugin 已加载（${Object.keys(apps).length} 个模块 ·
 if (log.green && typeof log.info === 'function') log.info(log.green(msg))
 else if (typeof log.info === 'function') log.info(msg)
 else console.log(msg)
+
+// 定时调度器（定时点歌触发 + 歌手新歌订阅扫描）：30s 一跳、幂等、防重入
+startScheduler()
 
 export { apps }

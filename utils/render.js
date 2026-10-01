@@ -757,6 +757,11 @@ export async function renderLyricCard(e, data) {
   return renderCard(e, data, 'qqmusic-lyric')
 }
 
+/** 歌词海报卡（`#qqm海报`） */
+export async function renderPosterCard(e, data) {
+  return renderCard(e, data, 'qqmusic-poster')
+}
+
 export async function renderCommentCard(e, data) {
   return renderCard(e, data, 'qqmusic-comment')
 }

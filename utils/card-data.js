@@ -238,6 +238,46 @@ export function buildLyricCardData({
   }
 }
 
+/** 歌词海报卡的日期戳（海报角落；`2026.10.01` 这种海报惯用写法） */
+function posterDate(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}.${p(d.getMonth() + 1)}.${p(d.getDate())}`
+}
+
+/**
+ * 歌词海报卡（`#qqm海报 关键词`）
+ *
+ * 与歌词卡（qqmusic-lyric）的分工：歌词卡是"看整篇词"的实用卡；
+ * 海报是"把副歌那几句 + 封面排成一张能转发的分享图"—— 行数少、字号大、有日期戳。
+ * 选哪几句的口径在 utils/extras.js 的 pickLyricLines（副歌窗口，与试听片段一致）。
+ */
+export function buildPosterCardData({
+  songName = '未知歌曲',
+  singerName = '未知歌手',
+  albumName = '',
+  cover = '',
+  lines = [],
+  songmid = '',
+} = {}) {
+  const body = (Array.isArray(lines) ? lines : [])
+    .map((l) => String(l || '').trim())
+    .filter(Boolean)
+    .slice(0, 12)
+
+  return {
+    songName,
+    singerName,
+    albumName: albumName || '',
+    cover: cover || '',
+    songmid: songmid || '',
+    lines: body,
+    lineCount: body.length,
+    dateText: posterDate(),
+    apiHint: apiHintFor(),
+    tip: body.length ? '发送 #qqm试听 关键词 可试听这段副歌' : '这首歌没找到合适的歌词片段',
+  }
+}
+
 /**
  * 平台登录状态卡（`#qqm平台状态`）
  *

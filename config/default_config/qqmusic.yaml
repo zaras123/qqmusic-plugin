@@ -115,3 +115,13 @@ togetherEnable: false
 # 自动同步：点歌（#qqm听N / #qqm播放 / 解析卡片等所有发歌路径）成功后再把这首歌加进一起听
 # ⚠️ 同上：依赖加歌链路，未维护，勿开
 togetherAuto: false
+
+# ————— 试听 / 海报 / 订阅 / 定时点歌 —————
+# 副歌试听片段秒数（#qqm试听，10-60，默认 30）
+previewSec: 30
+# 歌手新歌订阅的扫描间隔（小时，默认 6；0 = 关闭扫描，订阅仍能加但不推送）
+subScanHours: 6
+# 每个群最多订阅几个歌手
+subMaxPerGroup: 10
+# 每个群最多几条定时点歌
+scheduleMaxPerGroup: 10

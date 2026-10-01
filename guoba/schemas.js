@@ -258,6 +258,36 @@ export function buildSchemas() {
     bottomHelpMessage: '⚠️ 依赖加歌链路，同上未维护（手动 #qqm一起听 N 不受此开关影响）',
     component: 'Switch',
   },
+  // ── 试听 / 订阅 / 定时点歌：同样归"基础设置"（都是行为开关与数量上限）──
+  {
+    field: 'previewSec',
+    label: '试听片段秒数',
+    bottomHelpMessage: '#qqm试听 关键词 截取的副歌片段长度（10-60 秒，默认 30）',
+    component: 'InputNumber',
+    componentProps: { min: 10, max: 60, placeholder: '30' },
+  },
+  {
+    field: 'subScanHours',
+    label: '订阅扫描间隔（小时）',
+    bottomHelpMessage:
+      '#qqm订阅 歌手名 后，每隔多少小时扫一次歌手歌曲列表（默认 6，0 = 不扫；新歌推送到订阅的群）',
+    component: 'InputNumber',
+    componentProps: { min: 0, max: 48, placeholder: '6' },
+  },
+  {
+    field: 'subMaxPerGroup',
+    label: '每群订阅上限',
+    bottomHelpMessage: '每个群最多订阅几个歌手（默认 10）',
+    component: 'InputNumber',
+    componentProps: { min: 1, max: 50, placeholder: '10' },
+  },
+  {
+    field: 'scheduleMaxPerGroup',
+    label: '每群定时点歌上限',
+    bottomHelpMessage: '每个群最多几条「#qqm定时 8:30 歌名」（默认 10）',
+    component: 'InputNumber',
+    componentProps: { min: 1, max: 50, placeholder: '10' },
+  },
   group('② 界面与外观'),
   {
     field: 'uiTheme',
@@ -565,6 +595,12 @@ export function getConfigData() {
     uiBgValue: String(c.uiBgValue || ''),
     uiBgCacheMin: c.uiBgCacheMin === undefined || c.uiBgCacheMin === '' ? 10 : Number(c.uiBgCacheMin) || 0,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
+    // 试听片段：缺省 30（与 default_config 一致）；锅巴里填了非法值也先兜住
+    previewSec: Math.max(10, Math.min(60, Number(c.previewSec) || 30)),
+    // 订阅扫描间隔：缺省 6 小时，0 = 关闭
+    subScanHours: c.subScanHours === undefined || c.subScanHours === '' ? 6 : Math.max(0, Number(c.subScanHours) || 0),
+    subMaxPerGroup: Math.max(1, Number(c.subMaxPerGroup) || 10),
+    scheduleMaxPerGroup: Math.max(1, Number(c.scheduleMaxPerGroup) || 10),
     pullLoginMeta: false,
     // QQ 音源开关：缺省=开（老配置没有这个键 → 与 1.x 完全一致）
     qqEnabled: c.qqEnabled !== false,

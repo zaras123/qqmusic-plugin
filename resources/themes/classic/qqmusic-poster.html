@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QQ音乐 · 歌词海报</title>
+  <style>
+@import url("resources/fonts/qqm-cjk.css");
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --qm: #31c27c;
+      --qm-deep: #1f9a64;
+      --text: #143528;
+      --muted: #6a8276;
+      --line: rgba(49, 194, 124, 0.15);
+    }
+
+    html, body {
+      width: fit-content;
+      height: fit-content;
+      margin: 0;
+      padding: 0;
+      background: #e6f6ee !important;
+      font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "QQM CJK", sans-serif;
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      text-rendering: geometricPrecision;
+    }
+
+    .page {
+      display: block;
+      width: fit-content;
+      margin: 0;
+      padding: 16px;
+      background: #e6f6ee;
+    }
+
+    .card {
+      width: 560px;
+      border-radius: 28px;
+      overflow: hidden;
+      position: relative;
+      isolation: isolate;
+      background: linear-gradient(165deg, #f7fcf9 0%, #eef8f3 42%, #e3f4eb 100%);
+      border: 1px solid rgba(49, 194, 124, 0.18);
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.85) inset,
+        0 14px 28px rgba(20, 90, 58, 0.12);
+    }
+
+    .hero {
+      padding: 26px 24px 22px;
+      border-radius: 28px 28px 0 0;
+      overflow: hidden;
+      position: relative;
+      color: #fff;
+      background:
+        radial-gradient(circle at 88% 18%, rgba(255,255,255,0.28) 0%, transparent 42%),
+        radial-gradient(circle at 12% 90%, rgba(0,0,0,0.07) 0%, transparent 45%),
+        linear-gradient(135deg, #36c580 0%, #2ab06f 50%, #1fa968 100%);
+    }
+
+    .hero-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cover {
+      width: 76px;
+      height: 76px;
+      border-radius: 16px;
+      flex: none;
+      background: rgba(255,255,255,0.25) center/cover no-repeat;
+      box-shadow: 0 6px 14px rgba(0, 60, 34, 0.25);
+    }
+
+    .hero-main { flex: 1; min-width: 0; }
+
+    .eyebrow {
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 600;
+      letter-spacing: 1.2px;
+      color: rgba(255,255,255,0.85);
+      margin-bottom: 8px;
+    }
+
+    .song {
+      font-size: 22px;
+      line-height: 30px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .singer {
+      margin-top: 6px;
+      font-size: 14px;
+      line-height: 20px;
+      color: rgba(255,255,255,0.88);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .body { padding: 28px 26px 14px; }
+
+    .mark {
+      width: 28px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--qm);
+      margin-bottom: 16px;
+    }
+
+    .body p {
+      font-size: 21px;
+      line-height: 42px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: var(--text);
+    }
+
+    .empty {
+      padding: 0 26px 18px;
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--muted);
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 26px 22px;
+      border-top: 1px solid var(--line);
+    }
+
+    .footer-left {
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+    }
+
+    .footer-right {
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-top">
+          {{if data.cover}}
+          <div class="cover" style="background-image:url('{{data.cover}}')"></div>
+          {{/if}}
+          <div class="hero-main">
+            <div class="eyebrow">QQ MUSIC · 歌词海报</div>
+            <div class="song">{{data.songName || '未知歌曲'}}</div>
+            <div class="singer">{{data.singerName || '未知歌手'}}{{if data.albumName}} · {{data.albumName}}{{/if}}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="body">
+        <div class="mark"></div>
+        {{each data.lines line}}
+        <p>{{line}}</p>
+        {{/each}}
+      </div>
+
+      {{if data.tip}}<div class="empty">{{data.tip}}</div>{{/if}}
+
+      <div class="footer">
+        <div class="footer-left">{{data.dateText}}</div>
+        <div class="footer-right">qqmusic-plugin</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

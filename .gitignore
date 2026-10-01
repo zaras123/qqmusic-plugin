@@ -8,3 +8,6 @@ config/config/*
 .playwright-mcp/
 # 本地生成物：卡片预览（scripts/preview-cards.mjs 的产物）等
 temp/
+
+# 运行时数据：歌手订阅 / 定时点歌（data/qqmusic-store.json）
+data/

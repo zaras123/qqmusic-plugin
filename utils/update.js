@@ -310,8 +310,8 @@ export async function updatePlugin({ force = false } = {}) {
       } else {
         pullRet = resetRet
       }
-      // 清未跟踪但保留 config/config（用户配置）
-      await git(['clean', '-fd', '-e', 'config/config', '-e', 'node_modules', '-e', 'temp'])
+      // 清未跟踪但保留 config/config（用户配置）与 data/（订阅、定时点歌的落盘存储）
+      await git(['clean', '-fd', '-e', 'config/config', '-e', 'node_modules', '-e', 'temp', '-e', 'data'])
     } else {
       pullRet = await git(['pull', '--ff-only'])
       if (!pullRet.ok) {

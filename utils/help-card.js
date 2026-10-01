@@ -26,6 +26,8 @@ const SECTIONS = [
       { name: '直接播放', desc: '搜索并立即播放第一条', example: '#qqm播放 晴天' },
       { name: '查看歌词', desc: '按歌名/mid 取歌词；点歌后 #qqm歌词1 取列表第 1 首歌词', example: '#qqm歌词 七里香' },
       { name: '热搜榜', desc: '查看 QQ 音乐热搜', example: '#qqm热搜' },
+      { name: '副歌试听', desc: '只发副歌片段（30 秒左右），先听听好不好听', example: '#qqm试听 晴天' },
+      { name: '歌词海报', desc: '副歌几句 + 封面排成一张分享图；点歌后可用序号', example: '#qqm海报 晴天' },
       { name: '一起听', desc: '把列表第 N 首加进群里的一起听（ICQQ / NapCat / SnowLuma）', example: '#qqm一起听 1' },
       { name: '一起听状态', desc: '查看本群一起听房间当前曲目', example: '#qqm一起听 状态' },
     ],
@@ -59,6 +61,19 @@ const SECTIONS = [
       { name: '状态卡片', desc: '账号 / 会员 / 音质 可视化', example: '#qqm状态' },
       { name: '快捷状态', desc: '状态卡短指令', example: '#qms' },
       { name: '登出解绑', desc: '清除登录态（主人）', example: '#qqm登出', master: true },
+    ],
+  },
+  {
+    title: '订阅与定时',
+    tag: '计划',
+    // 添加/删除限主人（整群推送与整群定时，不能谁都能加）；查看对全员开放
+    items: [
+      { name: '歌手订阅', desc: '新歌进歌手歌曲列表时推到本群（约每 6 小时查一次）', example: '#qqm订阅 周杰伦', master: true },
+      { name: '订阅列表', desc: '查看本群订阅了哪些歌手', example: '#qqm订阅列表' },
+      { name: '退订', desc: '按序号或歌手名退订', example: '#qqm退订 1', master: true },
+      { name: '定时点歌', desc: '每天到点把这首歌发进群（认 8:30 / 8点30 / 8点半）', example: '#qqm定时 8:30 晴天', master: true },
+      { name: '定时列表', desc: '查看本群的定时点歌', example: '#qqm定时列表' },
+      { name: '取消定时', desc: '按序号删除一条定时', example: '#qqm取消定时 1', master: true },
     ],
   },
   {

@@ -27,6 +27,7 @@ export const CARDS = [
   'qqmusic-list',
   'qqmusic-detail',
   'qqmusic-lyric',
+  'qqmusic-poster',
   'qqmusic-hot',
   'qqmusic-comment',
   'qqmusic-status',

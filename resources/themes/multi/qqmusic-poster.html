@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 歌词海报</title>
+  <link rel="stylesheet" href="resources/themes/multi/_base.css" />
+  <style>
+    /* 海报：行数少、字号大 —— 与歌词卡（阅读优先 18px）的分工在字号上拉开 */
+    .poster-cover {
+      width: 76px;
+      height: 76px;
+      border-radius: 16px;
+      background: var(--fill-3) center/cover no-repeat;
+      flex: none;
+    }
+    .poster-body {
+      padding: 26px var(--pad) 14px;
+    }
+    .poster-body p {
+      font-size: 21px;
+      line-height: 42px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: var(--label);
+    }
+    .poster-mark {
+      width: 28px;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--gold);
+      margin-bottom: 14px;
+    }
+    .poster-date {
+      font-size: 12px;
+      line-height: 16px;
+      color: var(--label-3);
+      letter-spacing: 0.5px;
+    }
+    /* 共用的 .foot 是"全靠右"——海报要日期在左、品牌在右 */
+    .foot {
+      justify-content: space-between;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        {{if data.cover}}
+        <div class="poster-cover" style="background-image:url('{{data.cover}}')"></div>
+        {{/if}}
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music · 歌词海报</div>
+          <div class="t-title truncate">{{data.songName || '未知歌曲'}}</div>
+          <div class="hero-sub truncate" style="margin-top:4px">{{data.singerName || '未知歌手'}}{{if data.albumName}} · {{data.albumName}}{{/if}}</div>
+        </div>
+      </div>
+
+      <div class="group inset" style="margin-top:4px">
+        <div class="poster-body">
+          <div class="poster-mark"></div>
+          {{each data.lines line}}
+          <p>{{line}}</p>
+          {{/each}}
+        </div>
+      </div>
+
+      {{if data.tip}}<div class="empty">{{data.tip}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="poster-date">{{data.dateText}}</span>
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
