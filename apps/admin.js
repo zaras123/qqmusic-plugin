@@ -177,7 +177,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
     const m = e.msg.match(/api\s*(\S+)/i)
     const url = normalizeApiBase(m?.[1] || '')
     if (!url || !/^https?:\/\//i.test(url)) {
-      await e.reply('用法：#qqm api http://你的API地址:端口')
+      await e.reply('用法：#qqm api https://你的API域名（只填域名也会自动补 HTTPS）')
       return true
     }
     Config.mergeConfig('qqmusic', { apiBase: url })

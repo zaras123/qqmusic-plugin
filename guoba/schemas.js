@@ -121,7 +121,7 @@ export function buildSchemas() {
   {
     field: 'apiBase',
     label: 'API 地址',
-    bottomHelpMessage: 'qqmusic-api-enhanced 服务地址',
+    bottomHelpMessage: 'qqmusic-api-enhanced 服务地址；裸域名自动补 HTTPS，本机/IP 直连保留 HTTP',
     component: 'Input',
     required: true,
     componentProps: {

@@ -25,7 +25,7 @@ const UA =
 /**
  * 归一化 apiBase：兼容用户手改配置文件时的常见写法问题，
  * 不再因格式问题抛裸的 Invalid URL：
- *  - 漏写 http:// / https:// 协议头（如 127.0.0.1:3300）→ 自动补 http://
+ *  - 漏写协议头：域名自动补 https://；localhost / IP 直连仍补 http://
  *  - 中文输入法的全角冒号（http：//）→ 转半角
  *  - 复制粘贴带入的首尾引号、空格、零宽字符 / BOM → 清除
  */
@@ -37,8 +37,13 @@ export function normalizeApiBase(raw) {
     .trim()
   if (!s) return ''
   if (/^https?:\/\//i.test(s)) return s.replace(/\/+$/, '')
-  // 已带其它协议（ws:// 等）原样保留；否则视为漏写协议头，自动补 http://
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = `http://${s}`
+  // 已写明的协议保持原样；裸域名默认 HTTPS，避免 HTTP 跳转导致 POST 正文丢失。
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) {
+    s = s.replace(/^\/\//, '')
+    const authority = s.split(/[/?#]/, 1)[0]
+    const isDirectAddress = /^(?:localhost|(?:\d{1,3}\.){3}\d{1,3}|\[[0-9a-f:.%]+\])(?::\d+)?$/i.test(authority)
+    s = `${isDirectAddress ? 'http' : 'https'}://${s}`
+  }
   return s.replace(/\/+$/, '')
 }
 
@@ -235,7 +240,7 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
     if (e.code === 'ERR_INVALID_URL' || e?.cause?.code === 'ERR_INVALID_URL' ||
         /invalid url/i.test(e.message || '')) {
       throw new Error(
-        `API 地址无效，请检查配置里的 apiBase（需形如 http://IP:端口）`
+        `API 地址无效，请检查配置里的 apiBase（域名用 https://域名，本机用 http://IP:端口）`
       )
     }
     throw e
@@ -541,7 +546,9 @@ export async function songUrl(
   else params.type = type
   if (Number(fallback) === 1) params.fallback = 1
   try {
-    const body = await request('/song/url', params, 'post', userKey)
+    // 取链是只读请求；参数放 query，避免 301/302/303 将 POST 改成 GET 时丢失正文。
+    // Token 仍由 request() 放在鉴权 header 中。
+    const body = await request('/song/url', params, 'get', userKey)
     return mapSongUrlBody(body, quality || type, realMedia)
   } catch (e) {
     const p = e.payload || {}
