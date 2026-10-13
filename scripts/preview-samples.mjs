@@ -121,6 +121,12 @@ const GUIDE_PLATS = [
 ]
 
 const samples = {
+  'qqmusic-ticket': {
+    title: '未来演唱会', detail: false, subtitle: '全国', pageText: '第 1 / 1 页，共 1 场',
+    rows: [{ index: 1, key: 'e21325', name: '示例演唱会', artist: '示例艺人', city: '北京', venue: '示例场馆', when: '2026-11-28 19:00', status: '未开始', price: '380 - 1080 元', soldOut: false, poster: logoUrl }],
+    updated: '离线预览样例', notice: '历史记录仅覆盖已归档演出，票价与余票以购票页为准。', empty: '暂无演出',
+    row: {}, sessions: [], songs: [], summary: '', sourceNote: '', warning: '', sale: '',
+  },
   // 2.0 平台登录状态卡（`#qqm平台状态`）：这是 2.0 才有的卡，之前预览里一直是 SKIP
   'qqmusic-platforms': {
     title: '平台登录状态',

@@ -7,6 +7,7 @@
   "author": "local",
   "license": "MIT",
   "scripts": {
+    "test:ticket": "node --test scripts/test-ticket.mjs",
     "gen-logo": "node ./scripts/gen-logo.js"
   },
   "dependencies": {

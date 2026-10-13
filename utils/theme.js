@@ -20,6 +20,7 @@ export const DEFAULT_THEME_V2 = 'nebula'
 
 /** 插件全部卡片（模板文件名 = 卡片名） */
 export const CARDS = [
+  'qqmusic-ticket',
   'qqmusic-help',
   'qqmusic-guide',
   'qqmusic-platform',

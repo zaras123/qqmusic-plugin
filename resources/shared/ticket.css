@@ -1,0 +1,45 @@
+@import url("../fonts/qqm-cjk.css");
+.ticket-page, .ticket-page * { box-sizing: border-box; letter-spacing: 0; }
+html, body { margin: 0; padding: 0; }
+.ticket-page.page {
+  width: 600px; max-width: 100vw; min-width: 0; padding: 0;
+  color: var(--label, #182720); background: var(--card, #f7faf9);
+  font: 15px/1.65 var(--font, "QQM CJK", sans-serif);
+  border-top: 5px solid #22a472; overflow-wrap: anywhere;
+}
+.ticket-page::before, .ticket-page::after { display: none; }
+.ticket-page h1, .ticket-page h2, .ticket-page h3, .ticket-page p { margin: 0; }
+.ticket-head { padding: 22px 24px 18px; border-bottom: 1px solid var(--divider, #d8e2dd); }
+.ticket-brand { display: flex; align-items: center; gap: 8px; color: var(--label-2, #52675c); font-size: 13px; }
+.ticket-brand img { width: 26px; height: 26px; object-fit: contain; }
+.ticket-page h1 { font-size: 24px; line-height: 1.4; margin: 12px 0 8px; }
+.ticket-page h2 { font-size: 18px; line-height: 1.5; }
+.ticket-page h3 { font-size: 16px; }
+.ticket-head p, .ticket-muted, .ticket-source, .ticket-foot { color: var(--label-2, #52675c); }
+.ticket-row { display: flex; align-items: flex-start; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--divider, #d8e2dd); }
+.ticket-number { flex: 0 0 20px; color: #177a55; font-weight: 700; font-size: 18px; }
+.ticket-thumb { flex: 0 0 72px; width: 72px; height: 100px; object-fit: contain; border-radius: 4px; background: #eef1f0; }
+.ticket-info { flex: 1; min-width: 0; }
+.ticket-info p { margin-top: 4px; }
+.ticket-status { color: var(--label-2, #52675c); font-size: 13px; }
+.ticket-price { color: #b13b59; font-weight: 700; font-size: 18px; }
+.ticket-overview { display: flex; align-items: flex-start; gap: 18px; padding: 22px 24px; }
+.ticket-poster { width: 140px; height: 196px; object-fit: contain; flex-shrink: 0; border-radius: 4px; }
+.ticket-section { padding: 18px 24px; border-top: 1px solid var(--divider, #d8e2dd); }
+.ticket-section > p { margin-top: 8px; }
+.ticket-session { margin-top: 14px; }
+.ticket-tier { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 90px) minmax(0, 140px); gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--divider, #d8e2dd); }
+.ticket-tier span:last-child { color: var(--label-2, #52675c); font-size: 13px; }
+.ticket-source, .ticket-page-count, .ticket-empty { padding: 14px 24px; }
+.ticket-warning { padding: 12px 24px; color: #ad3451; }
+.ticket-foot { font-size: 12px; padding: 18px 24px; border-top: 1px solid var(--divider, #d8e2dd); }
+html[data-mode="dark"] .ticket-price { color: #ff97af; }
+html[data-mode="dark"] .ticket-number { color: #62d9ad; }
+@media (max-width: 430px) {
+  .ticket-head, .ticket-row, .ticket-overview, .ticket-section { padding: 16px; }
+  .ticket-row { gap: 8px; }
+  .ticket-thumb { flex-basis: 52px; width: 52px; height: 74px; }
+  .ticket-poster { width: 90px; height: 126px; }
+  .ticket-overview { gap: 12px; }
+  .ticket-tier { grid-template-columns: minmax(0, 1fr) minmax(0, 76px) minmax(0, 100px); }
+}

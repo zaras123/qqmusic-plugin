@@ -1164,6 +1164,8 @@ export class qqmusicSong extends (await loadPluginBase()) {
     await e.reply(
       [
         '【QQ音乐插件帮助】',
+        '— 演出票务 —',
+        '#qqm演唱会 / #qqm近期演唱会 / #qqm往期演唱会 / #qqm演出帮助',
         '— 点歌（均需 #qqm 前缀）—',
         '#qqm点歌 七里香  →  #qqm听1（会话内也可 #听1）',
         '#qqm播放 晴天',

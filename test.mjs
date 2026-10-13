@@ -76,10 +76,12 @@ const { qqmusicSong } = await import('./apps/song.js')
 const { qqmusicTogether } = await import('./apps/together.js')
 const { qqmusicAdmin } = await import('./apps/admin.js')
 const { qqmusicExtras } = await import('./apps/extras.js')
+const { qqmusicTicket } = await import('./apps/ticket.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
 
 const modules = [
+  { name: '演出票务', class: qqmusicTicket },
   { name: '排行榜/推荐/电台', class: qqmusicChart },
   { name: '歌手/专辑/歌单/评论', class: qqmusicExplore },
   { name: '扫码登录', class: qqmusicLogin },
@@ -118,6 +120,14 @@ console.log('\n=== 命令路由测试 ===\n')
 
 /** [命令, 期望命中的 fnc（null=不应被任何规则匹配）] */
 const cases = [
+  ['#qqm演唱会', 'ticket'],
+  ['#qqm近期演唱会 城市=北京', 'ticket'],
+  ['#qqm未来演出', 'ticket'],
+  ['#qqm往期演唱会 周杰伦', 'ticket'],
+  ['#qqm演出详情1', 'ticket'],
+  ['#qqm演出详情 m123', 'ticket'],
+  ['#qqm演出下一页', 'ticket'],
+  ['#qqm演出同步 北京', 'ticket'],
   // 点歌 / 选曲
   // 点歌 + 播放合成一条规则（onSongCmd），动词由解析决定动作
   ['#qqm点歌 晴天', 'onSongCmd'],
@@ -482,7 +492,8 @@ try {
 
   // 热更新：mtime 变了才要重新编译模板。用临时文件验，不碰仓库里的真模板
   const scratch = new URL('./temp/_theme-mtime-test.html', import.meta.url)
-  const { writeFileSync, unlinkSync, utimesSync } = await import('node:fs')
+  const { mkdirSync, writeFileSync, unlinkSync, utimesSync } = await import('node:fs')
+  mkdirSync(path.dirname(fileURLToPath(scratch)), { recursive: true })
   writeFileSync(scratch, 'a')
   const firstSeen = fileChanged(scratch) // 首次必然 true（反正也要编译）
   const secondSeen = fileChanged(scratch) // 没动过 → false
@@ -1031,7 +1042,7 @@ function asyncCheck(name, got, want) {
 
   // 真实 app 类也要包得住（test.mjs 顶部已经 import 了这 8 个）
   const hardenedClasses = modules.map((m) => A.hardenPlugin(m.class, m.name))
-  asyncCheck('hardenPlugin：8 个 app 类都能包', hardenedClasses.length, 8)
+  asyncCheck('hardenPlugin：全部 app 类都能包', hardenedClasses.length, modules.length)
   asyncCheck('hardenPlugin：包装后 instanceof 原类不变', hardenedClasses.every((c, i) => new c() instanceof modules[i].class), true)
   asyncCheck('hardenPlugin：原始类留了痕（__qqmBase）', hardenedClasses.every((c, i) => c.__qqmBase === modules[i].class), true)
   const indexSrc = fs.readFileSync(path.join(pluginRoot, 'index.js'), 'utf8')

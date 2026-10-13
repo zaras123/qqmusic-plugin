@@ -160,7 +160,7 @@ function emptyUrlResult(type, mediaId, extra = {}) {
   }
 }
 
-export async function request(pathname, params = {}, method = 'get', userKey = '') {
+export async function request(pathname, params = {}, method = 'get', userKey = '', { timeout = 20000 } = {}) {
   const base = getBase()
   const url = `${base}${pathname.startsWith('/') ? pathname : `/${pathname}`}`
 
@@ -203,7 +203,7 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
       method,
       params: method === 'get' ? params : undefined,
       data: method === 'post' ? params : undefined,
-      timeout: 20000,
+      timeout,
       headers: Object.keys(headers).length ? headers : undefined,
       validateStatus: () => true,
     })

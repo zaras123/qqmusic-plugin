@@ -18,6 +18,20 @@ import { QUALITY_LABEL } from './quality.js'
 /** 全部帮助条目；master: true = 仅主人渲染（与 rule 的 permission: 'master' 对应） */
 const SECTIONS = [
   {
+    title: '演出票务',
+    tag: '档案',
+    items: [
+      { name: '未来演唱会', desc: '查询未结束的已归档演唱会', example: '#qqm演唱会' },
+      { name: '近期开演', desc: '七天内开演的演唱会', example: '#qqm近期演唱会' },
+      { name: '历史演出', desc: '查询已收录的往期演出', example: '#qqm往期演唱会' },
+      { name: '筛选演出', desc: '城市、艺人、关键词、分类与页码', example: '#qqm演出 城市=北京' },
+      { name: '演出详情', desc: '艺人、地点、场次、票档和简介提及曲目', example: '#qqm演出详情1' },
+      { name: '演出翻页', desc: '保留当前筛选；序号按当前页选择', example: '#qqm演出下一页' },
+      { name: '票务帮助', desc: '查询写法、城市与分类入口', example: '#qqm演出帮助' },
+      { name: '同步城市', desc: '把一个城市的公开演出收录到档案', example: '#qqm演出同步 北京', master: true },
+    ],
+  },
+  {
     title: '点歌播放',
     tag: '全员',
     items: [
@@ -318,6 +332,8 @@ export function formatGuideText(e) {
   const isMaster = e?.isMaster === true
   return [
     '【QQ音乐插件 2.0 帮助】',
+    '— 演出票务 —',
+    '#qqm演唱会 / #qqm近期演唱会 / #qqm往期演唱会 / #qqm演出帮助',
     '— 点歌 —',
     '#qqm点歌 七里香        （QQ 曲库；列表尾部自动补其它平台的免费曲）',
     // 与卡片一致：教**最短写法**（动词可省），不再演示冗长的全称版

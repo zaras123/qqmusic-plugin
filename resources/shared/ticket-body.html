@@ -1,0 +1,61 @@
+<main class="page ticket-page">
+  <header class="ticket-head">
+    <div class="ticket-brand"><img src="resources/img/logo.png" alt="" /> QQ音乐 / 演出票务</div>
+    <h1>{{data.title}}</h1>
+    <p>{{data.subtitle}}</p>
+  </header>
+  {{if data.detail}}
+    <section class="ticket-overview">
+      {{if data.row.poster}}<img class="ticket-poster" src="{{data.row.poster}}" alt="演出海报" />{{/if}}
+      <div class="ticket-info">
+        <p class="ticket-status">{{data.row.status}}{{if data.row.soldOut}} / 已售罄{{/if}}</p>
+        <p class="ticket-price">{{data.row.price}}</p>
+        <p>艺人：{{data.row.artist}}</p>
+        <p>{{data.row.when}}</p>
+        <p>{{data.row.city}} / {{data.row.venue}}</p>
+        {{if data.row.address}}<p>{{data.row.address}}</p>{{/if}}
+        {{if data.sale}}<p>{{data.sale}}</p>{{/if}}
+      </div>
+    </section>
+    <p class="ticket-source">{{data.sourceNote}}</p>
+    {{if data.warning}}<p class="ticket-warning">{{data.warning}}</p>{{/if}}
+    <section class="ticket-section">
+      <h2>场次与票档</h2>
+      {{each data.sessions session}}
+      <article class="ticket-session">
+        <h3>{{session.name}}</h3><p>{{session.when}}</p>
+        {{if session.sale}}<p>{{session.sale}}</p>{{/if}}
+        {{each session.tiers tier}}
+        <div class="ticket-tier"><span>{{tier.level}}</span><strong>{{tier.price}}</strong><span>{{tier.state}}</span></div>
+        {{/each}}
+        {{if !session.tiers.length}}<p>票档待公布</p>{{/if}}
+      </article>
+      {{/each}}
+      {{if !data.sessions.length}}<p>暂无场次与票档信息</p>{{/if}}
+    </section>
+    <section class="ticket-section">
+      <h2>简介提及曲目</h2><p class="ticket-muted">不代表实际演出歌单</p>
+      <p>{{if data.songs.length}}{{data.songs.join(' / ')}}{{else}}暂无信息{{/if}}</p>
+    </section>
+    {{if data.summary}}<section class="ticket-section"><h2>演出简介</h2><p>{{data.summary}}</p></section>{{/if}}
+  {{else}}
+    <p class="ticket-page-count">{{data.pageText}}</p>
+    {{each data.rows show}}
+    <article class="ticket-row">
+      <span class="ticket-number">{{show.index}}</span>
+      {{if show.poster}}<img class="ticket-thumb" src="{{show.poster}}" alt="" />{{/if}}
+      <div class="ticket-info">
+        <h2>{{show.name}}</h2>
+        <p class="ticket-status">{{show.status}} / {{show.key}}</p>
+        <p>艺人：{{show.artist}}</p>
+        <p>{{show.when}}</p>
+        <p>{{show.city}} / {{show.venue}}</p>
+        <p class="ticket-price">{{show.price}}{{if show.soldOut}} / 已售罄{{/if}}</p>
+      </div>
+    </article>
+    {{/each}}
+    {{if !data.rows.length}}<p class="ticket-empty">{{data.empty}}</p>{{/if}}
+    <p class="ticket-source">{{data.updated}}</p>
+  {{/if}}
+  <footer class="ticket-foot">{{data.notice}}</footer>
+</main>
