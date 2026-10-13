@@ -128,6 +128,10 @@ const cases = [
   ['#qqm演出详情 m123', 'ticket'],
   ['#qqm演出下一页', 'ticket'],
   ['#qqm演出同步 北京', 'ticket'],
+  ['#qqm演唱会 宋雨琦', 'ticket'],
+  ['#qqm演出 未来 宋雨琦', 'ticket'],
+  ['#qqm演出同步 宋雨琦', 'ticket'],
+  ['#qqm演出同步 北京,上海', 'ticket'],
   // 点歌 / 选曲
   // 点歌 + 播放合成一条规则（onSongCmd），动词由解析决定动作
   ['#qqm点歌 晴天', 'onSongCmd'],
@@ -319,6 +323,47 @@ for (const input of negative) {
     allPassed = false
     console.log(`❌ ${input} → 不该匹配，却命中 ${hits.map((h) => h.fnc).join('/')}`)
   }
+}
+
+// ──────────── 票务命令解析：自然写法（裸词=关键词，同步非城市转检索）────────────
+//
+// 用户不想写 `艺人=宋雨琦`；裸词必须直接当关键词/城市查，`同步` 也不能因为不是城市就把人劝退。
+console.log('\n=== 票务命令解析 ===\n')
+{
+  const T = await import('./utils/ticket.js')
+  const parseCases = [
+    // [输入, 期望 action, 期望关键字段]
+    ['#qqm演唱会', 'list', { group: 'concert', status: 'upcoming', q: '' }],
+    ['#qqm演唱会 宋雨琦', 'list', { group: 'concert', q: '宋雨琦' }],
+    ['#qqm演出 北京', 'list', { group: '', q: '北京' }],
+    ['#qqm演出 未来 宋雨琦', 'list', { status: 'upcoming', q: '宋雨琦' }],
+    ['#qqm演出 艺人=宋雨琦', 'list', { artist: '宋雨琦' }],
+    ['#qqm演出同步 北京', 'sync', { city: '北京' }],
+    ['#qqm演出同步 宋雨琦', 'sync', { city: '宋雨琦' }], // 非城市也放行，交给上游判定后回退检索
+    ['#qqm演出同步 北京,上海', 'sync', { city: '北京,上海' }],
+  ]
+  let tok = 0
+  let tbad = 0
+  for (const [input, action, want] of parseCases) {
+    const got = T.parseTicketCommand(input)
+    const match = got && got.action === action && Object.entries(want).every(([k, v]) => {
+      const actual = k in got ? got[k] : got.filters?.[k]
+      return actual === v
+    })
+    if (match) tok++
+    else {
+      tbad++
+      allPassed = false
+      console.log(`❌ 票务解析 ${input} → ${JSON.stringify(got)}，期望 ${action} ${JSON.stringify(want)}`)
+    }
+  }
+  // 带 艺人= 的同步输入要给出可读错误，而不是静默当城市
+  const badSync = T.parseTicketCommand('#qqm演出同步 艺人=宋雨琦')
+  if (badSync?.error) tok++
+  else { tbad++; allPassed = false; console.log(`❌ 票务解析：#qqm演出同步 艺人=宋雨琦 应报错，实际 ${JSON.stringify(badSync)}`) }
+  if (!tbad) console.log(`✅ 票务命令解析 ${tok}/${parseCases.length + 1} 符合预期（裸词/艺人=等价，同步非城市转检索）`)
+  routeOk += tok
+  routeBad += tbad
 }
 
 // ──────────── 权限抽查：master 命令是否都标注了 permission ────────────

@@ -43,6 +43,23 @@ export class qqmusicTicket extends (await loadPluginBase()) {
         try {
           await e.reply(`正在同步${cmd.city}的演出档案，可能需要几分钟。`)
           const d = await ticketSync(cmd.city, uid, { detailLimit: 80 })
+          const unknown = (d.unknownCities || []).map((s) => String(s).trim()).filter(Boolean)
+          const gotData = (d.synced || []).some((s) => Number(s.count) > 0)
+          if (unknown.length && !gotData) {
+            // 「宋雨琦」这类不是城市：转成艺人/关键词实时检索，省得用户手写 艺人=
+            const keyword = unknown[0]
+            await e.reply(`「${keyword}」不在城市表里，我按艺人/关键词帮你检索演出。`)
+            const kwFilters = { status: 'all', category: '', group: '', city: '', artist: '', q: keyword, page: 1, pageSize: TICKET_PAGE_SIZE }
+            const found = await ticketArchive({ ...kwFilters, refresh: 1 }, uid)
+            if (found.list.length) {
+              await setSession(scope, { type: 'ticket', user_id: uid, filters: { ...kwFilters, page: found.page, pageSize: found.pageSize }, total: found.total, data: found.list.map((s) => ({ key: s.key })) }, 600)
+              await this.sendTicketCard(e, cfg, buildTicketList(found, kwFilters), formatTicketList)
+              await e.reply('详情：#qqm演出详情1\n翻页：#qqm演出下一页 / #qqm演出上一页')
+            } else {
+              await e.reply(`暂时没查到「${keyword}」的演出；可能还没开售，或档案尚未覆盖到。`)
+            }
+            return true
+          }
           const synced = (d.synced || []).map((s) => `${s.city} ${s.count} 场`).join('、') || cmd.city
           const partial = (d.synced || []).some((s) => s.partial) || Number(d.pendingDetails) > 0
           const lines = (d.synced || []).length ? [

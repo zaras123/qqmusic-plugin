@@ -7,9 +7,9 @@ export const TICKET_NOTICE = '历史记录仅覆盖已归档演出，并非完�
 export const TICKET_HELP = [
   '【演出票务】',
   '#qqm演唱会 / #qqm近期演唱会 / #qqm往期演唱会',
-  '#qqm演出 未来 城市=北京 艺人=周杰伦',
-  '#qqm演出 全部 关键词=音乐节 页=2',
-  '#qqm演出下一页 / #qqm演出上一页',
+  '#qqm演唱会 宋雨琦 / #qqm演出 北京 / #qqm演出 音乐节',
+  '直接写艺人、城市或关键词即可；精确筛选用 城市= 艺人= 关键词=。',
+  '#qqm演出 全部 页=2 / #qqm演出下一页 / #qqm演出上一页',
   '#qqm演出详情1 / #qqm演出详情 e21325',
   '#qqm演出城市 / #qqm演出分类',
   '查询会自动补全本地缺失的实时演出并保存；历史记录仍只覆盖已归档场次。',
@@ -39,10 +39,10 @@ export function parseTicketCommand(text = '') {
   if (tail === '城市' || tail === '分类') return { action: tail === '城市' ? 'cities' : 'categories' }
   if (tail === '下一页' || tail === '上一页') return { action: 'page', delta: tail === '下一页' ? 1 : -1 }
   if (tail.startsWith('同步')) {
-    const city = tail.slice(2).trim()
-    return city && city.length <= 30 && !/[,，\s=：:]/.test(city)
-      ? { action: 'sync', city }
-      : { error: '请指定一个城市，例如 #qqm演出同步 北京（仅主人）' }
+    const target = tail.slice(2).trim()
+    if (!target || target.length > 30) return { error: '请填写城市或艺人名，例如 #qqm演出同步 北京 / #qqm演出同步 宋雨琦（仅主人）' }
+    if (/[=：:]/.test(target)) return { error: '同步直接写城市或艺人名即可，例如 #qqm演出同步 北京。' }
+    return { action: 'sync', city: target }
   }
   const filters = {
     status: STATUS[m[1]] || 'upcoming',

@@ -24,11 +24,11 @@ const SECTIONS = [
       { name: '未来演唱会', desc: '本地缺失时自动补全实时演出并保存', example: '#qqm演唱会' },
       { name: '近期开演', desc: '七天内开演的演唱会', example: '#qqm近期演唱会' },
       { name: '历史演出', desc: '查询已收录的往期演出', example: '#qqm往期演唱会' },
-      { name: '筛选演出', desc: '城市、艺人、关键词、分类与页码', example: '#qqm演出 城市=北京' },
+      { name: '筛选演出', desc: '直接写艺人、城市或关键词，逗号空格可叠加', example: '#qqm演唱会 宋雨琦' },
       { name: '演出详情', desc: '艺人、地点、场次、票档和简介提及曲目', example: '#qqm演出详情1' },
       { name: '演出翻页', desc: '保留当前筛选；序号按当前页选择', example: '#qqm演出下一页' },
       { name: '票务帮助', desc: '查询写法、城市与分类入口', example: '#qqm演出帮助' },
-      { name: '同步城市', desc: '把一个城市的公开演出收录到档案', example: '#qqm演出同步 北京', master: true },
+      { name: '同步档案', desc: '城市或艺人名都行：城市按城市收录，艺人名自动检索', example: '#qqm演出同步 北京', master: true },
     ],
   },
   {
