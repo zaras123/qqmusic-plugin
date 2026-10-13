@@ -9,11 +9,21 @@ function payload(body) {
 
 export async function ticketArchive(filters, userKey = '', { timeout = 45000 } = {}) {
   const d = payload(await request('/ticket/archive', filters, 'get', userKey, { timeout }))
-  if (!Array.isArray(d.list) || !Number.isSafeInteger(d.total) || d.total < 0 ||
-      !Number.isSafeInteger(d.page) || d.page < 1 || !Number.isSafeInteger(d.pageSize) || d.pageSize < 1) {
+  const total = Number(d.total)
+  const page = Number(d.page)
+  const pageSize = Number(d.pageSize)
+  if (!Array.isArray(d.list) || !Number.isFinite(total) || total < 0) {
     throw new Error('Invalid ticket archive')
   }
-  return d
+  // 兼容旧版 API：分页信息缺失时按本次请求补默认值，不让同步后的预览把整条命令带崩。
+  return {
+    ...d,
+    total: Math.trunc(total),
+    page: Number.isSafeInteger(page) && page > 0 ? page : 1,
+    pageSize: Number.isSafeInteger(pageSize) && pageSize > 0
+      ? pageSize
+      : (Number(filters?.pageSize) || 6),
+  }
 }
 
 export async function ticketShow(key, userKey = '') {

@@ -72,7 +72,7 @@ test('ticket API sends filters, detail IDs and one-city sync with bounded timeou
     axios.defaults.adapter = async (config) => {
       calls.push(config)
       let data = {}
-      if (config.url.endsWith('/archive')) data = { list: [{ key: 'e1', name: '测试演出' }], total: 1, page: 1, pageSize: 6, meta: { count: 1 } }
+      if (config.url.endsWith('/archive')) data = { list: [{ key: 'e1', name: '测试演出' }], total: 1, page: 1, meta: { count: 1 } }
       if (config.url.endsWith('/show')) data = { key: 'e1', name: '测试演出' }
       if (config.url.endsWith('/cities')) data = { cities: [{ name: '北京' }] }
       if (config.url.endsWith('/categories')) data = { list: [{ name: '演唱会' }] }
@@ -80,7 +80,9 @@ test('ticket API sends filters, detail IDs and one-city sync with bounded timeou
       return { data: { result: 100, data }, status: 200, statusText: 'OK', headers: {}, config }
     }
     const filters = { status: 'past', city: '北京', category: '演唱会', page: 1, pageSize: 6 }
-    assert.equal((await ticketArchive(filters, '42')).list[0].key, 'e1')
+    const archive = await ticketArchive(filters, '42')
+    assert.equal(archive.list[0].key, 'e1')
+    assert.equal(archive.pageSize, 6)
     assert.equal((await ticketShow('e1', '42')).name, '测试演出')
     assert.equal((await ticketOptions('cities', '42'))[0].name, '北京')
     assert.equal((await ticketOptions('categories', '42'))[0].name, '演唱会')

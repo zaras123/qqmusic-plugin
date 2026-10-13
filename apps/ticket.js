@@ -51,24 +51,30 @@ export class qqmusicTicket extends (await loadPluginBase()) {
           ] : [`演出同步未完成：${(d.errors || []).slice(0, 3).map((x) => x.message || x).join('；') || '上游暂时没有返回可用数据。'}`]
           if (partial) lines.push('部分分页或详情还没补完，再发一次同步会从上次位置继续。')
           if (d.errors?.length) lines.push(`部分数据暂未同步：${d.errors.slice(0, 3).map((x) => x.message || x).join('；')}`)
+          if (d.hints?.length) lines.push(d.hints.map((x) => x.message || x).join('；'))
           await e.reply(lines.join('\n'))
 
-          const preview = await ticketArchive({
-            status: 'upcoming', category: '', group: 'concert', city: cmd.city,
-            artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE,
-          }, uid)
-          if (preview.list.length) {
-            await setSession(scope, {
-              type: 'ticket', user_id: uid,
-              filters: { status: 'upcoming', category: '', group: 'concert', city: cmd.city, artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE },
-              total: preview.total,
-              data: preview.list.map((s) => ({ key: s.key })),
-            }, 600)
-            await this.sendTicketCard(e, cfg, buildTicketList(preview, {
+          try {
+            const preview = await ticketArchive({
               status: 'upcoming', category: '', group: 'concert', city: cmd.city,
               artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE,
-            }), formatTicketList)
-            await e.reply('以上是已收录的近期/未来演唱会。详情：#qqm演出详情1')
+            }, uid)
+            if (preview.list.length) {
+              await setSession(scope, {
+                type: 'ticket', user_id: uid,
+                filters: { status: 'upcoming', category: '', group: 'concert', city: cmd.city, artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE },
+                total: preview.total,
+                data: preview.list.map((s) => ({ key: s.key })),
+              }, 600)
+              await this.sendTicketCard(e, cfg, buildTicketList(preview, {
+                status: 'upcoming', category: '', group: 'concert', city: cmd.city,
+                artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE,
+              }), formatTicketList)
+              await e.reply('以上是已收录的近期/未来演唱会。详情：#qqm演出详情1')
+            }
+          } catch (err) {
+            global.logger?.warn?.(`[qqmusic-plugin] 同步后预览失败: ${err.message || err}`)
+            await e.reply('同步已完成，但预览查询失败。请确认 qqmusic-api-enhanced 已更新到最新包后重试。')
           }
         } finally { syncBusy = false; lastSync = Date.now() }
         return true
