@@ -21,7 +21,7 @@ const SECTIONS = [
     title: '演出票务',
     tag: '档案',
     items: [
-      { name: '未来演唱会', desc: '查询未结束的已归档演唱会', example: '#qqm演唱会' },
+      { name: '未来演唱会', desc: '本地缺失时自动补全实时演出并保存', example: '#qqm演唱会' },
       { name: '近期开演', desc: '七天内开演的演唱会', example: '#qqm近期演唱会' },
       { name: '历史演出', desc: '查询已收录的往期演出', example: '#qqm往期演唱会' },
       { name: '筛选演出', desc: '城市、艺人、关键词、分类与页码', example: '#qqm演出 城市=北京' },
