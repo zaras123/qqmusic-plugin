@@ -12,6 +12,7 @@ export const TICKET_HELP = [
   '#qqm演出下一页 / #qqm演出上一页',
   '#qqm演出详情1 / #qqm演出详情 e21325',
   '#qqm演出城市 / #qqm演出分类',
+  '查询会自动补全本地缺失的实时演出并保存；历史记录仍只覆盖已归档场次。',
   '演出按自己的查询列表选序号，十分钟内有效；与点歌列表独立。',
   TICKET_NOTICE,
 ].join('\n')
@@ -43,7 +44,16 @@ export function parseTicketCommand(text = '') {
       ? { action: 'sync', city }
       : { error: '请指定一个城市，例如 #qqm演出同步 北京（仅主人）' }
   }
-  const filters = { status: STATUS[m[1]] || 'upcoming', category: m[2] === '演唱会' ? '演唱会' : '', city: '', artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE }
+  const filters = {
+    status: STATUS[m[1]] || 'upcoming',
+    category: '',
+    group: m[2] === '演唱会' ? 'concert' : '',
+    city: '',
+    artist: '',
+    q: '',
+    page: 1,
+    pageSize: TICKET_PAGE_SIZE,
+  }
   const words = tail.split(/\s+/).filter(Boolean)
   if (STATUS[words[0]]) filters.status = STATUS[words.shift()]
   const keywords = []
@@ -129,12 +139,20 @@ function updateTime(value) {
 
 export function buildTicketList(data, filters) {
   const rows = data.list.map((s, i) => ticketRow(s, i + 1))
+  const auto = data.meta?.refresh || {}
+  const label = filters.group === 'concert' ? '演唱会' : (filters.category || '演出')
+  const refreshed = auto.attempted
+    ? `本次自动补全：新增 ${Number(auto.added) || 0} 场 / 更新 ${Number(auto.updated) || 0} 场`
+    : '档案缓存'
+  const empty = Number(data.meta?.count) === 0
+    ? (auto.attempted ? '已自动查询实时演出，但没有返回数据；请指定城市或稍后再试。' : '档案库尚未收录演出，请联系主人同步城市。')
+    : (auto.attempted ? '没有符合条件的结果；已自动查询实时演出，可换个城市或关键词再试。' : '没有符合条件的已归档演出。')
   return {
-    title: `${LABEL[filters.status] || '全部'}${filters.category || '演出'}`, detail: false,
+    title: `${LABEL[filters.status] || '全部'}${label}`, detail: false,
     subtitle: [filters.city || '全国', filters.artist, filters.q].filter(Boolean).join(' / '),
     rows, pageText: `第 ${data.page} / ${Math.max(1, Math.ceil(data.total / data.pageSize))} 页，共 ${data.total} 场`,
-    notice: TICKET_NOTICE, updated: `档案更新：${updateTime(data.meta?.updatedAt)}`,
-    empty: Number(data.meta?.count) === 0 ? '档案库尚未收录演出，请联系主人同步城市。' : '没有符合条件的已归档演出。',
+    notice: TICKET_NOTICE, updated: `档案更新：${updateTime(data.meta?.updatedAt)} · ${refreshed}`,
+    empty,
   }
 }
 

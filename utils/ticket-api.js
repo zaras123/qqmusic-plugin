@@ -7,8 +7,8 @@ function payload(body) {
   return body.data
 }
 
-export async function ticketArchive(filters, userKey = '') {
-  const d = payload(await request('/ticket/archive', filters, 'get', userKey))
+export async function ticketArchive(filters, userKey = '', { timeout = 45000 } = {}) {
+  const d = payload(await request('/ticket/archive', filters, 'get', userKey, { timeout }))
   if (!Array.isArray(d.list) || !Number.isSafeInteger(d.total) || d.total < 0 ||
       !Number.isSafeInteger(d.page) || d.page < 1 || !Number.isSafeInteger(d.pageSize) || d.pageSize < 1) {
     throw new Error('Invalid ticket archive')
@@ -29,6 +29,6 @@ export async function ticketOptions(kind, userKey = '') {
   return list
 }
 
-export async function ticketSync(city, userKey = '') {
-  return payload(await request('/ticket/sync', { city, limit: 1 }, 'post', userKey, { timeout: 180000 }))
+export async function ticketSync(city, userKey = '', { detailLimit = 80 } = {}) {
+  return payload(await request('/ticket/sync', { city, limit: 1, detailLimit }, 'post', userKey, { timeout: 180000 }))
 }

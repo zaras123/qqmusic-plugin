@@ -7,7 +7,10 @@ import { ticketArchive, ticketShow, ticketOptions, ticketSync } from '../utils/t
 import Config from '../components/Config.js'
 
 test('parses ticket commands and rejects malformed filters', () => {
-  assert.equal(parseTicketCommand('#qqm演唱会').filters.status, 'upcoming')
+  const concert = parseTicketCommand('#qqm演唱会').filters
+  assert.equal(concert.status, 'upcoming')
+  assert.equal(concert.group, 'concert')
+  assert.equal(concert.category, '')
   const past = parseTicketCommand('#qqm往期演唱会 周杰伦 城市=北京 页=2').filters
   assert.deepEqual([past.status, past.city, past.q, past.page], ['past', '北京', '周杰伦', 2])
   assert.equal(parseTicketCommand('#qqm演出 进行中 艺人=林俊杰').filters.status, 'ongoing')
@@ -36,6 +39,13 @@ test('renders truthful archive data and page-local indexes', () => {
   assert.equal(data.rows[0].index, 1)
   assert.match(data.empty, /尚未收录/)
   assert.match(formatTicketList(data), /历史记录仅覆盖已归档/)
+  const live = buildTicketList(
+    { list: [], page: 1, pageSize: 6, total: 0, meta: { count: 0, refresh: { attempted: true, added: 2, updated: 1 } } },
+    { status: 'upcoming', group: 'concert', category: '', city: '', artist: '', q: '', page: 1, pageSize: 6 }
+  )
+  assert.match(live.title, /演唱会/)
+  assert.match(live.updated, /自动补全/)
+  assert.match(live.empty, /实时演出/)
   const detail = buildTicketDetail({ key: 'e1', name: '演唱会', dataSource: 'archive', songs: ['晴天'], sessions: [{ tiers: [{ price: 380, soldOut: true }] }] })
   const text = formatTicketDetail(detail)
   assert.match(text, /简介提及曲目（不代表实际歌单）/)
@@ -79,7 +89,7 @@ test('ticket API sends filters, detail IDs and one-city sync with bounded timeou
     assert.deepEqual(calls[0].params, { ...filters, userKey: '42' })
     assert.equal(calls[1].params.id, 'e1')
     assert.equal(calls[4].method, 'post')
-    assert.deepEqual(JSON.parse(calls[4].data), { city: '北京', limit: 1, userKey: '42' })
+    assert.deepEqual(JSON.parse(calls[4].data), { city: '北京', limit: 1, detailLimit: 80, userKey: '42' })
     assert.equal(calls[4].timeout, 180000)
     assert.equal(calls[4].headers['x-api-token'], 'test-token')
   } finally {

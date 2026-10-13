@@ -42,8 +42,34 @@ export class qqmusicTicket extends (await loadPluginBase()) {
         syncBusy = true
         try {
           await e.reply(`正在同步${cmd.city}的演出档案，可能需要几分钟。`)
-          const d = await ticketSync(cmd.city, uid)
-          await e.reply(`演出同步完成，档案共 ${d.store?.shows ?? 0} 场。${d.errors?.length ? '部分数据未同步成功，请稍后重试。' : ''}\n发送 #qqm演出 城市=${cmd.city} 查看。`)
+          const d = await ticketSync(cmd.city, uid, { detailLimit: 80 })
+          const synced = (d.synced || []).map((s) => `${s.city} ${s.count} 场`).join('、') || cmd.city
+          const partial = (d.synced || []).some((s) => s.partial) || Number(d.pendingDetails) > 0
+          const lines = (d.synced || []).length ? [
+            `演出同步完成（${synced}）：新增 ${d.added || 0} 场，更新 ${d.updated || 0} 场，补全 ${d.enriched || 0} 场详情。`,
+            `档案共 ${d.store?.shows ?? 0} 场。`,
+          ] : [`演出同步未完成：${(d.errors || []).slice(0, 3).map((x) => x.message || x).join('；') || '上游暂时没有返回可用数据。'}`]
+          if (partial) lines.push('部分分页或详情还没补完，再发一次同步会从上次位置继续。')
+          if (d.errors?.length) lines.push(`部分数据暂未同步：${d.errors.slice(0, 3).map((x) => x.message || x).join('；')}`)
+          await e.reply(lines.join('\n'))
+
+          const preview = await ticketArchive({
+            status: 'upcoming', category: '', group: 'concert', city: cmd.city,
+            artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE,
+          }, uid)
+          if (preview.list.length) {
+            await setSession(scope, {
+              type: 'ticket', user_id: uid,
+              filters: { status: 'upcoming', category: '', group: 'concert', city: cmd.city, artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE },
+              total: preview.total,
+              data: preview.list.map((s) => ({ key: s.key })),
+            }, 600)
+            await this.sendTicketCard(e, cfg, buildTicketList(preview, {
+              status: 'upcoming', category: '', group: 'concert', city: cmd.city,
+              artist: '', q: '', page: 1, pageSize: TICKET_PAGE_SIZE,
+            }), formatTicketList)
+            await e.reply('以上是已收录的近期/未来演唱会。详情：#qqm演出详情1')
+          }
         } finally { syncBusy = false; lastSync = Date.now() }
         return true
       }
@@ -75,14 +101,15 @@ export class qqmusicTicket extends (await loadPluginBase()) {
         }
         filters = { ...session.filters, page }
       }
-      const d = await ticketArchive(filters, uid)
+      const d = await ticketArchive({ ...filters, refresh: 1 }, uid)
       if (!d.list.length && filters.page > 1) {
         await e.reply(`这一页没有演出，当前共 ${d.total} 场。请重新查询或减少页码。`); return true
       }
       await setSession(scope, { type: 'ticket', user_id: uid, filters: { ...filters, page: d.page, pageSize: d.pageSize }, total: d.total, data: d.list.map((s) => ({ key: s.key })) }, 600)
       await this.sendTicketCard(e, cfg, buildTicketList(d, filters), formatTicketList)
       if (d.list.length) await e.reply('详情：#qqm演出详情1\n翻页：#qqm演出下一页 / #qqm演出上一页')
-      else if (Number(d.meta?.count) === 0 && e.isMaster) await e.reply('先发送 #qqm演出同步 北京 收录城市演出。')
+      else if (Number(d.meta?.refresh?.errors?.length || 0) > 0) await e.reply('实时补全暂时有错误，已先显示本地档案；请稍后再试。')
+      else if (Number(d.meta?.count) === 0 && e.isMaster) await e.reply('已自动查询实时数据，但仍没有结果；可指定城市后再试。')
     } catch (err) {
       await e.reply(ticketError(err))
     } finally { active.delete(lock) }
