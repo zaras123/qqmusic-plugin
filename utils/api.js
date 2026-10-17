@@ -160,7 +160,13 @@ function emptyUrlResult(type, mediaId, extra = {}) {
   }
 }
 
-export async function request(pathname, params = {}, method = 'get', userKey = '', { timeout = 20000 } = {}) {
+export async function request(
+  pathname,
+  params = {},
+  method = 'get',
+  userKey = '',
+  { timeout = 20000, asUser = false } = {}
+) {
   const base = getBase()
   const url = `${base}${pathname.startsWith('/') ? pathname : `/${pathname}`}`
 
@@ -176,7 +182,10 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
   // 哪些接口按"请求者本人"取槽位：
   //   · 登录 / 凭据类 —— 凭据是一人一号（isPerUserScopePath）
   //   · Apple 音源     —— 每人一个号一个 cookie（isAppleScopedRequest）
-  const perUserScoped = isPerUserScopePath(pathname) || isAppleScopedRequest(pathname, params)
+  // asUser：调用方明确要求「按请求者本人」读取（例如平台侧个人勋章进度）。
+  // 这类查询不能被「一律走主人账号」顶掉，否则群友看到的是主人的进度。
+  const perUserScoped =
+    asUser === true || isPerUserScopePath(pathname) || isAppleScopedRequest(pathname, params)
   const effectiveUserKey = publicAccount && forceMaster && !perUserScoped ? publicAccount : userKey
 
   // 多账号：带 userKey（机器人侧调用者标识，通常是 QQ 号）

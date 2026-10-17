@@ -8,6 +8,8 @@
   "license": "MIT",
   "scripts": {
     "test:ticket": "node --test scripts/test-ticket.mjs",
+    "test:stats": "node --test scripts/test-stats.mjs",
+    "test:medal": "node --test scripts/test-medal.mjs",
     "gen-logo": "node ./scripts/gen-logo.js"
   },
   "dependencies": {

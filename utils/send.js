@@ -925,6 +925,36 @@ async function syncTogetherAfterSend(e, song, cfg) {
 }
 
 /**
+ * 听歌统计记账（deliverSong 收尾调用）
+ *
+ * 与一起听同步共用两个收尾点 —— 歌**真的发出去了**才记一笔：
+ *   · no_url 早退分支**不记**（点歌失败不该算"听了一首"）
+ *   · 只发文案/音乐卡那条分支要记（歌的信息确实已经进群了）
+ * 记账失败只写日志，**绝不**改 deliverSong 的返回值（chart/resolve 也在调它）。
+ */
+async function recordStatsAfterSend(e, song, cfg) {
+  try {
+    const { statsConfig, scopeOf, recordPlay } = await import('./stats.js')
+    const sc = statsConfig(cfg)
+    if (!sc.enable) return
+    const scope = scopeOf(e)
+    if (!scope) return
+    recordPlay(
+      {
+        groupId: scope,
+        userId: String(e?.user_id || ''),
+        // 群名片优先（群里显示的就是这个），再回落昵称
+        name: e?.sender?.card || e?.sender?.nickname || e?.sender?.nick || '',
+        song,
+      },
+      sc
+    )
+  } catch (err) {
+    logWarn(`听歌统计记账异常: ${err.message}`)
+  }
+}
+
+/**
  * 把一条播放链换算成"插件**真正该去下载**的地址"
  *
  * ⚠️ 高规格档（母带 / 全景声 / Hi-Res）**必须**过这里 —— 这是 2026-09-30
@@ -1049,6 +1079,7 @@ export async function deliverSong(e, song, play, options = {}) {
   if (!needDownload) {
     // 只发文案/音乐卡也属于「发出去了」，同样同步一起听
     await syncTogetherAfterSend(e, song, cfg)
+    await recordStatsAfterSend(e, song, cfg)
     return { ok: true, downloaded: false, adapter: adapter.kind }
   }
 
@@ -1263,6 +1294,8 @@ export async function deliverSong(e, song, play, options = {}) {
 
   // 一起听：歌已经发出去了，再同步进群里的一起听（细节见 syncTogetherAfterSend）
   await syncTogetherAfterSend(e, song, cfg)
+  // 听歌统计：同上，真的发出去了才记这一笔
+  await recordStatsAfterSend(e, song, cfg)
 
   return { ok: true, downloaded: true, path: localPath, size, adapter: adapter.kind }
 }

@@ -135,11 +135,37 @@ export function parsePlatformStatusCmd(text = '') {
   return { plat: m?.[1] || '' }
 }
 
+/**
+ * 听歌统计：`#qqm听歌`（我的统计）/ `#qqm听歌榜 本周`（本群排行）
+ *
+ * ⚠️ 规则表与 handler 必须**共用这两条**（apps/stats.js 的 reg 直接写 `.source`）——
+ *    与上面平台状态同一条教训：两处各写一份，改了一处另一处还按老形状判，
+ *    症状是"命令能命中、参数却永远是默认值"。
+ * ⚠️ 形状上有意与「#qqm听N」（apps/song.js 里的 RE_LISTEN）错开：那条要求"听"字后面
+ *    **直接跟数字**，这两条跟的是"歌 / 榜 / 排行"，两边不会互吃。
+ */
+export const RE_MY_STATS = /^#?(?:qq|QQ)m\s*听歌\s*(?:统计|我的)?$/
+export const RE_STATS_BOARD = /^#?(?:qq|QQ)m\s*听歌\s*(?:榜|排行)\s*(今日|今天|本周|总榜|总计|总)?$/
+
+/**
+ * 勋章进度（只读）：`#qqm勋章` / `#qqm勋章任务` / `#qqm成就进度`
+ *
+ * 查的是**平台侧**的听歌时长与勋章任务进度（走 API /cgi 透传，需登录），
+ * 与上面两条「本地记账」是两回事，别混。
+ *
+ * ⚠️ 形状上有意与点歌规则错开：`勋章` / `成就` 都不是平台别名、也不是点歌动词，
+ *    所以既不会命中「平台 + 关键词」那条省动词分支，也不会命中 `#qqm点歌`。
+ */
+export const RE_MEDAL = /^#?(?:qq|QQ)m\s*(?:勋章|成就)\s*(?:进度|任务)?$/
+
 export default {
   RE_SONG_CMD,
   RE_PICK_PLAIN,
   RE_LYRIC_CMD,
   RE_PLATFORM_STATUS,
+  RE_MY_STATS,
+  RE_STATS_BOARD,
+  RE_MEDAL,
   RE_PLATFORM_CK,
   RE_PLATFORM_CK_CLEAR,
   parseSongCmd,

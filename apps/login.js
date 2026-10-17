@@ -70,10 +70,25 @@ const QR_PLATFORMS = {
  *    API 侧还会回 `retryAfterMs` 覆盖这个值（限流退避时会更大）。
  */
 const QR_POLL_MS = 5000
-const QR_TOTAL_MS = 150000 // ≈2.5 分钟，与二维码有效期同量级
-const QR_MAX_TRIES = 60 // 兜底：退避到很大间隔时也不会无限轮
+/**
+ * 总等待上限：**4 分钟**（2026-10-03 从 150s 放宽到 240s）。
+ *
+ * 依据：汽水上游 `expire_time` 实测**恒为 now+300 秒**（5 分钟），
+ * 原来只等 150s 就收工，等于**主动放弃了二维码寿命的后三分之一**。
+ * 之前不敢等满，是因为过期态会被状态映射吞成 'waiting'（已修，见下面的映射分支），
+ * 于是收工时只能报一句"扫码超时（没等到确认）"，分不清是真超时还是码已作废。
+ * 现在 expired / failed 会原样透传、各自有专门提示，所以等满 4 分钟是安全的：
+ * 真的过期会**提前**退出，不会白等。
+ * 留 60s 余量，避免踩在 300s 边缘上最后一刻才放弃。
+ */
+const QR_TOTAL_MS = 240000
+// 兜底：退避到很大间隔时也不会无限轮。
+// ⚠️ 必须 ≥ QR_TOTAL_MS / QR_POLL_MIN_MS 才不会**先于**总时长收工：
+//    240000 / 2000 = 120，原来配 60 的话，节奏一快就在 2 分钟处被这个计数器截断，
+//    QR_TOTAL_MS 放宽到 4 分钟也就白改了。
+const QR_MAX_TRIES = 130
 const QR_POLL_MIN_MS = 2000
-const QR_POLL_MAX_MS = 60000 // 上限跟着 API 的退避上限（60s）走
+const QR_POLL_MAX_MS = 20000 // 上限跟着 API 的退避上限（已从 60s 压到 20s）走
 
 /**
  * `#qqm<平台>登录` 的匹配式 —— **在模块加载时编译一次**
@@ -487,6 +502,9 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       let st = ''
       let tip = ''
       let errMsg = ''
+      // ⚠️ 和 st/tip 一样提到 try 外面：`d` 只在 try 块里有作用域，
+      //    而下面的终止态判断在 try 之外，直接读 d 会 ReferenceError。
+      let upstreamFailed = false
       // 凭据落到哪（API 自己算：主人 = 共享那份、别人 = 自己那份），回执里照抄它的话，
       // 别在插件里再猜一遍 —— 猜错的表现是"说全站可用，其实只有自己能用"
       let scopeText = ''
@@ -497,6 +515,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         st = String(d.status || '')
         tip = String(d.tip || d.message || '')
         scopeText = String(d.scopeText || '')
+        upstreamFailed = d.failed === true
         // 上游限流：API 已经替我们退避了，这里只把节奏跟上 + 提醒一次
         waitMs = clampPollMs(d.retryAfterMs)
         if (d.rateLimited === true) {
@@ -504,27 +523,48 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           // ⚠️ 连撞 3 次就不是"偶发限流"了：上游给这个端点的封禁比二维码寿命还长，
           //    继续等下去只会熬到二维码过期 —— 这时候必须给出**另一条路**，
           //    而不是让用户傻等（2026-09-25 用户日志：扫码成功后一路 error 7 到超时）
+          // ⚠️ 2026-10-03 归因修正：原来这里写的是"这个二维码多半等不到确认了，
+          // 建议等 1~2 分钟再发"，依据是"限流是我们自己轮询打出来的"。
+          // 实测三组（5s×20 / 400ms×40 / 6 并发×10）都打不出 error 7 ——
+          // 说明这个限流来自**抖音 App 自己的确认请求**，会自己好。
+          // 劝用户重发等于丢掉一个可能已经确认成功的码，所以改成让他继续点确认。
           if (Number(d.rateLimitHits || 0) >= 3 && !rateHardWarned) {
             rateHardWarned = true
-            const ckHint = ck ? `或者直接私聊粘贴凭据（最稳）：${ck.command} ${platformCookieValueHint(p.id)}` : ''
+            const ckHint = ck ? `实在等不来再私聊粘贴凭据：${ck.command} ${platformCookieValueHint(p.id)}` : ''
             // eslint-disable-next-line no-await-in-loop
             await e.reply(
-              [`${p.label} 上游**持续**限流（访问太频繁），这个二维码多半等不到确认了`, '建议：等 1~2 分钟再发一次；', ckHint]
+              [
+                `${p.label} 上游在忙（访问太频繁），已自动放慢轮询`,
+                // 话术由 API 按"扫没扫过"给（见 scannedBefore）—— 别在插件里再写一份：
+                // 用户**还没扫码**就被挡时，让他"继续点确认"是错的，该叫他重发码。
+                // 2026-10-03 用户日志证实过这个场景（status=new 时就撞上 error 7）。
+                tip || '请稍等，自动放慢轮询中',
+                ckHint,
+              ]
                 .filter(Boolean)
                 .join('\n')
             )
           } else if (!rateWarnedOnce) {
             rateWarnedOnce = true
             // eslint-disable-next-line no-await-in-loop
-            await e.reply(`${p.label} 上游限流（访问太频繁），已自动放慢轮询；请尽快在手机上点「确认」`)
+            // 同上：轻提醒也用 API 的话术，别在这儿写死"点确认"
+            await e.reply(tip || `${p.label} 上游限流（访问太频繁），已自动放慢轮询`)
           }
         }
         if (spec.qishui) {
           // 汽水的状态词不同：new/waiting → 待扫；scanned/confirmed → 待确认；success → 成功
+          // ⚠️ **终止态不能被末尾的 `else st='waiting'` 吃掉**（2026-10-02 修）。
+          // 原来这条链末尾无条件 `else st = 'waiting'`，于是 API 回的 `status='expired'`
+          // （以及 TERMINAL_FAIL_STATUS 里任何失败态）都被**改写成 'waiting'** ——
+          // 下面 `if (st === 'expired')` 那条"二维码已过期，重新发一次"永远进不去。
+          // 现象：二维码早作废了，机器人还在静候，最后只给"扫码超时（没等到确认）"，
+          // 看不出真实原因。而汽水的二维码寿命只有 5 分钟（上游 expire_time 实测 300s），
+          // 限流退避又是 15s→30s→60s，等到过期是常态而非意外。
           if (d.loggedIn === true || st === 'success') st = 'success'
           else if (d.needVerify === true || st === 'verify_required') st = 'verify'
           else if (d.scanned === true || st === 'confirmed') st = 'confirm'
-          else st = 'waiting'
+          else if (st === 'new' || !st) st = 'waiting'
+          // 其余（expired / failed / reject…）**原样透传**，交给下面的终止态分支去说人话
         }
       } catch (err) {
         errMsg = err.message
@@ -562,6 +602,21 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         await e.reply(`${p.label} 二维码已过期，重新发一次 ${qr.command}`)
         return true
       }
+      // 其余终止失败态（failed / rejected / refused / invalid / cancel…）：
+      // API 已判定这次扫码不会再成功了（`failed: true`），继续轮询只是白等 ——
+      // 以前这些状态被吞成 'waiting'，用户只能等到超时才知道白扫了。
+      if (upstreamFailed && st !== 'success') {
+        activeLogins.delete(userKey)
+        await e.reply(
+          [
+            `${p.label} 扫码没成功（${st}）${tip ? `：${tip}` : '，重新发一次'}`,
+            ck ? `或者直接粘贴凭据（私聊我）：${ck.command} ${platformCookieValueHint(p.id)}` : '',
+          ]
+            .filter(Boolean)
+            .join('\n')
+        )
+        return true
+      }
       if (st && st !== last) {
         last = st
         if (st === 'confirm') await e.reply(`已扫码，请在手机上点「确认登录」（${p.label}）`)
@@ -571,8 +626,9 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     await e.reply(
       [
         `${p.label} 扫码超时（没等到确认），重新发一次 ${qr.command}`,
-        // 被限流过就别再让用户"马上重发"（上游的封禁比二维码寿命长，立刻重扫还会撞上）
-        rateWarned ? '⚠️ 过程中上游一直在限流：建议**等 1~2 分钟**再发，不然大概率还是扫不通' : '',
+        // ⚠️ 措辞跟 2026-10-03 的归因修正对齐：限流不是我们轮询打出来的，
+        //    所以不能说"立刻重扫还会撞上"—— 让用户直接重发就好。
+        rateWarned ? '（过程中上游在忙，已等满二维码寿命；码本身可能已经作废，直接重发即可）' : '',
         ck ? `也可以直接粘贴凭据（私聊我）：${ck.command} ${platformCookieValueHint(p.id)}` : '',
       ]
         .filter(Boolean)

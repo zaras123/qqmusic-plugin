@@ -42,6 +42,9 @@ export function parseTicketCommand(text = '') {
     const target = tail.slice(2).trim()
     if (!target || target.length > 30) return { error: '请填写城市或艺人名，例如 #qqm演出同步 北京 / #qqm演出同步 宋雨琦（仅主人）' }
     if (/[=：:]/.test(target)) return { error: '同步直接写城市或艺人名即可，例如 #qqm演出同步 北京。' }
+    // 一次只同步一个目标：`北京 上海` 这种空格分隔的多个词无法确定要同步哪个，
+    // 直接报错比默默当成一个不存在的城市更清楚（`北京,上海` 仍按单个关键词放行）。
+    if (/\s/.test(target)) return { error: '一次只能同步一个城市或艺人名，多个目标请分次发送，例如 #qqm演出同步 北京。' }
     return { action: 'sync', city: target }
   }
   const filters = {

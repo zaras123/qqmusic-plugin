@@ -77,6 +77,8 @@ const { qqmusicTogether } = await import('./apps/together.js')
 const { qqmusicAdmin } = await import('./apps/admin.js')
 const { qqmusicExtras } = await import('./apps/extras.js')
 const { qqmusicTicket } = await import('./apps/ticket.js')
+const { qqmusicStats } = await import('./apps/stats.js')
+const { qqmusicMedal } = await import('./apps/medal.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
 
@@ -90,6 +92,8 @@ const modules = [
   { name: '一起听', class: qqmusicTogether },
   { name: '管理', class: qqmusicAdmin },
   { name: '试听/海报/订阅/定时', class: qqmusicExtras },
+  { name: '听歌统计', class: qqmusicStats },
+  { name: '勋章进度', class: qqmusicMedal },
 ]
 
 let allPassed = asyncGateOk
@@ -132,6 +136,18 @@ const cases = [
   ['#qqm演出 未来 宋雨琦', 'ticket'],
   ['#qqm演出同步 宋雨琦', 'ticket'],
   ['#qqm演出同步 北京,上海', 'ticket'],
+  // 听歌统计（本地记账）/ 勋章进度（只读平台查询）
+  ['#qqm听歌', 'myStats'],
+  ['#qqm听歌统计', 'myStats'],
+  ['#qqm听歌榜', 'board'],
+  ['#qqm听歌榜 本周', 'board'],
+  ['#qqm听歌 榜 今日', 'board'],
+  ['#qqm听歌排行 总', 'board'],
+  ['#qqm勋章', 'medal'],
+  ['#qqm勋章任务', 'medal'],
+  ['#qqm勋章进度', 'medal'],
+  ['#qqm成就', 'medal'],
+  ['#qqm成就进度', 'medal'],
   // 点歌 / 选曲
   // 点歌 + 播放合成一条规则（onSongCmd），动词由解析决定动作
   ['#qqm点歌 晴天', 'onSongCmd'],
@@ -293,6 +309,11 @@ const negative = [
   '#qqm歌词',
   '#qqm听',
   '#qqmqq',
+  // 听歌统计 / 勋章：只收固定形状，多写尾巴不该被吞
+  '#qqm听歌榜单',
+  '#qqm听歌榜 本周 额外',
+  '#qqm勋章榜',
+  '#qqm勋章 进度 额外',
 ]
 
 let routeOk = 0
@@ -1943,18 +1964,20 @@ function v2Check(name, got, want) {
       // ── 扫码轮询的节奏（2026-09-25：汽水上游限流把一次成功扫码拖成失败）──────
       //    用户日志：status=scanned 之后上游一路回 error_code=7 访问太频繁 ——
       //    我们 3s 一次的轮询把自己打限流，最后报"登录失败"。
-      //    API 侧已改成退避（6→12→24s，上限 30s）并把节奏写在 retryAfterMs 里，
+      //    API 侧已改成退避并把节奏写在 retryAfterMs 里，
       //    插件这几条断言钉的是"客户端确实照它走"。
       {
         const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
         v2Check('扫码轮询：间隔读 API 的 retryAfterMs（节奏由 API 一处定）', /waitMs = clampPollMs\(d\.retryAfterMs\)/.test(loginSrc), true)
-        v2Check('扫码轮询：间隔夹在 2~60s（上限跟着 API 的退避上限走）', /QR_POLL_MIN_MS = 2000/.test(loginSrc) && /QR_POLL_MAX_MS = 60000/.test(loginSrc), true)
+        v2Check('扫码轮询：间隔夹在 2~20s（上限跟着 API 的退避上限走）', /QR_POLL_MIN_MS = 2000/.test(loginSrc) && /QR_POLL_MAX_MS = 20000/.test(loginSrc), true)
         v2Check('扫码轮询：默认 5s 一轮（3s 会烧光上游预算，实测扫码后立刻被限流）', /const QR_POLL_MS = 5000/.test(loginSrc), true)
-        v2Check('扫码轮询：用**总时长**封顶而不是固定次数（退避会把"多少次"算爆）', /QR_TOTAL_MS = 150000/.test(loginSrc) && /Date\.now\(\) < deadline/.test(loginSrc), true)
+        v2Check('扫码轮询：用**总时长**封顶而不是固定次数（退避会把"多少次"算爆）', /QR_TOTAL_MS = 240000/.test(loginSrc) && /Date\.now\(\) < deadline/.test(loginSrc), true)
+        v2Check('扫码轮询：次数上限 ≥ 总时长/最小间隔（否则计数器先于总时长收工）', /QR_MAX_TRIES = 130/.test(loginSrc), true)
         v2Check('扫码轮询：上局限流轻提醒只一次（不刷屏）', /rateWarnedOnce = true/.test(loginSrc) && /if \(d\.rateLimited === true\)/.test(loginSrc), true)
-        // 连撞 ≥3 次要给"重"提醒：等 1~2 分钟再试 + 粘贴那条路（让用户傻等是最差的选择）
-        v2Check('扫码轮询：持续限流时给第二次（更明确）提醒', /rateLimitHits \|\| 0\) >= 3/.test(loginSrc) && /rateHardWarned/.test(loginSrc) && /等 1~2 分钟再发一次/.test(loginSrc), true)
-        v2Check('扫码轮询：超时提示不再让人"立刻重发"（上游封禁比二维码寿命长）', /等 1~2 分钟\*\*再发/.test(loginSrc) && /也可以直接粘贴凭据/.test(loginSrc), true)
+        // 2026-10-03 归因修正：限流来自上游 App 自己的确认请求，不是我们轮询打出来的，
+        // 所以重提醒不再劝"等 1~2 分钟"，而是让用户继续点确认 + 给粘贴凭据的兜底。
+        v2Check('扫码轮询：持续限流时给第二次（更明确）提醒', /rateLimitHits \|\| 0\) >= 3/.test(loginSrc) && /rateHardWarned/.test(loginSrc) && /上游在忙/.test(loginSrc) && /实在等不来再私聊粘贴凭据/.test(loginSrc), true)
+        v2Check('扫码轮询：超时提示让人直接重发，并给粘贴凭据兜底', /直接重发即可/.test(loginSrc) && /也可以直接粘贴凭据/.test(loginSrc), true)
         v2Check('扫码轮询：不再有"固定 40 次 × 3s"的老写法（超时按它算会拖到二维码过期后）', !/QR_MAX_TRIES \* \(QR_POLL_MS/.test(loginSrc), true)
       }
       await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})

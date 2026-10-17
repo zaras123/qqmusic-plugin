@@ -288,6 +288,47 @@ export function buildSchemas() {
     component: 'InputNumber',
     componentProps: { min: 1, max: 50, placeholder: '10' },
   },
+  // ── 听歌时长统计（本地记账，与平台账号无关）──
+  {
+    field: 'statsEnable',
+    label: '听歌时长统计',
+    bottomHelpMessage:
+      '记录本机器人**真正发出去**的歌：时长/首数/连续天数，都是本地账本，不登录也不向任何平台上报。' +
+      '打开后：#qqm听歌 看自己、#qqm听歌榜 看本群排行',
+    component: 'Switch',
+  },
+  {
+    field: 'statsKeepDays',
+    label: '统计保留天数',
+    bottomHelpMessage: '每个人的日粒度记录保留多少天（默认 60；越久文件越大）',
+    component: 'InputNumber',
+    componentProps: { min: 1, max: 3650, placeholder: '60' },
+  },
+  {
+    field: 'statsMaxUsersPerGroup',
+    label: '统计人数上限',
+    bottomHelpMessage: '每个账本最多统计多少人，超了先丢最久没点歌的（默认 100）',
+    component: 'InputNumber',
+    componentProps: { min: 1, max: 5000, placeholder: '100' },
+  },
+  // ── 勋章进度（只读，走平台接口）──
+  {
+    field: 'medalEnable',
+    label: '勋章进度（只读）',
+    bottomHelpMessage:
+      '#qqm勋章 查**平台侧**的听歌时长与勋章任务进度。只读：不签到、不领奖、不上报、不发心跳。' +
+      '需要先在机器人里 #qqm登录 一个 QQ 音乐账号，否则只会回「需要登录」',
+    component: 'Switch',
+  },
+  {
+    field: 'medalActID',
+    label: '勋章活动 ID',
+    bottomHelpMessage:
+      '勋章任务按平台**当期活动**查，ID 会随活动轮换。留空 = 改用「播放页任务」只读兜底（不需要 ID）。' +
+      '拿法：进 QQ 音乐 App 的勋章活动页，从请求里抓 actID（是活动参数，不是账号凭据）',
+    component: 'Input',
+    componentProps: { placeholder: '留空 = 播放页任务兜底' },
+  },
   group('② 界面与外观'),
   {
     field: 'uiTheme',
@@ -601,6 +642,13 @@ export function getConfigData() {
     subScanHours: c.subScanHours === undefined || c.subScanHours === '' ? 6 : Math.max(0, Number(c.subScanHours) || 0),
     subMaxPerGroup: Math.max(1, Number(c.subMaxPerGroup) || 10),
     scheduleMaxPerGroup: Math.max(1, Number(c.scheduleMaxPerGroup) || 10),
+    // 听歌统计：缺省 = 开（老配置没这个键 → 装完就能用）；数值先把非法输入兜住
+    statsEnable: c.statsEnable !== false,
+    statsKeepDays: Math.max(1, Number(c.statsKeepDays) || 60),
+    statsMaxUsersPerGroup: Math.max(1, Number(c.statsMaxUsersPerGroup) || 100),
+    // 勋章进度：缺省 = 开（老配置没这个键 → 装完就能用）；活动 ID 缺省为空串
+    medalEnable: c.medalEnable !== false,
+    medalActID: String(c.medalActID ?? '').trim(),
     pullLoginMeta: false,
     // QQ 音源开关：缺省=开（老配置没有这个键 → 与 1.x 完全一致）
     qqEnabled: c.qqEnabled !== false,
