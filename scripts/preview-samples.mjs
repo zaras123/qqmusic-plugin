@@ -463,6 +463,44 @@ const samples = {
       { nick: '钢琴手', avatar: '', content: '钢琴版也很好听，推荐。', time: '2022-11-19', likes: '1908', hot: false },
     ],
   },
+  // 勋章进度卡（只读）：字段照抄 utils/medal.js 的 buildMedalCardData() 输出。
+  // 这一版画的是 2026-10-18 线上真实那一枪：登录态 normal，但时长查询被上游回 10007
+  // （不是"需要登录"），所以听歌时长那条要显示黄色"上游拒绝"，播放页任务照常只读展示。
+  'qqmusic-medal': {
+    title: 'QQ音乐 · 勋章进度',
+    subtitle: '只读查询 · 按请求者本人账号',
+    readOnlyText: '只读',
+    listen: {
+      statusText: '登录态正常 · 上游拒绝',
+      tone: 'warn',
+      lines: ['平台返回 code=10007', '上游拒绝本次时长查询，不是未登录'],
+    },
+    tasks: {
+      configured: false,
+      title: '勋章任务',
+      hint: '未配置活动 ID（medalActID）',
+      note: '可配置活动 ID 查询当期勋章活动',
+      items: [],
+    },
+    playpage: {
+      show: true,
+      title: '播放页任务',
+      note: '按平台当前播放页只读读取',
+      items: [
+        {
+          index: 1,
+          name: '30分钟',
+          progressText: '1800 / 1800',
+          done: false,
+          buttonText: '立即领取',
+          rewardText: '+280金币',
+          percent: 100,
+        },
+      ],
+    },
+    note: '',
+    footer: '只读展示，领取请在官方客户端操作',
+  },
 }
 
 export { SRC, SONGS, PLATFORM_ROWS, GUIDE_PLATS, samples, logoUrl, withSource, countSources }

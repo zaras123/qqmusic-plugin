@@ -33,6 +33,7 @@ export const CARDS = [
   'qqmusic-comment',
   'qqmusic-status',
   'qqmusic-settings',
+  'qqmusic-medal',
 ]
 
 /** id → { mtimeMs, manifest }；theme.json 改了自动失效 */

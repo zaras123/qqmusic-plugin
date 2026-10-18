@@ -240,18 +240,23 @@ function firstDefined(...vals) {
   return vals.find((v) => v != null && v !== '')
 }
 
-/** 单条任务的人话写法（小写 camelCase 与平台真实的大写字段都认） */
-export function taskLineOf(task = {}, index = 0) {
+/**
+ * 单条任务的结构化数据
+ *
+ * 文本卡与图片卡共用这一份解析：字段名仍然同时认小写 camelCase 和播放页真实的大写字段，
+ * 这样以后平台再换一组名字，只需要补这里，不会出现「文本正常、卡片空白」。
+ */
+export function taskItemOf(task = {}, index = 0) {
   const t = task && typeof task === 'object' ? task : {}
   const name = String(
     t.taskName || t.name || t.Name || t.title || t.Title || t.desc || t.description || `任务 ${index + 1}`
   ).slice(0, 40)
   const cur = firstDefined(t.progress, t.current, t.curValue, t.finishCount, t.progressValue, t.doneNum, t.Progress)
   const total = firstDefined(t.target, t.total, t.targetValue, t.maxValue, t.needCount, t.totalNum, t.TargetNum)
-  let amount = ''
-  if (cur != null && total != null) amount = ` ${cur}/${total}`
-  else if (cur != null) amount = ` ${cur}`
-  else if (total != null) amount = ` /${total}`
+  let progressText = ''
+  if (cur != null && total != null) progressText = `${cur} / ${total}`
+  else if (cur != null) progressText = String(cur)
+  else if (total != null) progressText = `/${total}`
 
   const st = firstDefined(t.status, t.state, t.finish, t.finished, t.completed, t.State)
   const done = st === 1 || st === true || st === '1' || st === 'done' || st === 'finished' || st === 'complete'
@@ -259,8 +264,31 @@ export function taskLineOf(task = {}, index = 0) {
   // ⚠️ 只是**照抄展示**，插件不会去点这个按钮 —— 领取要用户自己在官方客户端做。
   const button = String(t.Desc || t.buttonText || t.TaskButton || '').trim()
   const reward = String(t.Detail || t.reward || t.Reward || '').trim()
-  const extra = [button, reward].filter(Boolean)
-  return `${index + 1}. ${name}${amount}${done ? ' ✅' : ''}${extra.length ? `（${extra.join(' · ')}）` : ''}`
+  const curNum = Number(cur)
+  const totalNum = Number(total)
+  const percent =
+    Number.isFinite(curNum) && Number.isFinite(totalNum) && totalNum > 0
+      ? Math.max(0, Math.min(100, Math.round((curNum / totalNum) * 100)))
+      : done
+        ? 100
+        : 0
+  return {
+    index: index + 1,
+    name,
+    progressText,
+    done,
+    buttonText: button,
+    rewardText: reward,
+    percent,
+  }
+}
+
+/** 单条任务的人话写法（小写 camelCase 与平台真实的大写字段都认） */
+export function taskLineOf(task = {}, index = 0) {
+  const item = taskItemOf(task, index)
+  const amount = item.progressText ? ` ${item.progressText.replace(/\s*\/\s*/, '/')}` : ''
+  const extra = [item.buttonText, item.rewardText].filter(Boolean)
+  return `${item.index}. ${item.name}${amount}${item.done ? ' ✅' : ''}${extra.length ? `（${extra.join(' · ')}）` : ''}`
 }
 
 /** 勋章任务那一段（返回多行文本数组） */
@@ -304,6 +332,80 @@ export function hasTaskData(payload = {}) {
   return Boolean(d && typeof d === 'object' && Object.keys(d).length)
 }
 
+/** 卡片里不渲染 Markdown 强调标记，歌名/文案里的 `**` 要拿掉 */
+function plainCardText(value) {
+  return String(value || '').replace(/\*\*/g, '').trim()
+}
+
+function listenStatusOf(payload = {}) {
+  const n = Number(payload?.code)
+  if (n === 10007) return { statusText: '登录态正常 · 上游拒绝', tone: 'warn' }
+  if (n === 1000) return { statusText: '需要登录', tone: 'warn' }
+  if (Number.isFinite(n) && n !== 0) return { statusText: '查询未通过', tone: 'warn' }
+  if (payload?.data && typeof payload.data === 'object' && Object.keys(payload.data).length) {
+    return { statusText: '已查询', tone: 'ok' }
+  }
+  return { statusText: '暂无数据', tone: 'muted' }
+}
+
+function listenLinesOf(payload = {}) {
+  // 2026-10-18 线上真实结果：API 登录本身正常，10007 只代表本次时长查询被上游拒绝。
+  // 图片卡必须把这一点说清楚，不能把它降级成一句模糊的"查询失败"。
+  if (Number(payload?.code) === 10007) {
+    return ['平台返回 code=10007', '上游拒绝本次时长查询，不是未登录']
+  }
+  return formatListeningSection(payload).map(plainCardText).filter(Boolean)
+}
+
+function taskItemsOf(payload = {}) {
+  const data = payload?.data && typeof payload.data === 'object' ? payload.data : {}
+  return collectTaskList(data).slice(0, MAX_TASKS).map((task, index) => taskItemOf(task, index))
+}
+
+/**
+ * 图片卡数据
+ *
+ * 与 formatMedalReport 共用同一组解析函数，保证文本回退与图片卡看到的是同一批事实。
+ * 只暴露展示需要的字段，模板不直接接触上游响应，避免把不稳定字段名带进四套主题。
+ */
+export function buildMedalCardData({ listening = {}, tasks = {}, playpage = {}, actID = '', note = '' } = {}) {
+  const id = String(actID || '').trim()
+  const configured = Boolean(id)
+  const activityItems = configured ? taskItemsOf(tasks) : []
+  const playItems = !configured && hasTaskData(playpage) ? taskItemsOf(playpage) : []
+  const status = listenStatusOf(listening)
+  const taskHint = configured
+    ? activityItems.length
+      ? ''
+      : plainCardText(formatTaskSection(tasks)[0] || '平台没有返回任务列表')
+    : '未配置活动 ID（medalActID）'
+
+  return {
+    title: 'QQ音乐 · 勋章进度',
+    subtitle: '只读查询 · 按请求者本人账号',
+    readOnlyText: '只读',
+    listen: {
+      ...status,
+      lines: listenLinesOf(listening),
+    },
+    tasks: {
+      configured,
+      title: '勋章任务',
+      hint: taskHint,
+      note: configured ? `活动 ID ${id}` : '可配置活动 ID 查询当期勋章活动',
+      items: activityItems,
+    },
+    playpage: {
+      show: playItems.length > 0,
+      title: '播放页任务',
+      note: '按平台当前播放页只读读取',
+      items: playItems,
+    },
+    note: plainCardText(note),
+    footer: '只读展示，领取请在官方客户端操作',
+  }
+}
+
 export default {
   medalConfig,
   cgiPayload,
@@ -315,7 +417,9 @@ export default {
   collectTaskList,
   formatListeningSection,
   formatTaskSection,
+  taskItemOf,
   taskLineOf,
   formatMedalReport,
   hasTaskData,
+  buildMedalCardData,
 }

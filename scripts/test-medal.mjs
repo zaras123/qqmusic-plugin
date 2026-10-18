@@ -224,6 +224,59 @@ test('播放页兜底方法：常量对得上，且是个函数（真调用要�
   assert.equal(typeof M.fetchPlayPageTaskDetail, 'function')
 })
 
+test('图片卡数据：10007 说清楚是"上游拒绝"，不是"需要登录"', () => {
+  const d = M.buildMedalCardData({
+    listening: { code: 10007, data: {} },
+    playpage: {
+      code: 0,
+      data: { actTaskInfo: { Name: '30分钟', TargetNum: 1800, Progress: 1800, Desc: '立即领取', Detail: '+280金币' } },
+    },
+    actID: '',
+  })
+  assert.equal(d.listen.tone, 'warn')
+  assert.equal(d.listen.statusText, '登录态正常 · 上游拒绝')
+  const listenText = d.listen.lines.join('\n')
+  assert.match(listenText, /10007/)
+  // 关键：不能把 10007 说成登录问题（"不是未登录"这句是否定，允许）
+  assert.match(listenText, /不是未登录/)
+  assert.doesNotMatch(listenText, /需要登录/)
+})
+
+test('图片卡数据：播放页任务照抄平台按钮与奖励（只读，不点）', () => {
+  const d = M.buildMedalCardData({
+    listening: { code: 10007, data: {} },
+    playpage: {
+      code: 0,
+      data: { actTaskInfo: { Name: '30分钟', TargetNum: 1800, Progress: 1800, Desc: '立即领取', Detail: '+280金币' } },
+    },
+    actID: '',
+  })
+  assert.equal(d.tasks.configured, false)
+  assert.equal(d.playpage.show, true)
+  assert.equal(d.playpage.items.length, 1)
+  const item = d.playpage.items[0]
+  assert.equal(item.name, '30分钟')
+  assert.equal(item.progressText, '1800 / 1800')
+  assert.equal(item.buttonText, '立即领取')
+  assert.equal(item.rewardText, '+280金币')
+  assert.equal(item.percent, 100)
+  // 模板问"每个 data.X 都有夹具"，这里顺手确认卡片数据是纯 JSON（能直接喂模板/夹具）
+  const json = JSON.stringify(d)
+  for (const s of ['10007', '30分钟', '1800 / 1800', '立即领取', '+280金币']) assert.ok(json.includes(s), s)
+})
+
+test('图片卡数据：配了活动 ID 时用活动任务，播放页不掺进来', () => {
+  const d = M.buildMedalCardData({
+    tasks: { code: 0, data: { taskList: [{ taskName: '听歌 1 小时', progress: 20, target: 60 }] } },
+    playpage: { code: 0, data: { taskList: [{ taskName: '播放页任务', progress: 9, target: 9 }] } },
+    actID: '2025',
+  })
+  assert.equal(d.tasks.configured, true)
+  assert.equal(d.tasks.items.length, 1)
+  assert.equal(d.tasks.note, '活动 ID 2025')
+  assert.equal(d.playpage.show, false)
+})
+
 test('勋章命令：形状对，且不吃点歌/听歌统计那几条', () => {
   const re = (s) => C.RE_MEDAL.test(s)
   assert.ok(re('#qqm勋章'))

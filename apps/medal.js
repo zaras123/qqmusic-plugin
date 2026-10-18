@@ -17,7 +17,7 @@ import { loadPluginBase } from '../utils/plugin-base.js'
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase()
 
-import { getCfg } from '../utils/common.js'
+import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logWarn } from '../utils/log.js'
 import {
   medalConfig,
@@ -25,6 +25,7 @@ import {
   fetchMedalTasks,
   fetchPlayPageTaskDetail,
   formatMedalReport,
+  buildMedalCardData,
 } from '../utils/medal.js'
 // 正则放 utils/command.js（规则表与 handler 共用一份，别在这儿再抄一遍）
 import { RE_MEDAL } from '../utils/command.js'
@@ -88,12 +89,23 @@ export class qqmusicMedal extends (await loadPluginBase()) {
       }
     }
 
+    const report = { listening, tasks, playpage, actID: c.actID, note: problems.join('\n') }
+    // 文本回退先算好：卡片渲染失败（或没装 Puppeteer）时直接发它，与图片卡看同一批事实。
+    const fullText = formatMedalReport(report)
+    // ⚠️ 必须在命令内**动态** import render.js：静态引入会把 Puppeteer 拽进插件启动路径。
+    let render
     try {
-      await e.reply(formatMedalReport({ listening, tasks, playpage, actID: c.actID, note: problems.join('\n') }))
-    } catch (err) {
-      logWarn(`勋章：渲染失败 ${err.message}`)
-      await e.reply(`勋章进度查询失败：${err.message}`)
+      const { renderMedalCard } = await import('../utils/render.js')
+      render = renderMedalCard
+    } catch {
+      /* 没有渲染依赖时，replyCardOrText 会走下面的文本回退 */
     }
+    await replyCardOrText(e, {
+      render,
+      data: buildMedalCardData(report),
+      onFallback: () => e.reply(fullText),
+      tag: '勋章进度卡片',
+    })
     return true
   }
 }

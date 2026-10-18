@@ -784,6 +784,11 @@ export async function renderDetailCard(e, data) {
   return renderCard(e, data, 'qqmusic-detail')
 }
 
+/** 勋章进度卡（`#qqm勋章`，只读） */
+export async function renderMedalCard(e, data) {
+  return renderCard(e, data, 'qqmusic-medal')
+}
+
 export function formatStatusText(data) {
   return [
     `【${data.title || 'QQ音乐状态'}】`,

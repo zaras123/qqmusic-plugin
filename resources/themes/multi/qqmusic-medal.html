@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 勋章进度</title>
+  <link rel="stylesheet" href="resources/themes/multi/_base.css" />
+  <style>
+    /* 底部说明：与内容左对齐（别贴卡片边），与设置卡同一口径 */
+    .note {
+      padding: 16px var(--pad) 0;
+      font-size: 13px;
+      line-height: 18px;
+      color: var(--label-2);
+    }
+    /* 任务行里进度条要占满 row-main，别缩成一小截 */
+    .row-main .bar {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music · 勋章</div>
+          <div class="t-hero">{{data.title}}</div>
+          <div class="t-sub hero-sub">{{data.subtitle}}</div>
+        </div>
+        <span class="pill">{{data.readOnlyText}}</span>
+      </div>
+
+      <div class="group inset" style="margin-top:4px">
+        <div class="group-title">
+          <span class="t-caption">听歌时长</span>
+          <span class="pill {{if data.listen.tone === 'ok'}}pill--green{{/if}}{{if data.listen.tone === 'warn'}}pill--orange{{/if}}">
+            {{if data.listen.tone === 'warn'}}<i class="ic ic-warn"></i>{{/if}}{{if data.listen.tone === 'ok'}}<i class="ic ic-check"></i>{{/if}}{{data.listen.statusText}}
+          </span>
+        </div>
+        <div class="group-body">
+          {{each data.listen.lines line}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-title">{{line}}</div></div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      <div class="group inset">
+        <div class="group-title">
+          <span class="t-caption">{{data.tasks.title}}</span>
+          {{if data.tasks.note}}<span class="pill">{{data.tasks.note}}</span>{{/if}}
+        </div>
+        <div class="group-body">
+          {{if data.tasks.configured && data.tasks.items.length}}
+          {{each data.tasks.items item}}
+          <div class="row row--plain">
+            <span class="rank">{{item.index}}</span>
+            <div class="row-main">
+              <div class="row-title truncate">{{item.name}}</div>
+              <div class="bar" style="margin-top:8px"><i style="width:{{item.percent}}%"></i></div>
+              {{if item.buttonText || item.rewardText}}
+              <div class="pill-row" style="margin-top:8px">
+                {{if item.rewardText}}<span class="pill pill--gold"><i class="ic ic-coin"></i>{{item.rewardText}}</span>{{/if}}
+                {{if item.buttonText}}<span class="pill pill--accent">{{item.buttonText}}</span>{{/if}}
+              </div>
+              {{/if}}
+            </div>
+            {{if item.progressText}}<div class="row-value t-num">{{item.progressText}}</div>{{/if}}
+          </div>
+          {{/each}}
+          {{else}}
+          <div class="row row--plain">
+            <div class="row-main"><div class="row-sub">{{data.tasks.hint}}</div></div>
+          </div>
+          {{/if}}
+        </div>
+      </div>
+
+      {{if data.playpage.show}}
+      <div class="group inset">
+        <div class="group-title">
+          <span class="t-caption">{{data.playpage.title}}</span>
+          <span class="pill">{{data.playpage.note}}</span>
+        </div>
+        <div class="group-body">
+          {{each data.playpage.items item}}
+          <div class="row row--plain">
+            <span class="rank">{{item.index}}</span>
+            <div class="row-main">
+              <div class="row-title truncate">{{item.name}}</div>
+              <div class="bar" style="margin-top:8px"><i style="width:{{item.percent}}%"></i></div>
+              {{if item.buttonText || item.rewardText}}
+              <div class="pill-row" style="margin-top:8px">
+                {{if item.rewardText}}<span class="pill pill--gold"><i class="ic ic-coin"></i>{{item.rewardText}}</span>{{/if}}
+                {{if item.buttonText}}<span class="pill pill--accent">{{item.buttonText}}</span>{{/if}}
+              </div>
+              {{/if}}
+            </div>
+            {{if item.progressText}}<div class="row-value t-num">{{item.progressText}}</div>{{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/if}}
+
+      {{if data.note}}<div class="note">{{data.note}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="foot-brand">{{data.footer}}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
