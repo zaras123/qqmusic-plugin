@@ -65,6 +65,9 @@ export function describeMedalCode(code, retMsg = '') {
   if (n === 1000) return '需要登录：先在机器人里 #qqm登录 一个 QQ 音乐账号，平台才给看时长/任务'
   if (n === 100032) return '缺活动 ID：勋章任务要按平台**当期活动**查（配置键 medalActID，留空就查不到任务）'
   if (n === 100002 || n === 10006) return '活动 ID 无效或活动已结束（medalActID 要填平台当前在跑的那个）'
+  // 2026-10-18 实测：登录态下 QueryListeningDetail 会回 10007（不是 1000，所以不是"没登录"）。
+  // 含义没在官方文档里，只把事实说清楚，别编一个像模像样的解释。
+  if (n === 10007) return '平台返回 code=10007：这次时长查询被上游拒绝（不是"需要登录"）。这一路暂时拿不到数据，可先看下面的播放页任务。'
   if (n === 500003) return '上游不认这个方法了（QQ 音乐接口可能已改版）'
   if (n === 40000) return '上游不认这个模块（QQ 音乐接口可能已改版）'
   const msg = String(retMsg || '').trim()
@@ -186,6 +189,29 @@ function dumpText(rows = []) {
   return rows.map((r) => `${r.key}=${r.value}`).join(' · ')
 }
 
+/** 任务列表的候选键：数组直接用，单个对象也算一条任务（播放页 GetTaskDetail 就是单对象） */
+const TASK_LIST_KEYS = ['taskList', 'tasks', 'actTaskInfo', 'taskInfo', 'taskInfos']
+
+/**
+ * 从响应里找出任务数组
+ *
+ * 播放页 `GetTaskDetail` 的真实形状（2026-10-18 实测）是 `data.actTaskInfo` **单对象**，
+ * 字段还大写开头（Name/Progress/TargetNum/State/Desc/Detail）—— 只认 taskList/tasks
+ * 数组就会把它当成"没有任务列表"，白白丢掉平台已经给回来的那条任务。
+ */
+export function collectTaskList(data = {}) {
+  const d = data && typeof data === 'object' ? data : {}
+  for (const k of TASK_LIST_KEYS) {
+    const v = d[k]
+    if (Array.isArray(v)) {
+      if (v.length) return v
+      continue
+    }
+    if (v && typeof v === 'object' && Object.keys(v).length) return [v]
+  }
+  return []
+}
+
 /** 听歌时长那一段（返回多行文本数组） */
 export function formatListeningSection(payload = {}) {
   const hint = describeMedalCode(payload?.code, payload?.data?.retMsg || payload?.retMsg)
@@ -209,20 +235,32 @@ export function formatListeningSection(payload = {}) {
   return lines
 }
 
-/** 单条任务的人话写法 */
+/** 取第一个"有值"的候选：0 / false 都算有值，只跳过 null / undefined / 空串 */
+function firstDefined(...vals) {
+  return vals.find((v) => v != null && v !== '')
+}
+
+/** 单条任务的人话写法（小写 camelCase 与平台真实的大写字段都认） */
 export function taskLineOf(task = {}, index = 0) {
   const t = task && typeof task === 'object' ? task : {}
-  const name = String(t.taskName || t.name || t.title || t.desc || t.description || `任务 ${index + 1}`).slice(0, 40)
-  const cur = t.progress ?? t.current ?? t.curValue ?? t.finishCount ?? t.progressValue ?? t.doneNum
-  const total = t.target ?? t.total ?? t.targetValue ?? t.maxValue ?? t.needCount ?? t.totalNum
+  const name = String(
+    t.taskName || t.name || t.Name || t.title || t.Title || t.desc || t.description || `任务 ${index + 1}`
+  ).slice(0, 40)
+  const cur = firstDefined(t.progress, t.current, t.curValue, t.finishCount, t.progressValue, t.doneNum, t.Progress)
+  const total = firstDefined(t.target, t.total, t.targetValue, t.maxValue, t.needCount, t.totalNum, t.TargetNum)
   let amount = ''
   if (cur != null && total != null) amount = ` ${cur}/${total}`
   else if (cur != null) amount = ` ${cur}`
   else if (total != null) amount = ` /${total}`
 
-  const st = t.status ?? t.state ?? t.finish ?? t.finished ?? t.completed
+  const st = firstDefined(t.status, t.state, t.finish, t.finished, t.completed, t.State)
   const done = st === 1 || st === true || st === '1' || st === 'done' || st === 'finished' || st === 'complete'
-  return `${index + 1}. ${name}${amount}${done ? ' ✅' : ''}`
+  // 平台自己的按钮文案（实测 Desc="立即领取"）与奖励（实测 Detail="+280金币"）。
+  // ⚠️ 只是**照抄展示**，插件不会去点这个按钮 —— 领取要用户自己在官方客户端做。
+  const button = String(t.Desc || t.buttonText || t.TaskButton || '').trim()
+  const reward = String(t.Detail || t.reward || t.Reward || '').trim()
+  const extra = [button, reward].filter(Boolean)
+  return `${index + 1}. ${name}${amount}${done ? ' ✅' : ''}${extra.length ? `（${extra.join(' · ')}）` : ''}`
 }
 
 /** 勋章任务那一段（返回多行文本数组） */
@@ -231,7 +269,7 @@ export function formatTaskSection(payload = {}) {
   if (hint) return [hint]
 
   const data = payload?.data && typeof payload.data === 'object' ? payload.data : {}
-  const list = Array.isArray(data.taskList) ? data.taskList : Array.isArray(data.tasks) ? data.tasks : []
+  const list = collectTaskList(data)
   if (!list.length) {
     const rest = flattenScalars(data)
     if (!rest.length) return ['平台没有返回任务列表（这个活动可能没有可做任务）']
@@ -274,6 +312,7 @@ export default {
   fetchMedalTasks,
   fetchPlayPageTaskDetail,
   flattenScalars,
+  collectTaskList,
   formatListeningSection,
   formatTaskSection,
   taskLineOf,

@@ -42,6 +42,9 @@ test('上游码 → 人话：匿名探测校准出来的那几个都认', () => 
   assert.match(M.describeMedalCode(10006), /活动 ID 无效/)
   assert.match(M.describeMedalCode(500003), /不认这个方法/)
   assert.match(M.describeMedalCode(40000), /不认这个模块/)
+  // 2026-10-18 线上实测：登录态下时长查询回 10007，不能再说成"需要登录"
+  assert.match(M.describeMedalCode(10007), /code=10007/)
+  assert.doesNotMatch(M.describeMedalCode(10007), /需要登录：先/)
   // 认不出的码要把平台原话带上，别把裸 code 当成功
   assert.match(M.describeMedalCode(12345, '系统繁忙'), /code=12345.*系统繁忙/)
   assert.match(M.describeMedalCode(12345), /code=12345/)
@@ -123,6 +126,42 @@ test('任务段：缺活动 ID / 空列表 / 有任务三种形状', () => {
   assert.equal(lines.length, 2)
   assert.match(lines[0], /听歌 1 小时 20\/60/)
   assert.match(lines[1], /分享歌曲 1\/1 ✅/)
+})
+
+test('任务列表收集：数组、单个对象、空对象都按真实形状处理', () => {
+  const arr = [{ Name: 'A' }]
+  assert.deepEqual(M.collectTaskList({ taskList: arr }), arr)
+  assert.deepEqual(M.collectTaskList({ tasks: arr }), arr)
+  assert.deepEqual(M.collectTaskList({ actTaskInfo: arr[0] }), [arr[0]])
+  assert.deepEqual(M.collectTaskList({ taskInfo: { Name: 'B' } }), [{ Name: 'B' }])
+  assert.deepEqual(M.collectTaskList({ actTaskInfo: {} }), [])
+  assert.deepEqual(M.collectTaskList({}), [])
+  assert.deepEqual(M.collectTaskList(null), [])
+})
+
+test('播放页真实形状：data.actTaskInfo 是单对象，字段大写开头也要显示', () => {
+  const lines = M.formatTaskSection({
+    code: 0,
+    data: {
+      status: 1,
+      actTaskInfo: {
+        ID: '16T7PC',
+        Type: 1,
+        Name: '30分钟',
+        TargetNum: 1800,
+        TaskCycle: 1,
+        TaskMaxTimes: 1,
+        TaskFinishTime: 0,
+        Progress: 1800,
+        State: 2,
+        Desc: '立即领取',
+        Detail: '+280金币',
+      },
+    },
+  })
+  const text = lines.join('\n')
+  assert.doesNotMatch(text, /没有返回任务列表/)
+  assert.equal(lines[0], '1. 30分钟 1800/1800（立即领取 · +280金币）')
 })
 
 test('整条回执：两段都在；没配活动 ID 时任务段给提示而不是空白', () => {
