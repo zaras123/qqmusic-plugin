@@ -218,11 +218,23 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 
 ### 1. 安装插件
 
+**Yunzai / TRSS-Yunzai（`main` 分支）** —— 在 Yunzai 的 `plugins` 目录执行，装完 `#重启`：
+
 ```bash
 cd Yunzai/plugins
 git clone https://github.com/zaras123/qqmusic-plugin.git
 cd qqmusic-plugin && pnpm install
 ```
+
+**Karin（`karin` 分支）** —— 在 Karin 根目录（含 `package.json` 的那层）执行，装完重启：
+
+```bash
+pnpm add karin-plugin-qqmusic
+```
+
+Karin 也可以源码装：`git clone -b karin https://github.com/zaras123/qqmusic-plugin.git Karin/plugins/karin-plugin-qqmusic`（目录名必须是 `karin-plugin-qqmusic`）。
+
+> 两个分支各自维护，**不要交叉安装**：Yunzai 装 `main`，Karin 装 `karin`（npm 包 `karin-plugin-qqmusic`）。
 
 ### 2. 配置 API
 
