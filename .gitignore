@@ -6,6 +6,9 @@ config/config/*
 .DS_Store
 # Playwright MCP 浏览器测试产物
 .playwright-mcp/
+
+# 本地 AI 助手配置：settings.local.json 里硬编码着本机 API Token，不要提交
+.claude/settings.local.json
 # 本地生成物：卡片预览（scripts/preview-cards.mjs 的产物）等
 temp/
 

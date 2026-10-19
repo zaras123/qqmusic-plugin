@@ -18,8 +18,8 @@
   </a>
 </p>
 
-> **分支说明**：`karin` 分支是 **node-karin 专用**版本（TypeScript 源码 + `dist/` 构建产物，目录名必须为
-> `karin-plugin-qqmusic`）；`main` 分支是 **Yunzai / TRSS-Yunzai** 版本。
+> **分支说明**：`karin` 分支是 **node-karin 专用**版本（TypeScript 源码 + `dist/` 构建产物；已发布到 npm，
+> 包名 `karin-plugin-qqmusic`，源码安装时目录名也必须叫这个）；`main` 分支是 **Yunzai / TRSS-Yunzai** 版本。
 > 两条分支各自维护，请不要交叉安装 —— Karin 装 `karin` 分支，Yunzai 装 `main` 分支。
 
 ---
@@ -221,16 +221,28 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 
 ### 1. 安装插件
 
+**方式 A：从 npm 安装（推荐）** —— 在 **Karin 根目录**（含 `package.json`、`index.mjs` 的那层）执行：
+
+```bash
+pnpm add karin-plugin-qqmusic
+```
+
+装完重启 Karin 即可：包内已带编译好的 `dist/`，不需要手动 build。
+升级同理：`pnpm up karin-plugin-qqmusic`，或走 Karin WebUI 的插件更新。
+
+**方式 B：源码安装（要改代码时用）**：
+
 ```bash
 cd Karin/plugins
 git clone -b karin https://github.com/zaras123/qqmusic-plugin.git karin-plugin-qqmusic
 cd karin-plugin-qqmusic && pnpm install && pnpm build
 ```
 
-> 目录名必须是 `karin-plugin-qqmusic`（Karin 按 `karin-plugin-*` 识别插件），
-> `package.json` 的 `main` 指向编译后的 `dist/index.js`，Karin 会据此调用 `KARIN_PLUGIN_INIT`；
-> 源码是 `index.ts`、`apps/*.ts`、`utils/*.ts`，发布前必须执行 `pnpm build`。
-> 仓库同时提交了 `dist/`，因此 clone 后即使忘记构建也能直接加载；改源码后请重新构建。
+> **Karin 认插件的两条路**：`plugins/` 下的 git / 目录插件；以及**根目录 `package.json` 的依赖里带
+> `karin` 字段的 npm 包**（node-karin 的 `collectNpmPlugins` 就是按这个扫的，`pnpm add` 会自动把它写进
+> dependencies，所以方式 A 不用再做别的）。两条路都以 `package.json` 的 `main`（`dist/index.js`）为入口，
+> Karin 据此调用 `KARIN_PLUGIN_INIT`。源码是 `index.ts`、`apps/*.ts`、`utils/*.ts`；npm 包在 `prepack`
+> 里自动跑 `tsc`，仓库本身也提交了 `dist/` —— 所以两条路都不用手动构建，只有**改了 TypeScript 源码**才要 `pnpm build`。
 
 ### 2. 配置 API
 
@@ -307,7 +319,10 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 
 ### 4. 更新插件
 
-需通过 `git clone` 安装（目录内有 `.git`）。主人发送：
+**方式 A 装的（npm）**：在 Karin 根目录执行 `pnpm up karin-plugin-qqmusic`（或走 Karin WebUI 的插件更新），
+然后重启 Karin。
+
+**方式 B 装的（`git clone`，目录内有 `.git`）**：主人发送：
 
 ```text
 #qqm更新        # 快进拉取 karin 分支（本地有改动时会提示）
@@ -315,7 +330,8 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 #qqm更新日志    # 最近提交记录
 ```
 
-更新成功后请重启 Karin 使新代码生效。若 `package.json` 或 TypeScript 源码有变更，请在插件目录执行 `pnpm install && pnpm build`。
+更新成功后请重启 Karin 使新代码生效。源码安装（方式 B）若 `package.json` 或 TypeScript 源码有变更，
+请在插件目录执行 `pnpm install && pnpm build`；npm 安装（方式 A）不需要，包在发布时已经构建过了。
 
 > 📌 **关于 API**：后端 API 涉及平台接口对接等技术细节，出于安全和合规考虑不对外开源。如需使用请加入用户群申请。
 

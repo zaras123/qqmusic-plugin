@@ -1,0 +1,22 @@
+# 发布白名单式外排除：npm 有 .npmignore 后就不再读 .gitignore，这里必须把
+# .gitignore 的规则抄全（否则会反过来多发出运行时数据 / 本地产物）。
+node_modules/
+
+# 运行时用户配置（保留目录占位，删除 yaml 后重启会按 default 重新生成）
+config/config/*
+!config/config/.gitkeep
+
+*.log
+.DS_Store
+
+# Playwright MCP 浏览器测试产物
+.playwright-mcp/
+
+# 本地生成物：卡片预览（scripts/preview-cards.mjs 的产物）等
+temp/
+
+# 运行时数据：歌手订阅 / 定时点歌（data/qqmusic-store.json）
+data/
+
+# 本地 AI 助手配置：settings.local.json 里含本机 API Token，绝不进包
+.claude/
