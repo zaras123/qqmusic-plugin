@@ -1,0 +1,130 @@
+export declare const RE_TICKET: RegExp;
+export declare const TICKET_PAGE_SIZE = 6;
+export declare const TICKET_NOTICE = "\u5386\u53F2\u8BB0\u5F55\u4EC5\u8986\u76D6\u5DF2\u5F52\u6863\u6F14\u51FA\uFF0C\u5E76\u975E\u5B8C\u6574\u5386\u53F2\uFF1B\u65F6\u95F4\u3001\u7968\u4EF7\u4E0E\u4F59\u7968\u4EE5\u8D2D\u7968\u9875\u4E3A\u51C6\u3002";
+export declare const TICKET_HELP: string;
+export declare function parseTicketCommand(text?: string): {
+    error?: undefined;
+    action: string;
+    key: string;
+    index?: undefined;
+    delta?: undefined;
+    city?: undefined;
+    filters?: undefined;
+} | {
+    error?: undefined;
+    key?: undefined;
+    action: string;
+    index: number;
+    delta?: undefined;
+    city?: undefined;
+    filters?: undefined;
+} | {
+    key?: undefined;
+    index?: undefined;
+    error: string;
+    delta?: undefined;
+    city?: undefined;
+    action?: undefined;
+    filters?: undefined;
+} | {
+    error?: undefined;
+    key?: undefined;
+    index?: undefined;
+    action: string;
+    delta?: undefined;
+    city?: undefined;
+    filters?: undefined;
+} | {
+    error?: undefined;
+    key?: undefined;
+    index?: undefined;
+    action: string;
+    delta: number;
+    city?: undefined;
+    filters?: undefined;
+} | {
+    error?: undefined;
+    key?: undefined;
+    index?: undefined;
+    delta?: undefined;
+    action: string;
+    city: string;
+    filters?: undefined;
+} | {
+    error?: undefined;
+    key?: undefined;
+    index?: undefined;
+    delta?: undefined;
+    city?: undefined;
+    action: string;
+    filters: {
+        status: any;
+        category: string;
+        group: string;
+        city: string;
+        artist: string;
+        q: string;
+        page: number;
+        pageSize: number;
+    };
+};
+export declare function ticketScope(e: any): string;
+export declare function ticketPrice(min: any, max?: any): string;
+export declare function ticketLink(raw: any): string;
+export declare function ticketRow(show?: {}, index?: number): {
+    index: number;
+    key: string;
+    name: string;
+    artist: string;
+    city: string;
+    venue: string;
+    address: string;
+    category: string;
+    when: string;
+    status: any;
+    price: string;
+    soldOut: boolean;
+    poster: string;
+    link: string;
+};
+export declare function buildTicketList(data: any, filters: any): {
+    title: string;
+    detail: boolean;
+    subtitle: string;
+    rows: any;
+    pageText: string;
+    notice: string;
+    updated: string;
+    empty: string;
+};
+export declare function buildTicketDetail(show: any): {
+    title: string;
+    detail: boolean;
+    subtitle: string;
+    row: {
+        index: number;
+        key: string;
+        name: string;
+        artist: string;
+        city: string;
+        venue: string;
+        address: string;
+        category: string;
+        when: string;
+        status: any;
+        price: string;
+        soldOut: boolean;
+        poster: string;
+        link: string;
+    };
+    sessions: any;
+    songs: any;
+    summary: string;
+    notice: string;
+    sourceNote: string;
+    warning: string;
+    sale: string;
+};
+export declare function formatTicketList(data: any): string;
+export declare function formatTicketDetail(data: any): string;
+export declare function ticketError(error: any): "查询过于频繁，请稍后重试。" | "演出不存在或尚未归档，请重新查询列表。" | "演出查询失败，请稍后重试或联系主人检查票务服务。" | "票务接口不存在，请主人更新 qqmusic-api-enhanced。" | "票务接口拒绝访问，请主人检查服务端访问权限。" | "票务接口鉴权失败，请主人检查 API 密钥配置。" | "票务请求超时，请稍后重试；同步可能仍在服务端继续。";

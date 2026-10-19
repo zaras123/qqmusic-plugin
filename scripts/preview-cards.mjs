@@ -70,9 +70,9 @@ function resolveKarin() {
 process.env.QQMUSIC_KARIN_PATH = resolveKarin()
 
 const { listThemeIds, loadManifest, resolveTheme, pageBgOf, viewportWidthOf, CARDS } = await import(
-  '../utils/theme.js'
+  '../dist/utils/theme.js'
 )
-const { renderHtmlFile, screenshotDirect, closeDirectBrowser } = await import('../utils/render.js')
+const { renderHtmlFile, screenshotDirect, closeDirectBrowser } = await import('../dist/utils/render.js')
 
 const outRoot = path.join(pluginPath, 'temp', 'preview')
 fs.mkdirSync(outRoot, { recursive: true })
@@ -117,7 +117,7 @@ async function main() {
   // 自定义背景（可选）：解析一次，所有卡片共用
   let bg = null
   if (bgArg) {
-    const { resolveBackground } = await import('../utils/background.js')
+    const { resolveBackground } = await import('../dist/utils/background.js')
     bg = await resolveBackground({ uiBgEnable: true, uiBgValue: bgArg, uiBgCacheMin: 10 })
     if (!bg) {
       console.log(`⚠️ 背景解析失败（${bgArg}），按无背景渲染`)

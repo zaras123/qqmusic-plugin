@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import axios from 'axios'
-import { parseTicketCommand, ticketPrice, ticketLink, ticketRow, ticketScope, buildTicketList, buildTicketDetail, formatTicketList, formatTicketDetail } from '../utils/ticket.js'
-import { setSession, getUserSession } from '../utils/session.js'
-import { ticketArchive, ticketShow, ticketOptions, ticketSync } from '../utils/ticket-api.js'
-import Config from '../components/Config.js'
+import { parseTicketCommand, ticketPrice, ticketLink, ticketRow, ticketScope, buildTicketList, buildTicketDetail, formatTicketList, formatTicketDetail } from '../dist/utils/ticket.js'
+import { setSession, getUserSession } from '../dist/utils/session.js'
+import { ticketArchive, ticketShow, ticketOptions, ticketSync } from '../dist/utils/ticket-api.js'
+import Config from '../dist/components/Config.js'
 
 test('parses ticket commands and rejects malformed filters', () => {
   const concert = parseTicketCommand('#qqm演唱会').filters

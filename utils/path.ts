@@ -14,7 +14,9 @@ function real(p) {
   }
 }
 
-export const pluginPath = real(path.join(__dirname, '..'))
+const moduleRoot = real(path.join(__dirname, '..'))
+export const pluginPath =
+  path.basename(moduleRoot).toLowerCase() === 'dist' ? real(path.join(moduleRoot, '..')) : moduleRoot
 
 /** 插件文件夹名 */
 export const pluginName = path.basename(pluginPath)

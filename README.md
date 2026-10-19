@@ -18,7 +18,7 @@
   </a>
 </p>
 
-> **分支说明**：`karin` 分支是 **node-karin 专用**版本（ESM JavaScript，目录名必须为
+> **分支说明**：`karin` 分支是 **node-karin 专用**版本（TypeScript 源码 + `dist/` 构建产物，目录名必须为
 > `karin-plugin-qqmusic`）；`main` 分支是 **Yunzai / TRSS-Yunzai** 版本。
 > 两条分支各自维护，请不要交叉安装 —— Karin 装 `karin` 分支，Yunzai 装 `main` 分支。
 
@@ -224,11 +224,13 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 ```bash
 cd Karin/plugins
 git clone -b karin https://github.com/zaras123/qqmusic-plugin.git karin-plugin-qqmusic
-cd karin-plugin-qqmusic && pnpm install
+cd karin-plugin-qqmusic && pnpm install && pnpm build
 ```
 
 > 目录名必须是 `karin-plugin-qqmusic`（Karin 按 `karin-plugin-*` 识别插件），
-> `package.json` 的 `main` 指向 `index.js`，Karin 会据此调用 `KARIN_PLUGIN_INIT`。
+> `package.json` 的 `main` 指向编译后的 `dist/index.js`，Karin 会据此调用 `KARIN_PLUGIN_INIT`；
+> 源码是 `index.ts`、`apps/*.ts`、`utils/*.ts`，发布前必须执行 `pnpm build`。
+> 仓库同时提交了 `dist/`，因此 clone 后即使忘记构建也能直接加载；改源码后请重新构建。
 
 ### 2. 配置 API
 
@@ -313,7 +315,7 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 #qqm更新日志    # 最近提交记录
 ```
 
-更新成功后请重启 Karin 使新代码生效。若 `package.json` 有变更，请在插件目录执行 `pnpm install`。
+更新成功后请重启 Karin 使新代码生效。若 `package.json` 或 TypeScript 源码有变更，请在插件目录执行 `pnpm install && pnpm build`。
 
 > 📌 **关于 API**：后端 API 涉及平台接口对接等技术细节，出于安全和合规考虑不对外开源。如需使用请加入用户群申请。
 
@@ -379,45 +381,46 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 
 ```
 qqmusic-plugin/
-├── index.js                 # 入口（加载 apps、生成配置、启动定时调度器）
+├── index.ts                 # TypeScript 入口（生成配置、启动定时调度器）
 ├── apps/
-│   ├── song.js              # 点歌 / 播放 / 歌词 / 热搜 / 帮助
-│   ├── chart.js             # 排行、推荐、电台、日推、收藏、新歌、MV
-│   ├── explore.js           # 歌手、专辑、歌单、评论
-│   ├── resolve.js           # 分享/链接解析
-│   ├── login.js             # 扫码登录（webqr / MQTT / DeepLink）
-│   ├── together.js          # 一起听（把点歌结果加进群里的房间）
-│   ├── extras.js            # 副歌试听 / 歌词海报 / 歌手订阅 / 定时点歌
-│   ├── stats.js             # 听歌统计：我的时长 / 本群排行（本地记账）
-│   ├── medal.js             # 勋章进度：平台侧时长 + 勋章任务（只读）
-│   └── admin.js             # 配置管理 / 更新
-├── components/Config.js     # 配置读写
+│   ├── song.ts              # 点歌 / 播放 / 歌词 / 热搜 / 帮助
+│   ├── chart.ts             # 排行、推荐、电台、日推、收藏、新歌、MV
+│   ├── explore.ts           # 歌手、专辑、歌单、评论
+│   ├── resolve.ts           # 分享/链接解析
+│   ├── login.ts             # 扫码登录（webqr / MQTT / DeepLink）
+│   ├── together.ts          # 一起听（把点歌结果加进群里的房间）
+│   ├── extras.ts            # 副歌试听 / 歌词海报 / 歌手订阅 / 定时点歌
+│   ├── stats.ts             # 听歌统计：我的时长 / 本群排行（本地记账）
+│   ├── medal.ts             # 勋章进度：平台侧时长 + 勋章任务（只读）
+│   └── admin.ts             # 配置管理 / 更新
+├── components/Config.ts     # 配置读写
 ├── utils/
-│   ├── api.js               # API 客户端
-│   ├── send.js              # 消息发送（语音 / 群文件 / 音乐卡 / MV 视频）
-│   ├── render.js            # 图片卡片渲染（按主题解析模板 + 热更新）
-│   ├── theme.js             # 主题发现/解析/缓存失效（多套 UI）
-│   ├── background.js        # 自定义背景：本地路径/直链/图片 API + 本地缓存
-│   ├── card-data.js         # 卡片数据构建
-│   ├── adapter.js           # Karin 适配器识别（ICQQ / OneBot / QQBot）
-│   ├── together.js          # 一起听：协议端识别 + 发包（协议知识在 API 侧）
-│   ├── session.js           # 点歌会话
-│   ├── extras.js            # 四件套的纯函数（时间解析 / 副歌窗口 / 歌词选句 / 触发窗口）
-│   ├── store.js             # 订阅与定时点歌的落盘存储（data/qqmusic-store.json）
-│   ├── stats.js             # 听歌统计：本地账本 + 文案（data/qqmusic-stats.json）
-│   ├── medal.js             # 勋章进度：只读查询平台侧时长/任务 + 文案
-│   ├── bridge.js            # 主动发消息的桥（定时/推送用：找 bot + 合成群事件）
-│   ├── scheduler.js         # 定时调度器（30s 滴答：定时点歌触发 + 订阅扫描）
-│   ├── format.js            # 列表文本格式化
-│   ├── quality.js           # 音质定义
-│   ├── platforms.js         # 平台注册表（名称/别名/品牌色/档位 + **凭据通道**，全项目唯一事实来源）
-│   ├── status-card.js       # 登录状态卡片
-│   ├── help-card.js         # 帮助卡片
-│   ├── update.js            # 插件更新
-│   ├── privacy.js           # API 地址脱敏
-│   ├── common.js            # 通用工具
-│   └── path.js / log.js / plugin-base.js
-├── web.config.mjs / web/     # Karin WebUI 配置支持
+│   ├── api.ts               # API 客户端
+│   ├── send.ts              # 消息发送（语音 / 群文件 / 音乐卡 / MV 视频）
+│   ├── render.ts            # 图片卡片渲染（按主题解析模板 + 热更新）
+│   ├── theme.ts             # 主题发现/解析/缓存失效（多套 UI）
+│   ├── background.ts        # 自定义背景：本地路径/直链/图片 API + 本地缓存
+│   ├── card-data.ts         # 卡片数据构建
+│   ├── adapter.ts           # Karin 适配器识别（ICQQ / OneBot / QQBot）
+│   ├── together.ts          # 一起听：协议端识别 + 发包（协议知识在 API 侧）
+│   ├── session.ts           # 点歌会话
+│   ├── extras.ts            # 四件套的纯函数（时间解析 / 副歌窗口 / 歌词选句 / 触发窗口）
+│   ├── store.ts             # 订阅与定时点歌的落盘存储（data/qqmusic-store.json）
+│   ├── stats.ts             # 听歌统计：本地账本 + 文案（data/qqmusic-stats.json）
+│   ├── medal.ts             # 勋章进度：只读查询平台侧时长/任务 + 文案
+│   ├── bridge.ts            # 主动发消息的桥（定时/推送用：找 bot + 合成群事件）
+│   ├── scheduler.ts         # 定时调度器（30s 滴答：定时点歌触发 + 订阅扫描）
+│   ├── format.ts            # 列表文本格式化
+│   ├── quality.ts           # 音质定义
+│   ├── platforms.ts         # 平台注册表（名称/别名/品牌色/档位 + **凭据通道**，全项目唯一事实来源）
+│   ├── status-card.ts       # 登录状态卡片
+│   ├── help-card.ts         # 帮助卡片
+│   ├── update.ts            # 插件更新
+│   ├── privacy.ts           # API 地址脱敏
+│   ├── common.ts            # 通用工具
+│   └── path.ts / log.ts / plugin-base.ts
+├── web.config.ts / web/     # Karin WebUI 配置支持
+├── dist/                    # tsc 编译产物（Karin 实际加载这里）
 ├── config/
 │   ├── default_config/      # 默认配置
 │   └── config/              # 运行时配置
@@ -465,21 +468,21 @@ qqmusic-plugin/
 卡片是高频操作，而插件与所有别的插件共用**同一条事件循环** —— 下面几条都是踩过之后写下来的：
 
 **① 判定必须每次现读配置，别缓存在模块顶层。**
-`#qqm界面`、「？？？」开关这类判定（`utils/v2.js`）每次都拿 `Config.getConfig()` 现算。老代码把开关读一次写进模块变量，Karin WebUI 里改完要重启才生效，而且「未开启」那个分支还会被缓存成永久的。
+`#qqm界面`、「？？？」开关这类判定（`utils/v2.ts`）每次都拿 `Config.getConfig()` 现算。老代码把开关读一次写进模块变量，Karin WebUI 里改完要重启才生效，而且「未开启」那个分支还会被缓存成永久的。
 
 **② `Config.getConfig()` 的结果按文件指纹（mtime + size）缓存，返回浅拷贝。**
 一次调用要读 + 解析**两份** yaml（实测 ~4.2ms，而且是同步的），一条命令里会被叫好几次，所以必须有缓存；但缓存的是**文件内容**、不是判定结果 —— Karin WebUI 保存 / 手改 yaml / 插件更新覆盖 `default_config`，指纹一变下一次就立刻读到新的（`setConfig` 另有一次主动失效）。返回值是浅拷贝，调用方随便改自己那份不会污染缓存；**将来若要改配置里的嵌套对象，得先把这里改成深拷贝**。
 
 **③ 卡片模块只能动态 import。**
-`utils/card-data.js` / `utils/render.js` 会把 art-template 和 Puppeteer 一起拉起来，不能在插件启动时加载（列表卡的统一出口 `replyListCardOrText()` 就负责这件事）。
+`utils/card-data.ts` / `utils/render.ts` 会把 art-template 和 Puppeteer 一起拉起来，不能在插件启动时加载（列表卡的统一出口 `replyListCardOrText()` 就负责这件事）。
 
 **④ 渲染共用同一个 Chromium，且别把 `waitUntil` 改回 `networkidle0`。**
-以前每张卡都 launch + close 一次 Chrome（实测 launch 545~1368ms、close 232~256ms），而截图本身才 ~600ms —— 一半时间白烧。现在 `utils/render.js` 是**单例浏览器**（空闲 5 分钟自动关、进程退出时 kill），每张卡只开 / 关一个 page。
+以前每张卡都 launch + close 一次 Chrome（实测 launch 545~1368ms、close 232~256ms），而截图本身才 ~600ms —— 一半时间白烧。现在 `utils/render.ts` 是**单例浏览器**（空闲 5 分钟自动关、进程退出时 kill），每张卡只开 / 关一个 page。
 `waitUntil` 必须留在 `'load'`：内置 44 张模板**一个 `<script>` 都没有**，也没有远程字体；`networkidle0` 在 `file://` 上要等满 500ms 静默窗口（实测 goto 975ms → 65ms），后面仍然显式等 `document.fonts.ready`，不会丢字。
 落定**不许再写固定 `setTimeout`**：老代码是 `setTimeout(200)`（重设视口后再 80ms），实测 22 张真卡片双 rAF 与它截图**字节完全一致**，却白等 130~230ms/张，而慢机器上 200ms 又赌不赢一帧。现在统一走 `waitFrames()`（等两帧，带 1s 兜底防后台标签页不派发 rAF）。
 
 **⑤ 列表卡别各写各的。**
-排行 / 新歌 / 歌手 / 专辑 / 歌单 / 点歌的「动态 import + 渲染 → 文本兜底」统一走 `utils/common.js` 的 `replyListCardOrText()`；热搜卡与评论卡**不是**列表卡，别顺手收进去。
+排行 / 新歌 / 歌手 / 专辑 / 歌单 / 点歌的「动态 import + 渲染 → 文本兜底」统一走 `utils/common.ts` 的 `replyListCardOrText()`；热搜卡与评论卡**不是**列表卡，别顺手收进去。
 
 **⑥ 帮助图（1.x 老卡与 2.0 新卡）都要走缓存，别每次现截。**
 `renderHelpCard()` / `renderGuideCard()` 都过 `renderHelpCardCached()`：帮助卡内容只跟「身份 + 配置 + 模板」有关，键一样就直接把上一张图还回去 —— 实测 **2654ms → 1ms**（1.x）、**1473ms → 1ms**（2.0）。1.x 老帮助卡（默认配置走的那张，592×3654 CSS、8.7M 像素）以前**根本没有缓存**，所以默认环境下"每发一次 #qqm帮助 都要等好几秒"。

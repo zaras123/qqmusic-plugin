@@ -87,7 +87,7 @@ function usedBare(body, name) {
 }
 
 const problems = []
-for (const file of fs.readdirSync(appsDir).filter((f) => f.endsWith('.js'))) {
+for (const file of fs.readdirSync(appsDir).filter((f) => f.endsWith('.ts') || f.endsWith('.js'))) {
   const src = fs.readFileSync(path.join(appsDir, file), 'utf8')
   // 收集全文件出现过的「参数名」（含箭头函数、方法、catch）——这些名字天然是局部绑定，
   // 无论哪个函数用都不算误用（否则 type/data/card 这类会误报一片）

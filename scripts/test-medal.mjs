@@ -16,8 +16,8 @@ import path from 'node:path'
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qqm-medal-'))
 process.env.QQMUSIC_STATS_FILE = path.join(tmpDir, 'stats.json')
 
-const M = await import('../utils/medal.js')
-const C = await import('../utils/command.js')
+const M = await import('../dist/utils/medal.js')
+const C = await import('../dist/utils/command.js')
 
 test('配置归一：默认开、活动 ID 缺省空、去首尾空白', () => {
   assert.deepEqual(M.medalConfig({}), { enable: true, actID: '', timeout: 15000 })
@@ -299,8 +299,8 @@ test('勋章命令不会被点歌规则当成"搜关键词"抢走', () => {
   assert.deepEqual(C.parseSongCmd('#qqm勋章任务'), { plat: '', verb: '', keyword: '' })
 })
 
-test('apps/medal.js 只导出一个插件类（多导出会让加载器认错插件）', () => {
-  const src = fs.readFileSync(new URL('../apps/medal.js', import.meta.url), 'utf8')
+test('apps/medal.ts 只导出一个插件类（多导出会让加载器认错插件）', () => {
+  const src = fs.readFileSync(new URL('../apps/medal.ts', import.meta.url), 'utf8')
   const names = [
     ...src.matchAll(/^export\s+(?:default\s+)?(?:async\s+)?(?:class|const|let|function)\s+([A-Za-z0-9_$]+)?/gm),
   ].map((m) => m[1] || 'default')

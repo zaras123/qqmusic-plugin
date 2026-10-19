@@ -11,7 +11,7 @@ resources/themes/
 ```
 
 > 内置主题里的 `nebula` / `multi` 是 **2.0 专版**：它们只在配置打开 `？？？`（键名 `unlockV2`）
-> 之后才会被渲染（2.0 默认走 `nebula`，见 `theme.json` 与 `utils/theme.js`）。没解锁时插件
+> 之后才会被渲染（2.0 默认走 `nebula`，见 `theme.json` 与 `utils/theme.ts`）。没解锁时插件
 > 用的还是 `uiTheme`，看到的东西与 2.0 之前逐字一致。
 
 ## 加一套自己的主题
@@ -59,7 +59,7 @@ resources/themes/
 ## 2.0 专用的三张卡
 
 `？？？` 打开后插件会多渲染三张卡。文件名与其它卡一样，只是 `data` 的形状不同
-（都出自 `utils/card-data.js`，模板只负责画，别自己算）：
+（都出自 `utils/card-data.ts`，模板只负责画，别自己算）：
 
 | 卡片 | 什么时候发 | `data` 上有什么 |
 |---|---|---|
@@ -67,7 +67,7 @@ resources/themes/
 | `qqmusic-platform` | `#qqm<平台>状态`（如 `#qqm网易状态`） | `title`/`subtitle`/`logo`、`row`（单行，见下）、`commands[]`（`name`/`example`/`desc`）、`tips[]` |
 | `qqmusic-platforms` | `#qqm平台状态` | `title`/`subtitle`、`total`/`readyCount`/`canQrCount`、`rows[]`、`tips[]` |
 
-`row` 就是"一个平台一行"，`utils/card-data.js` 的 `platformStatusRow()` 产出：
+`row` 就是"一个平台一行"，`utils/card-data.ts` 的 `platformStatusRow()` 产出：
 
 ```
 label  short  color  kindText(账号/凭据/音源/匿名)  ready  stateText  quality
@@ -75,7 +75,7 @@ sourceText  detail  canQr  ownersCount  unreliable  note  action(下一步该发
 ```
 
 - `ready` = 能不能用（匿名音源恒真、Apple 看有没有启用、其余看登录态），`stateText` 是给人看的说法
-- `action` 是**可操作的那一步**，由 `utils/platforms.js` 的凭据注册表决定：能扫码的给 `#qqm<平台>登录`，
+- `action` 是**可操作的那一步**，由 `utils/platforms.ts` 的凭据注册表决定：能扫码的给 `#qqm<平台>登录`，
   只能粘贴 cookie 的给 `#qqm<平台>ck`（私聊），两者都没有（匿名音源 / YouTube）是空串
 - 帮助卡的音源清单**同时给两种形状**：`sources[]`（新的，多带 `short`/`needsCredential`）与
   `sections[0].platforms[]`（老的）。老主题继续读 `sections`，2.0 主题读 `sources`，两边模板都不用改 ——
@@ -90,10 +90,10 @@ sourceText  detail  canQr  ownersCount  unreliable  note  action(下一步该发
 > ⚠️ **改了模板就要顺手看一眼夹具**。`test.mjs` 会逐卡片检查"模板读到的每个 `data.X`
 > 都是该卡夹具的顶层键"（区分大小写），漏了就报错。以前没这道闸：模板里加了个
 > `{{data.sourceShort}}`，夹具里没这个键，art-template 就把空值**原样画出去**（星云详情卡
-> 那颗空胶囊），而真机数据由 `utils/card-data.js` 构建、字段齐全 —— 于是只有预览在骗人，
+> 那颗空胶囊），而真机数据由 `utils/card-data.ts` 构建、字段齐全 —— 于是只有预览在骗人，
 > 肉眼评审时还会以为是主题画错了。
 
-夹具里的值要**照真机口径写**（来源短名走 `utils/platforms.js` 的 `platformShort()`，不是自己
+夹具里的值要**照真机口径写**（来源短名走 `utils/platforms.ts` 的 `platformShort()`，不是自己
 编一个；卡片里**不准出现 API 地址**，所以 `apiHint` 是空串）。演示哪一面也有讲究：详情卡默认
 画的是**外源曲**那一版，因为 QQ 绿正好等于 `--src` 的兜底色，用 QQ 曲预览等于没验证"来源色
 真的从数据流进了样式"这条管道。

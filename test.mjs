@@ -65,6 +65,11 @@ try {
 }
 console.log('')
 
+if (!fs.existsSync(path.join(pluginRoot, 'dist', 'index.js'))) {
+  console.error('缺少 dist/ 构建产物：请先执行 `npm run build`，再运行 test.mjs。')
+  process.exit(1)
+}
+
 /**
  * 离线测试优先借本机 Karin 根目录里的 node-karin（art-template / 类型）。
  * 找不到就继续走 stub，纯函数与路由测试仍然可跑。
@@ -101,20 +106,20 @@ const karinRoot = resolveKarinRoot()
 if (karinRoot) process.env.QQMUSIC_KARIN_PATH = karinRoot
 process.env.QQMUSIC_TEMP_PATH = path.join(pluginRoot, 'temp')
 
-const { loadPluginBase } = await import('./utils/plugin-base.js')
+const { loadPluginBase } = await import('./dist/utils/plugin-base.js')
 await loadPluginBase()
 
-const { qqmusicChart } = await import('./apps/chart.js')
-const { qqmusicExplore } = await import('./apps/explore.js')
-const { qqmusicLogin } = await import('./apps/login.js')
-const { qqmusicResolve } = await import('./apps/resolve.js')
-const { qqmusicSong } = await import('./apps/song.js')
-const { qqmusicTogether } = await import('./apps/together.js')
-const { qqmusicAdmin } = await import('./apps/admin.js')
-const { qqmusicExtras } = await import('./apps/extras.js')
-const { qqmusicTicket } = await import('./apps/ticket.js')
-const { qqmusicStats } = await import('./apps/stats.js')
-const { qqmusicMedal } = await import('./apps/medal.js')
+const { qqmusicChart } = await import('./dist/apps/chart.js')
+const { qqmusicExplore } = await import('./dist/apps/explore.js')
+const { qqmusicLogin } = await import('./dist/apps/login.js')
+const { qqmusicResolve } = await import('./dist/apps/resolve.js')
+const { qqmusicSong } = await import('./dist/apps/song.js')
+const { qqmusicTogether } = await import('./dist/apps/together.js')
+const { qqmusicAdmin } = await import('./dist/apps/admin.js')
+const { qqmusicExtras } = await import('./dist/apps/extras.js')
+const { qqmusicTicket } = await import('./dist/apps/ticket.js')
+const { qqmusicStats } = await import('./dist/apps/stats.js')
+const { qqmusicMedal } = await import('./dist/apps/medal.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
 
@@ -387,7 +392,7 @@ for (const input of negative) {
 // 用户不想写 `艺人=宋雨琦`；裸词必须直接当关键词/城市查，`同步` 也不能因为不是城市就把人劝退。
 console.log('\n=== 票务命令解析 ===\n')
 {
-  const T = await import('./utils/ticket.js')
+  const T = await import('./dist/utils/ticket.js')
   const parseCases = [
     // [输入, 期望 action, 期望关键字段]
     ['#qqm演唱会', 'list', { group: 'concert', status: 'upcoming', q: '' }],
@@ -432,13 +437,13 @@ console.log('\n=== 票务命令解析 ===\n')
 //       而平台前缀那截完全可以被同一条规则的可选捕获组吃掉 —— 现在就是这么做的。
 console.log('\n=== 规则冲突体检 ===\n')
 {
-  // ① 先看一条硬约束：**每个 apps/*.js 只能导出一个函数**（插件类）
+  // ① 先看一条硬约束：**每个 apps/*.ts 只能导出一个函数**（插件类）
   //   加载器是用 `Object.keys(mod).find(k => typeof mod[k] === 'function')` 找类的；
   //   apps 里多导出一个辅助函数 → 它被当成插件类 → 该模块的规则**全部消失**（实测踩过）
   {
     const badApps = []
-    for (const f of fs.readdirSync(path.join(pluginRoot, 'apps')).filter((x) => x.endsWith('.js'))) {
-      const mod = await import(`./apps/${f}`)
+    for (const f of fs.readdirSync(path.join(pluginRoot, 'apps')).filter((x) => x.endsWith('.ts'))) {
+      const mod = await import(`./dist/apps/${f.replace(/\.ts$/, '.js')}`)
       const fns = Object.keys(mod).filter((k) => typeof mod[k] === 'function')
       if (fns.length !== 1) badApps.push(`${f}: ${fns.join(',') || '(无)'}`)
     }
@@ -452,7 +457,7 @@ console.log('\n=== 规则冲突体检 ===\n')
     }
   }
 
-  const { platformAliasPattern, PLATFORMS: ALLP } = await import('./utils/platforms.js')
+  const { platformAliasPattern, PLATFORMS: ALLP } = await import('./dist/utils/platforms.js')
   const aliasList = ALLP.filter((p) => !p.own).flatMap((p) => p.aliases.slice(0, 2))
   const corpus = [
     '#qqm点歌 晴天', '#qqm 点歌 晴天', '#点歌 晴天',
@@ -556,15 +561,15 @@ let pureOk = 0
 let pureBad = 0
 try {
   const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint, isPerUserScopePath, isAppleScopedRequest } =
-    await import('./utils/api.js')
-  const { buildMusicFileName, formatSize, sniffAudioContainer } = await import('./utils/send.js')
-  const { isPluginCommandMsg } = await import('./utils/common.js')
+    await import('./dist/utils/api.js')
+  const { buildMusicFileName, formatSize, sniffAudioContainer } = await import('./dist/utils/send.js')
+  const { isPluginCommandMsg } = await import('./dist/utils/common.js')
   // 一起听：插件侧只剩「协议端识别 + 开关」。
   // 协议字段、编排、限流、文案全在 API 侧（qqmusic-api-enhanced/scripts/test-together.js 有 48 项单测），
   // 插件这边如果还残留可复刻的协议实现，就是这套架构白改了。
-  const { togetherAdapter, togetherGate, autoSyncTogether } = await import('./utils/together.js')
+  const { togetherAdapter, togetherGate, autoSyncTogether } = await import('./dist/utils/together.js')
   // 自定义背景：来源识别、图片 API 的 JSON 解析、缓存过期判定
-  const { classifyBgInput, pickImageUrl, shouldRefresh } = await import('./utils/background.js')
+  const { classifyBgInput, pickImageUrl, shouldRefresh } = await import('./dist/utils/background.js')
   // 主题（多套 UI）：语法糖是「丢个目录就能加主题」，所以这里测的是解析与回落规则
   const {
     listThemeIds,
@@ -577,10 +582,10 @@ try {
     timePeriodOf,
     darkPrefOf,
     CARDS: CARD_LIST,
-  } = await import('./utils/theme.js')
+  } = await import('./dist/utils/theme.js')
   // 四件套（试听/海报/订阅/定时）的可测逻辑全在 utils/extras.js —— 纯函数，不碰框架
   const { parseScheduleTime, chorusSegment, pickLyricLines, parseLrcLines, dueSchedules, dayKey, diffNewSongs } =
-    await import('./utils/extras.js')
+    await import('./dist/utils/extras.js')
   const themeIds = listThemeIds()
   const classicTheme = resolveTheme({ uiTheme: 'classic' })
   const fallbackTheme = resolveTheme({ uiTheme: '__不存在的主题__' })
@@ -957,7 +962,7 @@ try {
 // 它错了后面全错，所以这里的用例最密。
 console.log('\n=== 命令解析（点歌/播放/平台前缀）===\n')
 {
-  const { parseSongCmd } = await import('./utils/command.js')
+  const { parseSongCmd } = await import('./dist/utils/command.js')
   const cases = [
     // [输入, 期望平台, 期望动词, 期望关键词]
     ['#qqm点歌 七里香', '', '点歌', '七里香'],
@@ -1007,7 +1012,7 @@ console.log('\n=== 命令解析（点歌/播放/平台前缀）===\n')
   routeBad += bad
 
   // 歌词命令的解析（也吃平台前缀；数字序号与关键词都算 key）
-  const { parseLyricCmd } = await import('./utils/command.js')
+  const { parseLyricCmd } = await import('./dist/utils/command.js')
   const lyricCases = [
     ['#qqm歌词 晴天', '', '晴天'],
     ['#qqm歌词1', '', '1'],
@@ -1050,9 +1055,9 @@ function asyncCheck(name, got, want) {
 }
 
 {
-  const A = await import('./utils/async.js')
-  const PB = await import('./utils/plugin-base.js')
-  const L = await import('./utils/log.js')
+  const A = await import('./dist/utils/async.js')
+  const PB = await import('./dist/utils/plugin-base.js')
+  const L = await import('./dist/utils/log.js')
 
   // ── 归一化：同步值 / Promise / 同步抛，一律能当 Promise 用 ──
   asyncCheck('isThenable：Promise 是、同步值不是', [A.isThenable(Promise.resolve(1)), A.isThenable(false), A.isThenable(undefined), A.isThenable('x')].join(','), 'true,false,false,false')
@@ -1142,9 +1147,9 @@ function asyncCheck(name, got, want) {
   asyncCheck('hardenPlugin：全部 app 类都能包', hardenedClasses.length, modules.length)
   asyncCheck('hardenPlugin：包装后 instanceof 原类不变', hardenedClasses.every((c, i) => new c() instanceof modules[i].class), true)
   asyncCheck('hardenPlugin：原始类留了痕（__qqmBase）', hardenedClasses.every((c, i) => c.__qqmBase === modules[i].class), true)
-  const indexSrc = fs.readFileSync(path.join(pluginRoot, 'index.js'), 'utf8')
-  asyncCheck('index.js：导出 Karin 生命周期入口', /export const KARIN_PLUGIN_INIT/.test(indexSrc), true)
-  asyncCheck('index.js：不再包含旧 Yunzai 加载器', /旧 Yunzai 加载器|apps\[name\]\s*=\s*hardenPlugin/.test(indexSrc), false)
+  const indexSrc = fs.readFileSync(path.join(pluginRoot, 'index.ts'), 'utf8')
+  asyncCheck('index.ts：导出 Karin 生命周期入口', /export const KARIN_PLUGIN_INIT/.test(indexSrc), true)
+  asyncCheck('index.ts：不再包含旧 Yunzai 加载器', /旧 Yunzai 加载器|apps\[name\]\s*=\s*hardenPlugin/.test(indexSrc), false)
 
   // ── plugin-base：并发加载收敛成同一次（7 个 app 是同时被 import 的）──
   const p1 = PB.loadPluginBase()
@@ -1213,12 +1218,12 @@ function v2Check(name, got, want) {
   }
 
   try {
-    const P = await import('./utils/platforms.js')
-    const V = await import('./utils/v2.js')
-    const HC = await import('./utils/help-card.js')
-    const R = await import('./utils/render.js')
-    const { buildSchemas, setConfigData, getConfigData } = await import('./web/schemas.js')
-    const { default: Config2 } = await import('./components/Config.js')
+    const P = await import('./dist/utils/platforms.js')
+    const V = await import('./dist/utils/v2.js')
+    const HC = await import('./dist/utils/help-card.js')
+    const R = await import('./dist/utils/render.js')
+    const { buildSchemas, setConfigData, getConfigData } = await import('./dist/web/schemas.js')
+    const { default: Config2 } = await import('./dist/components/Config.js')
     const setCfg = (patch) => Config2.setConfig('qqmusic', { ...Config2.getConfig('qqmusic'), ...patch })
     const cfgNow = () => Config2.getConfig('qqmusic')
 
@@ -1399,7 +1404,7 @@ function v2Check(name, got, want) {
     v2Check(
       '行为：QQ 音源开关受闸门管（未解锁一律当"开着"，与 2.0 之前逐字一致）',
       (() => {
-        const src = fs.readFileSync(path.join(pluginRoot, 'apps', 'song.js'), 'utf8')
+        const src = fs.readFileSync(path.join(pluginRoot, 'apps', 'song.ts'), 'utf8')
         // 关键就是这一个判断：`isV2Unlocked(cfg) && !qqSourceEnabled(cfg)`
         // —— 少了前半句，老用户 yaml 里留着的 qqEnabled:false 会让点歌突然只搜外源
         const gated = /isV2Unlocked\(cfg\) && !qqSourceEnabled\(cfg\)/.test(src)
@@ -1416,7 +1421,7 @@ function v2Check(name, got, want) {
     )
     // ── 版本号：解锁显示 2.0；未解锁**任何发版阶段**都不能露出 2.0 ──
     {
-      const U = await import('./utils/update.js')
+      const U = await import('./dist/utils/update.js')
       const pkgVersion = JSON.parse(fs.readFileSync(path.join(pluginRoot, 'package.json'), 'utf8')).version
       // 四个象限：闸门（开/关）× 发版（前/后）
       v2Check('版本（纯函数）：发版前 + 没解锁 = 当时的包版本', U.pickDisplayVersion('1.10.5', false), '1.10.5')
@@ -1447,7 +1452,7 @@ function v2Check(name, got, want) {
       // 「已是最新」的判据 `oldCommit && newCommit && oldCommit === newCommit && …` 必然为假，
       // 于是顺手落进「更新成功」那一支 —— 一句谎话，比报错难查得多。
       {
-        const usrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'update.js'), 'utf8')
+        const usrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'update.ts'), 'utf8')
         v2Check('更新：读提交号要把 git 的报错一起拿回来', /async function readCommit\(\)/.test(usrc), true)
         v2Check(
           '更新：读不到提交号就**中止并报错**，绝不再回「更新成功」',
@@ -1474,7 +1479,7 @@ function v2Check(name, got, want) {
     }
     // ── 2.0 是一套**新 UI**（多平台主题），且不能污染 1.9 ──
     {
-      const T = await import('./utils/theme.js')
+      const T = await import('./dist/utils/theme.js')
       v2Check('主题：1.9（未解锁）仍用 uiTheme', T.resolveTheme({ uiTheme: 'classic' }).id, 'classic')
       v2Check('主题：1.9 选了 apple 也照旧', T.resolveTheme({ uiTheme: 'apple' }).id, 'apple')
       v2Check('主题：2.0（解锁）默认用「星云」', T.resolveTheme({ uiTheme: 'classic', unlockV2: true }).id, 'nebula')
@@ -1512,7 +1517,7 @@ function v2Check(name, got, want) {
         'apple,multi,nebula'
       )
       // #qqm界面 的提示以前写死"仅 apple 支持背景"，切到 2.0 主题后就成了假话 —— 现在按主题能力算
-      const adminSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'admin.js'), 'utf8')
+      const adminSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'admin.ts'), 'utf8')
       v2Check(
         '界面命令：背景提示按主题能力算（不写死 apple）',
         /const bgIds =/.test(adminSrc) && !/仅 apple 主题支持/.test(adminSrc),
@@ -1574,7 +1579,7 @@ function v2Check(name, got, want) {
 
       // ── 版式陷阱 + 像素预算（2026-09-30 用户报"帮助渲染不全" + "弱服务器渲染过慢"）──
       {
-        const RS = await import('./utils/render.js')
+        const RS = await import('./dist/utils/render.js')
         const guideHtml = fs.readFileSync(
           path.join(pluginRoot, 'resources', 'themes', 'apple', 'qqmusic-guide.html'),
           'utf8'
@@ -1623,7 +1628,7 @@ function v2Check(name, got, want) {
       // 于是每一首（包括免登录就能播的外源曲）都被标成"付费曲" —— showPay 的语义是
       // "要不要显示这枚徽章"（MV 卡传 false），不是"这歌要付费"。
       // 这里不查模板源码，而是把模板真的渲出来看结果：预览与真机走的就是这条路径。
-      const R = await import('./utils/render.js')
+      const R = await import('./dist/utils/render.js')
       const freeSong = fixtures['qqmusic-detail']
       const paidSong = { ...freeSong, payplay: true, payInfo: '会员' }
       const rendered = (data, id) =>
@@ -1646,7 +1651,7 @@ function v2Check(name, got, want) {
     }
     // ── 新 UI 依赖的数据（来源色标）必须由 builder 提供，否则模板只能画灰的 ──
     {
-      const CD = await import('./utils/card-data.js')
+      const CD = await import('./dist/utils/card-data.js')
       const mix = [
         { songmid: 'qq1', songName: '晴天', singerName: '周杰伦', payplay: true },
         { source: 'netease', songmid: 'ne_1', songName: '晴天(深情版)', singerName: 'Lucky小爱', quality: '128k', external: true },
@@ -1681,7 +1686,7 @@ function v2Check(name, got, want) {
     }
     // ── 单平台状态卡（#qqm网易状态 / #qqm酷狗状态 …）──
     {
-      const CD2 = await import('./utils/card-data.js')
+      const CD2 = await import('./dist/utils/card-data.js')
       const fake = { list: [
         { name: 'netease', label: '网易云', kind: 'credential', canQr: true, loggedIn: true, source: 'user', sourceText: '自己那份', quality: '128k', owners: ['a'] },
         { name: 'qq', label: 'QQ音乐', kind: 'account', canQr: true, loggedIn: true, detail: { uin: '1152****' } },
@@ -1702,8 +1707,8 @@ function v2Check(name, got, want) {
     // ── 3 处一致性修复的回归（2026-09-23）──
     // ── 凭据通道（扫码 / 粘贴 cookie）：注册表是唯一事实来源 ──────────────
     {
-      const CD3 = await import('./utils/card-data.js')
-      const CMD = await import('./utils/command.js')
+      const CD3 = await import('./dist/utils/card-data.js')
+      const CMD = await import('./dist/utils/command.js')
       const loginApp = new qqmusicLogin()
       const quoted = []
       const fakeE = (msg, extra = {}) => ({ msg, user_id: 'u1', reply: async (t) => quoted.push(String(t)), ...extra })
@@ -1779,9 +1784,9 @@ function v2Check(name, got, want) {
       // ⑤b 上传失败的回执（2026-09-25 实撞：「⚠️ 凭据上传失败：…；保存成功」——
       //     一边说失败一边说保存成功，还没说凭据到底存没存）
       {
-        const webSchemaSrc = fs.readFileSync(path.join(pluginRoot, 'web', 'schemas.js'), 'utf8')
-        const apiSrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'api.js'), 'utf8')
-        const loginSrc3 = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
+        const webSchemaSrc = fs.readFileSync(path.join(pluginRoot, 'web', 'schemas.ts'), 'utf8')
+        const apiSrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'api.ts'), 'utf8')
+        const loginSrc3 = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.ts'), 'utf8')
         v2Check('Karin WebUI：上传失败说的是"凭据**没传上去**"（不再只说"上传失败"就完事）', /凭据\*\*没传上去\*\*/.test(webSchemaSrc), true)
         v2Check('Karin WebUI：把 API 的 tip 与 howto 分步清单一起显示（照着做就行）', /e\.tip/.test(webSchemaSrc) && /Array\.isArray\(e\.howto\)/.test(webSchemaSrc), true)
         v2Check('Karin WebUI：提醒粘贴框不保留内容（修好后要重新粘一次）', /粘贴框不保留内容/.test(webSchemaSrc), true)
@@ -1801,7 +1806,7 @@ function v2Check(name, got, want) {
       //     （文案里一直写着"test.mjs 有断言钉着"，这次真的钉上）
       quoted.length = 0
       {
-        const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
+        const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.ts'), 'utf8')
         const tableIds = [...loginSrc.matchAll(/^ {2}(\w+): \{ start: '(\/[^']+)'/gm)].map((m) => m[1]).sort()
         v2Check(
           '凭据：扫码命令表与注册表一一对应（少一家 = 命令没反应）',
@@ -1999,7 +2004,7 @@ function v2Check(name, got, want) {
       //    API 侧已改成退避并把节奏写在 retryAfterMs 里，
       //    插件这几条断言钉的是"客户端确实照它走"。
       {
-        const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
+        const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.ts'), 'utf8')
         v2Check('扫码轮询：间隔读 API 的 retryAfterMs（节奏由 API 一处定）', /waitMs = clampPollMs\(d\.retryAfterMs\)/.test(loginSrc), true)
         v2Check('扫码轮询：间隔夹在 2~20s（上限跟着 API 的退避上限走）', /QR_POLL_MIN_MS = 2000/.test(loginSrc) && /QR_POLL_MAX_MS = 20000/.test(loginSrc), true)
         v2Check('扫码轮询：默认 5s 一轮（3s 会烧光上游预算，实测扫码后立刻被限流）', /const QR_POLL_MS = 5000/.test(loginSrc), true)
@@ -2018,7 +2023,7 @@ function v2Check(name, got, want) {
     }
 
     {
-      const src = fs.readFileSync(path.join(pluginRoot, 'apps', 'song.js'), 'utf8')
+      const src = fs.readFileSync(path.join(pluginRoot, 'apps', 'song.ts'), 'utf8')
       // ① 播放也要认「当前音源」：以前只有点歌认，用户设完音源去播放还是搜 QQ
       v2Check(
         '播放认当前音源（与点歌同口径）',
@@ -2094,13 +2099,13 @@ function v2Check(name, got, want) {
     setCfg({ uiTheme: 'apple' })
     v2Check('帮助缓存：改配置就换键', k1 !== R.guideCacheKey(guide, 'classic'), true)
     v2Check('模板就位：两个主题都有 2.0 帮助模板', ['classic', 'apple'].every((t) => fs.existsSync(path.join(pluginRoot, 'resources', 'themes', t, 'qqmusic-guide.html'))), true)
-    v2Check('模板已登记（theme.js 的 CARDS）', (await import('./utils/theme.js')).CARDS.includes('qqmusic-guide'), true)
+    v2Check('模板已登记（theme.js 的 CARDS）', (await import('./dist/utils/theme.js')).CARDS.includes('qqmusic-guide'), true)
 
     // ── 1.x 老帮助卡也必须走缓存 ──
     // 2026-09-30「2C2G 上帮助图渲染过慢」：默认配置（没开「？？？」）走的是**老帮助卡**，
     // 而缓存以前只挂在 2.0 那条路上 —— 老卡一遍一遍现截（592×3654 CSS，本机 ~1s、2C2G 更久）。
     {
-      const rsrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'render.js'), 'utf8')
+      const rsrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'render.ts'), 'utf8')
       v2Check(
         '帮助缓存：renderHelpCard 也走缓存（1.x 老卡不许每次现截）',
         /export async function renderHelpCard\(e, data\) \{\s*return renderHelpCardCached\(e, data, 'qqmusic-help'\)/.test(rsrc),
@@ -2155,7 +2160,7 @@ function v2Check(name, got, want) {
 
     // ── 落定方式：不许再用固定 sleep 赌（见 utils/render.js waitFrames） ──
     {
-      const rsrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'render.js'), 'utf8')
+      const rsrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'render.ts'), 'utf8')
       v2Check(
         '截图：落定改成等帧（rAF），不再 setTimeout 死等',
         /function waitFrames\(page, n = 2/.test(rsrc) &&
@@ -2335,14 +2340,14 @@ function fontCheck(name, got, want) {
     if (bad.length) badTemplates.push(`${unit}[${bad.join(' ')}]`)
   }
   fontCheck('四套主题的模板里没有画不出的字（图标一律走 SVG / .ic-*）', badTemplates.join(','), '')
-  const badSrc = ['utils/card-data.js', 'utils/help-card.js']
+  const badSrc = ['utils/card-data.ts', 'utils/help-card.ts']
     .map((f) => [f, uncoverable(stripComments(fs.readFileSync(path.join(pluginRoot, f), 'utf8')))])
     .filter(([, bad]) => bad.length)
     .map(([f, bad]) => `${f}[${bad.join(' ')}]`)
   fontCheck('卡片数据源里也没有画不出的字（card-data / help-card）', badSrc.join(','), '')
   // 上面两条是源码级（换成常量拼接就绕得过去）—— 这里把卡数据**真建出来**再扫一遍
   {
-    const CD = await import('./utils/card-data.js')
+    const CD = await import('./dist/utils/card-data.js')
     const platList = [
       { name: 'netease', label: '网易云', kind: 'credential', canQr: true, loggedIn: true, quality: '128k' },
       { name: 'kuwo', label: '酷我', kind: 'credential', loggedIn: false, quality: '128k', unreliable: '上游偶尔抽风' },
@@ -2381,7 +2386,7 @@ function refactorCheck(name, got, want) {
 
 {
   // ── 主人账号：回落链只此一份（别在别处再写 cfg.publicAccount || ...）──
-  const { publicAccountOf, resolvePublicAccount, isAutoPublicAccount } = await import('./utils/account.js')
+  const { publicAccountOf, resolvePublicAccount, isAutoPublicAccount } = await import('./dist/utils/account.js')
   refactorCheck('账号：没填也没登录过 → 空', resolvePublicAccount({}), '')
   refactorCheck('账号：手填优先于任何回落值', resolvePublicAccount({ publicAccount: '12345', lastLoginUin: '888' }), '12345')
   refactorCheck('账号：手填带空格 → trim', publicAccountOf({ publicAccount: '  12345  ' }), '12345')
@@ -2398,8 +2403,8 @@ function refactorCheck(name, got, want) {
   refactorCheck('账号：全仓没有 public_account 死别名', aliasHits.length, 0)
 
   // ── 列表卡：6 个命令共用一个出口，且卡片模块必须**惰性**（别把 Puppeteer 拽进启动）──
-  const commonSrc = fs.readFileSync(path.join(pluginRoot, 'utils/common.js'), 'utf8')
-  const { replyListCardOrText } = await import('./utils/common.js')
+  const commonSrc = fs.readFileSync(path.join(pluginRoot, 'utils/common.ts'), 'utf8')
+  const { replyListCardOrText } = await import('./dist/utils/common.js')
   refactorCheck('列表卡：统一出口已导出', typeof replyListCardOrText, 'function')
   refactorCheck(
     '列表卡：common.js 不静态引卡片模块（Puppeteer 不在启动时加载）',
@@ -2407,13 +2412,13 @@ function refactorCheck(name, got, want) {
     false
   )
   refactorCheck('列表卡：出口内部用动态 import 卡片模块', /await import\('\.\/card-data\.js'\)/.test(commonSrc), true)
-  const listSites = ['apps/chart.js', 'apps/explore.js', 'apps/song.js'].map((f) =>
+  const listSites = ['apps/chart.ts', 'apps/explore.ts', 'apps/song.ts'].map((f) =>
     (fs.readFileSync(path.join(pluginRoot, f), 'utf8').match(/replyListCardOrText\(/g) || []).length
   )
   refactorCheck('列表卡：排行/新歌/歌手/专辑/歌单/点歌全走统一出口', listSites.join(','), '2,3,1')
 
   // ── 渲染：共用浏览器 + 不再等 networkidle0 ──
-  const renderSrc = fs.readFileSync(path.join(pluginRoot, 'utils/render.js'), 'utf8')
+  const renderSrc = fs.readFileSync(path.join(pluginRoot, 'utils/render.ts'), 'utf8')
   refactorCheck('渲染：不再是每张卡 launch 一个浏览器（单例 + 空闲回收）', /sharedBrowser/.test(renderSrc), true)
   refactorCheck('渲染：浏览器空闲/退出都会收（不留孤儿 Chromium）', /process\.once\('exit'/.test(renderSrc), true)
   refactorCheck("渲染：goto 用 waitUntil: 'load'（模板里没有任何 script，后面仍等 fonts.ready）", /waitUntil:\s*'load'/.test(renderSrc), true)
@@ -2427,7 +2432,7 @@ function refactorCheck(name, got, want) {
   )
   // ── 图片格式：默认 jpeg（实测同一张卡 4.98s/9.75MB → 0.56s/1.44MB）──
   {
-    const R = await import('./utils/render.js')
+    const R = await import('./dist/utils/render.js')
     refactorCheck('图片格式：默认 jpeg（别再默认回 PNG 的大图）', R.DEFAULT_IMAGE_FORMAT, 'jpeg')
     refactorCheck(
       '图片格式：配置没写 / 写错 → 都回 jpeg；显式 png 才走 png',
@@ -2442,14 +2447,14 @@ function refactorCheck(name, got, want) {
   }
 
   // ── 登录态落盘：四处逐字重复收成一个函数 ──
-  const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps/login.js'), 'utf8')
+  const loginSrc = fs.readFileSync(path.join(pluginRoot, 'apps/login.ts'), 'utf8')
   refactorCheck('登录：落盘收进 writeLoginState', /function writeLoginState/.test(loginSrc), true)
   refactorCheck('登录：登出走全清（reset）', /writeLoginState\(\{\s*reset:\s*true\s*\}\)/.test(loginSrc), true)
 
   // ── 配置缓存：靠**文件指纹**失效，不靠「读一次写死」──
   //  用一份临时配置验（跑完 finally 删掉），绝不碰真配置
   const fsMod = await import('node:fs')
-  const { default: Config } = await import('./components/Config.js')
+  const { default: Config } = await import('./dist/components/Config.js')
   const scratchDef = path.join(pluginRoot, 'config/default_config/__cachetest.yaml')
   const scratchUsr = path.join(pluginRoot, 'config/config/__cachetest.yaml')
   const origRead = fsMod.default.readFileSync

@@ -1,0 +1,276 @@
+/**
+ * 主题（多套 UI）：发现、解析、热更新
+ *
+ * 目录约定：resources/themes/<主题id>/{theme.json, qqmusic-*.html}
+ *   - 主题只实现其中几张卡也可以，缺的自动回落到 classic 的同名模板
+ *   - theme.json 决定页面底色、视口宽度、是否支持深色
+ *
+ * 本模块**不依赖 art-template / puppeteer**（保持纯 fs 逻辑，方便单测）；
+ * 模板编译缓存的失效由 render.js 拿到 fileChanged() 的结果后自己清。
+ */
+import fs from 'node:fs';
+import path from 'node:path';
+import { pluginPath } from './path.js';
+import { isV2Unlocked } from './v2.js';
+export const THEMES_DIR = path.join(pluginPath, 'resources', 'themes');
+export const DEFAULT_THEME = 'classic';
+/** 2.0（？？？打开后）的默认主题：「星云」版（multi 仍可选） */
+export const DEFAULT_THEME_V2 = 'nebula';
+/** 插件全部卡片（模板文件名 = 卡片名） */
+export const CARDS = [
+    'qqmusic-ticket',
+    'qqmusic-help',
+    'qqmusic-guide',
+    'qqmusic-platform',
+    'qqmusic-platforms',
+    'qqmusic-list',
+    'qqmusic-detail',
+    'qqmusic-lyric',
+    'qqmusic-poster',
+    'qqmusic-hot',
+    'qqmusic-comment',
+    'qqmusic-status',
+    'qqmusic-settings',
+    'qqmusic-medal',
+];
+/** id → { mtimeMs, manifest }；theme.json 改了自动失效 */
+const manifestCache = new Map();
+/** file → mtimeMs，用于判断模板是否需要重新编译 */
+const mtimeCache = new Map();
+/** 一天里的四个时段（底色跟着时段走，卡片颜色一天里是活的） */
+export const TIME_PERIODS = ['dawn', 'day', 'dusk', 'night'];
+export const TIME_LABEL = { dawn: '清晨', day: '白天', dusk: '黄昏', night: '夜晚' };
+/**
+ * 当前时段（纯函数，便于测试固定时间）
+ *   清晨 5-8 / 白天 8-17 / 黄昏 17-20 / 夜晚 20-5
+ */
+export function timePeriodOf(date = new Date()) {
+    const h = Number(new Date(date).getHours());
+    if (h >= 5 && h < 8)
+        return 'dawn';
+    if (h >= 8 && h < 17)
+        return 'day';
+    if (h >= 17 && h < 20)
+        return 'dusk';
+    return 'night';
+}
+/**
+ * 目录下有哪些主题（只认带 theme.json 的目录）
+ *
+ * ⚠️ **按目录指纹缓存**（2026-09-25 性能优化）：以前每次调用都
+ * `readdirSync` + 逐个 `existsSync` + 排序 —— 实测 **~420µs/次**，
+ * 而 `resolveTheme()`（每张卡要调 2~3 次）就是靠它撑着的，一张卡白花 1ms 上下。
+ *
+ * 失效判据用 **THEMES_DIR 的 mtime**：
+ *   · 丢一个主题目录进去 / 删掉一个 → 目录 mtime 变 → 立刻生效（热重载那套不受影响）
+ *   · 改现有主题的 theme.json **不动**这份缓存（那份由 loadManifest 按文件 mtime 自己管）
+ * 读不到目录（比如还没建）时回空数组并**不缓存**，下次照样重试。
+ */
+let themeIdsCache = { key: '', ids: [] };
+export function listThemeIds() {
+    let key = '';
+    try {
+        const st = fs.statSync(THEMES_DIR);
+        key = `${st.mtimeMs}:${st.size}`;
+    }
+    catch {
+        return [];
+    }
+    if (themeIdsCache.key === key)
+        return themeIdsCache.ids;
+    try {
+        const ids = fs
+            .readdirSync(THEMES_DIR, { withFileTypes: true })
+            .filter((d) => d.isDirectory())
+            .map((d) => d.name)
+            .filter((id) => fs.existsSync(path.join(THEMES_DIR, id, 'theme.json')))
+            .sort();
+        themeIdsCache = { key, ids };
+        return ids;
+    }
+    catch {
+        return [];
+    }
+}
+/** 把缺字段的 theme.json 补成完整契约；坏值一律给安全默认，别让渲染炸掉 */
+export function normalizeManifest(id, raw = {}) {
+    const bg = raw.pageBg && typeof raw.pageBg === 'object' ? raw.pageBg : {};
+    const cardWidth = raw.cardWidth && typeof raw.cardWidth === 'object' ? raw.cardWidth : {};
+    const vw = Number(raw.viewportWidth);
+    return {
+        id,
+        name: String(raw.name || id),
+        desc: String(raw.desc || ''),
+        dark: raw.dark === true,
+        // 是否支持「自定义背景」（背景 + 液态玻璃）。只有声明了的主题才接管 uiBg* 配置
+        bg: raw.bg === true,
+        pageBg: {
+            light: String(bg.light || '#F2F2F7'),
+            // 只有声明支持深色的主题才需要深色底
+            ...(raw.dark === true ? { dark: String(bg.dark || '#000000') } : {}),
+        },
+        viewportWidth: vw > 0 ? vw : 640,
+        cardWidth,
+    };
+}
+/** 读某个主题的 manifest（按 mtime 缓存） */
+export function loadManifest(id) {
+    const file = path.join(THEMES_DIR, id, 'theme.json');
+    let st;
+    try {
+        st = fs.statSync(file);
+    }
+    catch {
+        return null;
+    }
+    const cached = manifestCache.get(id);
+    if (cached && cached.mtimeMs === st.mtimeMs)
+        return cached.manifest;
+    let manifest;
+    try {
+        manifest = normalizeManifest(id, JSON.parse(fs.readFileSync(file, 'utf8')));
+    }
+    catch {
+        // theme.json 写坏了：按默认值渲染，别让整张卡发不出去
+        manifest = normalizeManifest(id, {});
+    }
+    manifestCache.set(id, { mtimeMs: st.mtimeMs, manifest });
+    return manifest;
+}
+/**
+ * 卡片图片格式（2026-09-25 性能优化）
+ *
+ * 实测（本机 Chrome，2064×6030 的 2.0 帮助卡，同一热页面只换格式）：
+ *   PNG        **4.98 s**  **9.75 MB**
+ *   JPEG q92    0.56 s       1.44 MB     ← 快 8.9×、小 6.8×
+ * 1:1 局部对比（文字 + 品牌色轨 + pill）看不出差别；而这张图**每发一次都要上传给 QQ**，
+ * 慢网下"卡片半天发不出去"多半就是它。
+ *
+ * ⚠️ 放在 theme.js（而不是 render.js）是因为它要**同时被**渲染、设置卡、Karin WebUI 三处读：
+ *    card-data / Karin WebUI schema 引 render.js 会把 Puppeteer 拽进启动路径（有条测试钉着
+ *    "别把卡片模块静态引进来"）。归一函数只此一份，别再各写一遍。
+ * ⚠️ 二维码那条路永远是 PNG（`saveQrImage`）：JPEG 的振铃会让码扫不出来。
+ */
+export const DEFAULT_IMAGE_FORMAT = 'jpeg';
+export const IMAGE_QUALITY = 92;
+/** 归一配置里的图片格式：认不出一律回 jpeg（默认档） */
+export function imageFormatOf(cfg = {}) {
+    const v = String(cfg.imageFormat || '').trim().toLowerCase();
+    return v === 'png' ? 'png' : DEFAULT_IMAGE_FORMAT;
+}
+/** uiDark 归一：true=深色 / false=浅色 / 'auto'=跟随时间（夜晚自动深色） */
+export function darkPrefOf(v) {
+    if (v === true)
+        return 'dark';
+    if (v === false || v === undefined || v === null || v === '')
+        return 'light';
+    const s = String(v).trim().toLowerCase();
+    if (s === 'auto' || s === 'time' || s === '自动')
+        return 'auto';
+    if (s === 'true' || s === '1' || s === 'yes' || s === 'on' || s === 'dark')
+        return 'dark';
+    return 'light';
+}
+/**
+ * 解析出本次要用的主题
+ * @param {object} cfg 插件配置（读 uiTheme / uiDark）
+ * @param {{now?: number|Date}} [opts] now 用于测试固定时间
+ * @returns {{id, requested, fallback, dir, manifest, period, darkPref, dark}}
+ */
+export function resolveTheme(cfg = {}, opts = {}) {
+    /**
+     * 用哪套主题：
+     *   · ？？？关着 → **老主题**（`uiTheme`，默认 classic）—— 1.9 原样，一个字都不变
+     *   · ？？？打开 → **2.0 主题**（`uiThemeV2`，默认新增的 `multi` 多平台版）
+     *
+     * 为什么不直接把默认 uiTheme 改成 multi：老用户的配置里写着 classic，
+     * 换了默认他们也会跟着变 —— 需求要的是"没开就与 1.9 一致"。
+     * 想在新版里继续用老皮肤：把 uiThemeV2 设成 classic / apple 即可。
+     */
+    const wanted = isV2Unlocked(cfg)
+        ? String(cfg.uiThemeV2 || '').trim() || DEFAULT_THEME_V2
+        : String(cfg.uiTheme || '').trim() || DEFAULT_THEME;
+    const requested = wanted;
+    const ids = listThemeIds();
+    const id = ids.includes(requested) ? requested : DEFAULT_THEME;
+    const manifest = loadManifest(id) || loadManifest(DEFAULT_THEME) || normalizeManifest(id, {});
+    // uiTimeColor 关掉就固定用白天那套底色（关掉的人要的是稳定观感）
+    const useTimeColor = cfg.uiTimeColor !== false;
+    const period = useTimeColor
+        ? timePeriodOf(opts.now === undefined ? new Date() : opts.now)
+        : 'day';
+    const darkPref = darkPrefOf(cfg.uiDark);
+    return {
+        id,
+        requested,
+        fallback: id !== requested,
+        dir: path.join(THEMES_DIR, id),
+        manifest,
+        period,
+        useTimeColor,
+        darkPref,
+        // 主题不支持深色时，配置里的 uiDark 不生效
+        dark: manifest.dark === true && (darkPref === 'dark' || (darkPref === 'auto' && period === 'night')),
+    };
+}
+/**
+ * 某张卡在该主题下的模板文件；该主题没实现这张卡就回落到 classic。
+ * @returns {{file: string|null, from: string|null, fallback: boolean}}
+ */
+export function templateFile(theme, card) {
+    const own = path.join(theme.dir, `${card}.html`);
+    if (fs.existsSync(own))
+        return { file: own, from: theme.id, fallback: false };
+    const base = path.join(THEMES_DIR, DEFAULT_THEME, `${card}.html`);
+    if (fs.existsSync(base))
+        return { file: base, from: DEFAULT_THEME, fallback: true };
+    return { file: null, from: null, fallback: false };
+}
+export function pageBgOf(theme) {
+    const bg = theme.manifest?.pageBg || {};
+    return (theme.dark ? bg.dark : bg.light) || bg.light || '#F2F2F7';
+}
+export function viewportWidthOf(theme, card) {
+    const per = Number(theme.manifest?.cardWidth?.[card]);
+    if (per > 0)
+        return per;
+    return Number(theme.manifest?.viewportWidth) || 640;
+}
+/**
+ * 模板文件是否变化过（变了 = 需要让 art-template 重新编译）
+ * 首次调用必然返回 true —— 反正第一次也要编译。
+ */
+export function fileChanged(file) {
+    let st;
+    try {
+        st = fs.statSync(file);
+    }
+    catch {
+        return true;
+    }
+    const prev = mtimeCache.get(file);
+    mtimeCache.set(file, st.mtimeMs);
+    return prev !== st.mtimeMs;
+}
+/** 一键清空所有缓存（#qqm界面 重载 用） */
+export function invalidateAll() {
+    manifestCache.clear();
+    mtimeCache.clear();
+}
+/** 给命令用的主题清单 */
+export function describeThemes() {
+    return listThemeIds().map((id) => {
+        const m = loadManifest(id);
+        return {
+            id,
+            name: m?.name || id,
+            desc: m?.desc || '',
+            dark: m?.dark === true,
+            bg: m?.bg === true,
+            cards: CARDS.filter((c) => fs.existsSync(path.join(THEMES_DIR, id, `${c}.html`))).length,
+            // 卡片总数（分母）：从 8 涨到 11 后，任何写死 "/8" 的文案都会说谎，所以由这里给出
+            cardsTotal: CARDS.length,
+        };
+    });
+}
+//# sourceMappingURL=theme.js.map

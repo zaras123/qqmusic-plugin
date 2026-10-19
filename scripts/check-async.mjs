@@ -64,13 +64,13 @@ const TIMER_RE = /(setTimeout|setInterval)\s*\(/g
 /** 箭头函数形参：形参不是「声明过的 async 函数」，要从 asyncNames 里剔掉 */
 const ARROW_PARAM_RE = /\(\s*([^)]*)\)\s*=>/g
 
-/** 递归收集插件自身的 js/mjs（与 test.mjs 同一套跳过规则） */
+/** 递归收集插件自身的 ts/js/mjs（跳过构建产物，与 test.mjs 同一套跳过规则） */
 function collectFiles(dir, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (e.name === 'node_modules' || e.name === '.git' || e.name === 'temp') continue
+    if (e.name === 'node_modules' || e.name === '.git' || e.name === 'temp' || e.name === 'dist') continue
     const p = path.join(dir, e.name)
     if (e.isDirectory()) collectFiles(p, out)
-    else if (/\.(js|mjs)$/.test(e.name)) out.push(p)
+    else if (/\.(ts|js|mjs)$/.test(e.name)) out.push(p)
   }
   return out
 }

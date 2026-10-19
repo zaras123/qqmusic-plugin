@@ -14,8 +14,8 @@ import path from 'node:path'
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qqm-stats-'))
 process.env.QQMUSIC_STATS_FILE = path.join(tmpDir, 'stats.json')
 
-const S = await import('../utils/stats.js')
-const C = await import('../utils/command.js')
+const S = await import('../dist/utils/stats.js')
+const C = await import('../dist/utils/command.js')
 
 /** 测试里一律用固定时间，别让"今天"跟着机器时间漂 */
 const at = (iso) => Date.parse(iso)
@@ -259,8 +259,8 @@ test('这两条命令不会被点歌规则当成"搜关键词"抢走', () => {
   assert.deepEqual(C.parseSongCmd('#qqm听歌榜 本周'), { plat: '', verb: '', keyword: '' })
 })
 
-test('apps/stats.js 只导出一个插件类（多导出会让加载器认错插件）', () => {
-  const src = fs.readFileSync(new URL('../apps/stats.js', import.meta.url), 'utf8')
+test('apps/stats.ts 只导出一个插件类（多导出会让加载器认错插件）', () => {
+  const src = fs.readFileSync(new URL('../apps/stats.ts', import.meta.url), 'utf8')
   const names = [
     ...src.matchAll(/^export\s+(?:default\s+)?(?:async\s+)?(?:class|const|let|function)\s+([A-Za-z0-9_$]+)?/gm),
   ].map((m) => m[1] || 'default')

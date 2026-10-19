@@ -3,7 +3,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = process.argv[2] || path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const { normalizeApiBase } = await import(pathToFileURL(path.resolve(root, 'utils/api.js')).href)
+const { normalizeApiBase } = await import(pathToFileURL(path.resolve(root, 'dist/utils/api.js')).href)
 const cases = [
   ['qqmusic.zvmiy.top', 'https://qqmusic.zvmiy.top'],
   ['qqmusic.zvmiy.top:8443/api/', 'https://qqmusic.zvmiy.top:8443/api'],
