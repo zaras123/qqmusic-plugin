@@ -1,58 +1,86 @@
 /**
- * 加载 Yunzai 插件基类（兼容 ESM + top-level await）
+ * Karin 插件基类加载器。
+ *
+ * 运行在 Karin 时直接使用 `node-karin` 的 Plugin；离线测试 / 预览脚本拿不到
+ * node-karin 时退到本地 stub。这里不依赖其它框架的插件基类路径。
  */
-import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { hardenInstance } from './async.js'
 
 let cached = null
-/** 进行中/已完成的加载 Promise —— 并发调用共享同一个（见下方注释） */
 let pending = null
+let karinHost = false
+
+function makeStub() {
+  class PluginStub {
+    constructor(options = {}) {
+      Object.assign(this, options)
+      this.rule ||= []
+      this.priority ??= 10000
+      this.event ??= 'message'
+      this.e ||= {}
+      this.next ||= () => {}
+    }
+
+    async reply(msg, ...rest) {
+      return { ok: false, stub: true, msg, rest }
+    }
+  }
+  Object.defineProperty(PluginStub, '__qqmStub', { value: true, enumerable: false })
+  return PluginStub
+}
 
 async function doLoad() {
-  const candidates = [
-    path.join(process.cwd(), 'lib/plugins/plugin.js'),
-    path.join(process.cwd(), 'lib/plugins/plugin.ts'),
-    path.join(process.cwd(), 'lib/plugins/plugin.mjs'),
-  ]
+  try {
+    const karin = await import('node-karin')
+    if (karin?.Plugin) {
+      karinHost = true
+      return karin.Plugin
+    }
+  } catch {
+    /* 离线测试 / 预览 */
+  }
+  return makeStub()
+}
 
-  for (const p of candidates) {
-    try {
-      // 必须转成 file:// URL：Windows 下绝对路径（D:\...）会被 ESM 当成 URL，
-      // 报「不支持 d: 协议」而全部加载失败（Linux 上恰好能过，所以只在本地测试时暴露）
-      const mod = await import(pathToFileURL(p).href)
-      return mod.default || mod.plugin || mod
-    } catch {
-      // 继续尝试下一个
+function wrapBase(Base) {
+  const isStub = Boolean(Base?.__qqmStub)
+
+  class QQMusicPluginBase extends Base {
+    constructor(...args) {
+      super(...args)
+      try {
+        Object.defineProperty(this, '__qqmKarin', {
+          value: karinHost,
+          enumerable: false,
+          configurable: true,
+        })
+      } catch {
+        /* 实例被冻结时不影响业务 */
+      }
+      hardenInstance(this, this.constructor?.name || 'plugin')
     }
   }
 
-  // 回退相对路径
-  try {
-    const mod = await import('../../../lib/plugins/plugin.js')
-    return mod.default || mod.plugin || mod
-  } catch (e) {
-    throw new Error(`无法加载 Yunzai plugin 基类: ${e.message}`)
+  Object.defineProperty(QQMusicPluginBase, '__qqmKarin', {
+    value: karinHost,
+    enumerable: false,
+  })
+  if (isStub) {
+    Object.defineProperty(QQMusicPluginBase, '__qqmStub', {
+      value: true,
+      enumerable: false,
+    })
   }
+  return QQMusicPluginBase
 }
 
-/**
- * 异步加载插件基类（使用 import() 兼容 ESM）
- *
- * ⚠️ 必须做并发去重：7 个 app 模块是被 index.js 用 `Promise.allSettled(import(...))`
- * **同时**拉起来的，每个模块顶层都 `await loadPluginBase()`，于是 7 个调用会在
- * `cached` 还没写上的那一瞬间一起进来，各自把候选路径 walk 一遍（最坏情况
- * 7 × (3 次失败的 import + 1 次回退)）。这里把它们收敛成同一次加载。
- *
- * 顺带一个可断言的性质：不管调用多少次、什么时候调，都返回**同一个 Promise 对象**
- * （test.mjs 的异步段就是拿这个钉去重有没有生效）。
- * 加载失败时清掉 pending，允许后续重试。
- */
+/** 异步加载插件基类；并发调用共享同一个 Promise。 */
 export function loadPluginBase() {
   if (pending) return pending
   pending = doLoad().then(
     (base) => {
-      cached = base
-      return base
+      cached = wrapBase(base)
+      return cached
     },
     (err) => {
       pending = null
@@ -62,10 +90,14 @@ export function loadPluginBase() {
   return pending
 }
 
-/** 同步读已加载的基类（没加载完就返回 null） */
+/** 同步读取已加载的基类。 */
 export function pluginBaseSync() {
   return cached
 }
 
-// 立即开始异步加载
+/** 当前基类是否是离线 stub。 */
+export function isStubBase() {
+  return Boolean(cached?.__qqmStub)
+}
+
 loadPluginBase().catch(() => {})

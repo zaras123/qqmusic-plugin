@@ -206,7 +206,7 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
     })),
     items: plats.length
       ? [
-          { name: '跨平台补歌', desc: 'QQ 结果尾部自动追加这些平台的可播曲（哪几家参与由锅巴决定）', example: '#qqm点歌 关键词' },
+          { name: '跨平台补歌', desc: 'QQ 结果尾部自动追加这些平台的可播曲（哪几家参与由 Karin WebUI 决定）', example: '#qqm点歌 关键词' },
           ...plats.map((p) => ({
             name: `${p.label} 点歌 / 播放`,
             desc: `只在 ${p.label} 里搜（免登录 ${p.quality}）`,
@@ -218,7 +218,7 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
           { name: '平台登录状态', desc: '各家配没配、什么来源、下一步该做什么（一张卡看全）', example: '#qqm平台状态' },
         ]
       : [
-          { name: '没有开启外部平台', desc: '锅巴 → 音源平台 里打开后，这一段会列出各自的命令', example: '#qqm点歌 关键词' },
+          { name: '没有开启外部平台', desc: 'Karin WebUI → 音源平台 里打开后，这一段会列出各自的命令', example: '#qqm点歌 关键词' },
         ],
   }
 

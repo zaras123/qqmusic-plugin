@@ -4,13 +4,13 @@
  * 为什么要有这个文件：平台信息原先散在四处 ——
  *   · `utils/api.js` 的 SOURCE_META（卡片上的名字/图标/颜色）
  *   · `utils/quality.js` / 各 provider 的音质口径
- *   · 锅巴 schema 里手写的下拉项
+ *   · Karin WebUI schema 里手写的下拉项
  *   · 帮助卡里手抄的一行行文案
  * 加一家平台就得改四处，漏一处的表现是"卡片上显示 ne_xxxx 这种原始 id"。
  * 现在只在这里定义，其余地方**一律引用**。
  *
  * ⚠️ 本文件必须**保持纯净**（不 import Config、不读磁盘、不联网）：
- *   · 锅巴 schema 会在配置界面打开时 import 它（要能独立跑）
+ *   · Karin WebUI schema 会在配置界面打开时 import 它（要能独立跑）
  *   · 单测直接 import 它做静态断言
  * 「这家平台现在开没开、用什么音质」属于**配置**，在 utils/v2.js 里解析。
  *
@@ -19,21 +19,21 @@
  */
 
 /**
- * 平台清单。顺序 = 帮助卡/锅巴里的展示顺序（QQ 在最前，其余按普及度排）。
+ * 平台清单。顺序 = 帮助卡/Karin WebUI 里的展示顺序（QQ 在最前，其余按普及度排）。
  *
  * @typedef {object} Platform
  * @property {string} id          内部 id（= API 的 source 名）
- * @property {string} label       展示名（卡片、帮助、锅巴统一用它）
+ * @property {string} label       展示名（卡片、帮助、Karin WebUI 统一用它）
  * @property {string[]} aliases   命令别名（`#qqm<别名>点歌`，大小写不敏感）
- * @property {string} [short]     最短写法（帮助/锅巴里给用户抄的那个，如「网易」「B站」「yt」）
+ * @property {string} [short]     最短写法（帮助 / Karin WebUI 里给用户抄的那个，如「网易」「B站」「yt」）
  * @property {string} [icon]      来源图标（没有就用文字标签，别留空 src）
  * @property {string} color       品牌色（卡片角标用）
  * @property {string} quality     该平台**免登录**能拿到的档位（展示口径，与 API 一致）
  * @property {Array}  [qualities] 这家平台可点名要的档位（与 API `util/providers/index.js`
- *                                的 `QUALITY_OPTIONS` **一一对应**，锅巴的"音质档位"用它）
- * @property {boolean} [hidden]   true = 不在帮助/锅巴里展示（但别名仍可解析）
+ *                                的 `QUALITY_OPTIONS` **一一对应**，Karin WebUI 的"音质档位"用它）
+ * @property {boolean} [hidden]   true = 不在帮助 / Karin WebUI 里展示（但别名仍可解析）
  * @property {boolean} [own]      true = QQ 音乐本体
- * @property {object}  [auth]      凭据能力（**单一事实来源**：帮助卡 / 锅巴 / 命令 / 状态卡都读它）
+ * @property {object}  [auth]      凭据能力（**单一事实来源**：帮助卡 / Karin WebUI / 命令 / 状态卡都读它）
  *   · `mode`：`qr`（可扫码）| `cookie`（只能粘贴）| `file`（粘贴的是一份文件全文，如 Apple）| `none`（匿名，不需要凭据）
  *   · `qr`：`{ app }` —— 扫码用哪个 App；**有它才允许** `#qqm<平台>登录`
  *   · `cookie`：`{ where, keys, file?, post?, field?, clear? }` —— 粘贴入口的出处与关键字段；
@@ -122,7 +122,7 @@ export const PLATFORMS = Object.freeze([
      * ⚠️ 这家与网易云/酷我一样是**增强项**：不配也能匿名搜/播（192k），
      *    配了才有多出来的 FLAC（大会员）档。所以它**不**标 needsCredential ——
      *    标了会让状态卡把"没配"写成红牌"未配置"，而它其实是能用的。
-     *    以前这里写的是 `mode: 'none'`（"匿名，不需要配"），于是命令/帮助/锅巴
+     *    以前这里写的是 `mode: 'none'`（"匿名，不需要配"），于是命令/帮助 / Karin WebUI
      *    三处都不提它能扫码，直到 2026-09-24 补上 API 侧的扫码接口才一起改。
      */
     auth: {
@@ -159,7 +159,7 @@ export const PLATFORMS = Object.freeze([
     // 酷狗**没配凭据就用不了**（搜索要登录态）：不是"没搜到"，接口会回 unavailable 原因
     needsCredential: true,
     // 凭据能力：扫码（API `/kugou/login/qrcode`）+ 粘贴（`POST /kugou/cookies`，认 token 与 userid）
-    //   ⚠️ 这里以前**漏标**了扫码能力，于是帮助卡/锅巴都不提它能扫码（命令却一直能跑）——
+    //   ⚠️ 这里以前**漏标**了扫码能力，于是帮助卡/Karin WebUI 都不提它能扫码（命令却一直能跑）——
     //      能力清单与实现必须一起改，不要再各写一份。
     auth: {
       mode: 'qr',
@@ -207,7 +207,7 @@ export const PLATFORMS = Object.freeze([
     // 匿名（也是本项目唯一能走的通道）只有 PQ —— "自动"与"PQ"结果完全一样，
     // 所以**不给档位选择器**（给一个二选一但没有区别的开关就是噪声）。
     // API 侧仍登记了 PQ（`QUALITY_OPTIONS.migu`），将来接入 VIP 凭据再在这里补 HQ/SQ。
-    // 说明要短：它还会被锅巴的页签表头直接顶到后面（太长会把那一行撑成两行）
+    // 说明要短：它还会被 Karin WebUI 的页签表头直接顶到后面（太长会把那一行撑成两行）
     auth: { mode: 'none', note: '要 VIP 档位得等接入凭据' },
   },
   {
@@ -297,7 +297,7 @@ export const PLATFORM_MAP = Object.freeze(
   Object.fromEntries(PLATFORMS.map((p) => [p.id, p]))
 )
 
-/** 帮助卡 / 锅巴里展示的平台（hidden 的除外） */
+/** 帮助卡 / Karin WebUI 里展示的平台（hidden 的除外） */
 export const VISIBLE_PLATFORMS = Object.freeze(PLATFORMS.filter((p) => !p.hidden))
 
 /** 真正能吃 `#qqm<平台>点歌` 的平台（QQ 本体走原有的 `#qqm点歌`，不在这里） */
@@ -363,14 +363,14 @@ export function platformQuality(name = '') {
   return platformOf(name)?.quality || ''
 }
 
-/** 最短写法（帮助/锅巴里给用户抄的那个；没登记就退回 label） */
+/** 最短写法（帮助 / Karin WebUI 里给用户抄的那个；没登记就退回 label） */
 export function platformShort(name = '') {
   const p = platformOf(name)
   return p?.short || p?.label || String(name || '')
 }
 
 /**
- * 该平台**可点名要**的档位（锅巴"音质档位"下拉用它）
+ * 该平台**可点名要**的档位（Karin WebUI"音质档位"下拉用它）
  *
  * ⚠️ 只有真能生效的才给多项 —— 数据源是 API 侧 `util/providers/index.js` 的
  * `QUALITY_OPTIONS`，两边要一起改。给一个点了没用的选择器比不给更糟。
@@ -390,7 +390,7 @@ export function platformHasQualityChoice(name = '') {
 /**
  * 归一化后的**凭据能力**（认不出的平台 = 匿名、什么都不能配）
  *
- * 单一事实来源：帮助卡 / 锅巴 / 命令行 / 卡片文案都读它 —— 别再各自判断 `p.qrLogin`。
+ * 单一事实来源：帮助卡 / Karin WebUI / 命令行 / 卡片文案都读它 —— 别再各自判断 `p.qrLogin`。
  * 形状固定，所以调用方不用到处写 `?.` 兜底。
  */
 export function platformAuthOf(name = '') {
@@ -466,7 +466,7 @@ export function platformQrOf(name = '') {
  * 粘贴凭据通道的元信息 —— 认不出/这家不收 cookie 回 null
  *
  * 命令 / 上传路径 / 字段名 / 清除方式**都在这里算一次**（以前散在 login.js、card-data.js、
- * 锅巴 schema 三处，Apple 那个"字段叫 cookies、清除用 DELETE"的例外就漏过一次）。
+ * Karin WebUI schema 三处，Apple 那个"字段叫 cookies、清除用 DELETE"的例外就漏过一次）。
  *
  * @returns {{command:string, clearCommand:string, where:string, keys:string, file:boolean,
  *            post:string, field:string, clear:{path:string, method:string}}|null}
@@ -489,7 +489,7 @@ export function platformCookieOf(name = '') {
 }
 
 /**
- * 粘贴 cookie 的说明（锅巴的 help 文案与命令的用法提示共用同一份文字）
+ * 粘贴 cookie 的说明（Karin WebUI 的 help 文案与命令的用法提示共用同一份文字）
  *
  * ⚠️ 结尾特意写明"私聊发"：凭据是**一人一份**存的（按发命令的 QQ 号），
  *    群里发等于把自己的账号凭据贴给全群看 —— 命令侧也会拒收（见 apps/login.js）。
@@ -505,7 +505,7 @@ export function platformCookieHelp(name = '') {
 }
 
 /**
- * 粘贴凭据时"该贴什么"的**占位说明**（命令提示、锅巴文案共用一份）
+ * 粘贴凭据时"该贴什么"的**占位说明**（命令提示、Karin WebUI 文案共用一份）
  *
  * ⚠️ Apple 是 `file` 型，但**不等于"必须整份文件"**（2026-09-25 用户问"这个凭证我怎么拿"时发现）：
  *    API 侧现在也认 `media-user-token` 的**值**（DevTools 里复制的那一行/那一格），

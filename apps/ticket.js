@@ -1,8 +1,9 @@
 import { loadPluginBase } from '../utils/plugin-base.js'
 import { getCfg, replyCardOrText } from '../utils/common.js'
+import { logWarn } from '../utils/log.js'
 import { getUserSession, setSession } from '../utils/session.js'
 import { ticketArchive, ticketShow, ticketOptions, ticketSync } from '../utils/ticket-api.js'
-import { RE_TICKET, TICKET_HELP, parseTicketCommand, ticketScope, buildTicketList, buildTicketDetail, formatTicketList, formatTicketDetail, ticketError } from '../utils/ticket.js'
+import { RE_TICKET, TICKET_HELP, TICKET_PAGE_SIZE, parseTicketCommand, ticketScope, buildTicketList, buildTicketDetail, formatTicketList, formatTicketDetail, ticketError } from '../utils/ticket.js'
 
 let syncBusy = false
 let lastSync = 0
@@ -16,7 +17,7 @@ async function replyText(e, value) {
 
 export class qqmusicTicket extends (await loadPluginBase()) {
   constructor() {
-    super({ name: 'QQ音乐-演出票务', dsc: '演出档案、场次与票价', event: 'message', priority: 510,
+    super({ name: 'QQ音乐-演出票务', desc: '演出档案、场次与票价', event: 'message', priority: 510,
       rule: [{ reg: RE_TICKET, fnc: 'ticket' }],
     })
   }
@@ -90,7 +91,7 @@ export class qqmusicTicket extends (await loadPluginBase()) {
               await e.reply('以上是已收录的近期/未来演唱会。详情：#qqm演出详情1')
             }
           } catch (err) {
-            global.logger?.warn?.(`[qqmusic-plugin] 同步后预览失败: ${err.message || err}`)
+            logWarn(`[qqmusic-plugin] 同步后预览失败: ${err.message || err}`)
             await e.reply('同步已完成，但预览查询失败。请确认 qqmusic-api-enhanced 已更新到最新包后重试。')
           }
         } finally { syncBusy = false; lastSync = Date.now() }

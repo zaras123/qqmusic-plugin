@@ -24,7 +24,7 @@ export function togetherAdapter(e) {
 /** 能不能用一起听（只做本地能力/开关判断，业务判定在 API） */
 export function togetherGate(e, cfg = {}) {
   if (cfg.togetherEnable !== true) {
-    return { ok: false, reason: '一起听未启用（主人可在 #qqm设置 或锅巴里打开）' }
+    return { ok: false, reason: '一起听未启用（主人可在 #qqm设置 或 Karin WebUI 里打开）' }
   }
   if (!e?.group_id) {
     return { ok: false, reason: '一起听仅支持群聊' }
@@ -61,7 +61,7 @@ async function sendStep(e, step) {
   if (step.via === 'send_packet') {
     const { botSendApi } = await import('./send.js')
     const res = await botSendApi(e, 'send_packet', { cmd: step.cmd, data: hex, rsp: true })
-    // TRSS 的 sendApi 有的实现直接回 data 本体，有的回整个 {status, retcode, data}
+    // sendApi 有的实现直接回 data 本体，有的回整个 {status, retcode, data}
     const payload = res && typeof res === 'object' && 'data' in res ? res.data : res
     if (typeof payload !== 'string' || !payload.trim()) {
       const detail =

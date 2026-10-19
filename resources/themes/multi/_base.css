@@ -366,7 +366,7 @@ html[data-mode="dark"] .card::after {
   outline-color: rgba(124, 140, 255, 0.14);
 }
 
-/* 自定义背景（锅巴开了 uiBgEnable 且主题支持时）——液态玻璃 */
+/* 自定义背景（Karin WebUI 开了 uiBgEnable 且主题支持时）——液态玻璃 */
 html[data-bg="1"] .card {
   background-image: var(--bg-image), var(--rim-gradient);
   background-size: cover, auto;

@@ -16,10 +16,15 @@ import path from 'node:path'
 import crypto from 'node:crypto'
 import { pathToFileURL } from 'node:url'
 import axios from 'axios'
-import { yunzaiPath } from './path.js'
+import { tempPath } from './path.js'
 import { logInfo, logWarn } from './log.js'
 
-const CACHE_DIR = path.join(yunzaiPath, 'temp', 'qqmusic-bg')
+/**
+ * 背景缓存目录：挂在运行期临时目录下。
+ * 必须惰性取 —— Karin 的 tempPath 由 KARIN_PLUGIN_INIT 用 node-karin.tempPath 覆盖，
+ * 模块加载时拿到的可能还是启发式结果。
+ */
+const cacheDir = () => path.join(tempPath, 'qqmusic-bg')
 const FETCH_TIMEOUT = 15000
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -92,7 +97,7 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true })
 }
 
-const metaPath = (key) => path.join(CACHE_DIR, `bg-${key}.json`)
+const metaPath = (key) => path.join(cacheDir(), `bg-${key}.json`)
 
 function readMeta(key) {
   try {
@@ -104,11 +109,12 @@ function readMeta(key) {
 
 /** 缓存目录里这张 key 已有的图片文件（扩展名不定） */
 function cachedImagePath(key) {
+  const dir = cacheDir()
   try {
     const name = fs
-      .readdirSync(CACHE_DIR)
+      .readdirSync(dir)
       .find((n) => n.startsWith(`bg-${key}.`) && IMAGE_EXT.has(path.extname(n).toLowerCase()))
-    return name ? path.join(CACHE_DIR, name) : ''
+    return name ? path.join(dir, name) : ''
   } catch {
     return ''
   }
@@ -195,7 +201,8 @@ export async function resolveBackground(cfg = {}) {
 
   // 远端：Node 侧取回 + 本地缓存
   const key = crypto.createHash('md5').update(raw).digest('hex').slice(0, 12)
-  ensureDir(CACHE_DIR)
+  const dir = cacheDir()
+  ensureDir(dir)
   const cached = cachedImagePath(key)
   const ttl = cfg.uiBgCacheMin === undefined || cfg.uiBgCacheMin === '' ? 10 : Number(cfg.uiBgCacheMin)
 
@@ -205,12 +212,12 @@ export async function resolveBackground(cfg = {}) {
 
   try {
     const { buf, ext } = await fetchImage(raw)
-    const file = path.join(CACHE_DIR, `bg-${key}${ext}`)
+    const file = path.join(dir, `bg-${key}${ext}`)
     // 清掉同一 key 的旧扩展名文件，避免目录里堆一串、扫到过期的
-    for (const n of fs.readdirSync(CACHE_DIR)) {
+    for (const n of fs.readdirSync(dir)) {
       if (n.startsWith(`bg-${key}.`) && n !== path.basename(file) && IMAGE_EXT.has(path.extname(n).toLowerCase())) {
         try {
-          fs.unlinkSync(path.join(CACHE_DIR, n))
+          fs.unlinkSync(path.join(dir, n))
         } catch {
           /* 删不掉就算了 */
         }

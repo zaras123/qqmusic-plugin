@@ -1,5 +1,5 @@
 /**
- * 锅巴配置 Schema
+ * Karin WebUI 配置 Schema
  *
  * 2026-09-23 重构：以前所有字段平铺在一页（30+ 项，找一项要往下滚半天）。
  * 现在用 `SOFT_GROUP_BEGIN`（与 R 插件的做法一致）分成**三大组**：
@@ -39,7 +39,7 @@ const group = (label) => ({ label, component: 'SOFT_GROUP_BEGIN' })
  *
  * ⚠️ 这里只**说明**；真正能填的是下面的粘贴框（`platforms.<id>.ck`）—— 它是"上传动作"
  *    而不是配置项：值由 **API** 保管、**不进插件配置**（见 setConfigData 里那段）。
- *    凭据是**按人存的**（发命令那个 QQ 号），所以锅巴里"一次配好"的语义只能是
+ *    凭据是**按人存的**（发命令那个 QQ 号），所以 Karin WebUI 里"一次配好"的语义只能是
  *    "配到主人槽位"，回执里会把槽位名说清楚，绝不假装"全站已配"。
  */
 function credentialHints(p) {
@@ -63,7 +63,7 @@ function credentialHints(p) {
  *
  * ⚠️ 以前所有平台都写死 `MUSIC_U=xxx; __csrf=yyy`（那是网易云的字段）——
  *    于是 B站 / 酷狗 / 汽水 / YouTube 的页签里都摆着一个**错的**示例，
- *    用户照着填只会更迷糊（2026-09-24 从锅巴截图里抓到的）。
+ *    用户照着填只会更迷糊（2026-09-24 从 Karin WebUI 截图里抓到的）。
  *
  * @param {object} ck platformCookieOf(p.id) 的结果
  */
@@ -91,7 +91,7 @@ function masterCredSlot(cfg = {}) {
   return resolvePublicAccount(cfg)
 }
 
-/** 卡片主题下拉项：直接扫 resources/themes/，丢个主题目录进去（重启锅巴后）就会出现在这里 */
+/** 卡片主题下拉项：直接扫 resources/themes/，丢个主题目录进去（重启 Karin WebUI 后）就会出现在这里 */
 const UI_THEME_OPTIONS = (() => {
   const ids = listThemeIds()
   return (ids.length ? ids : ['classic']).map((id) => {
@@ -103,7 +103,7 @@ const UI_THEME_OPTIONS = (() => {
 /**
  * 构建 schema（**每次调用现读配置**）
  *
- * ⚠️ 必须是函数而不是模块级常量：锅巴打开面板时会调 supportGuoba()，
+ * ⚠️ 必须是函数而不是模块级常量：Karin WebUI 打开面板时会调 web.config 配置加载，
  * 那时才决定"要不要显示 2.0 的平台分组"。写成常量的话，改完开关得重启机器人
  * 才能看到变化 —— 需求要的是"打开开关，新功能就显现"。
  */
@@ -476,7 +476,7 @@ export function buildSchemas() {
   {
     field: 'tempDir',
     label: '临时下载目录',
-    bottomHelpMessage: '相对 Yunzai 根目录',
+    bottomHelpMessage: '相对 Karin 临时目录',
     component: 'Input',
   },
   {
@@ -520,7 +520,7 @@ export function buildSchemas() {
         //
         // ⚠️ 走过的两条弯路，别再回去：
         //   1) 全部平台塞在一页（每家一个开关 + 一个条数 = 16 行）→ 用户："太细了"
-        //   2) 收成一个多选下拉 → 用户要的是**按平台分页签**（见 R 插件的锅巴截图）
+        //   2) 收成一个多选下拉 → 用户要的是**按平台分页签**（见 R 插件的 Karin WebUI 截图）
         // 现在：一家一个页签，页签里就是"这家自己的开关 + 条数 + 用法"，互不干扰。
         {
           component: 'Divider',
@@ -544,7 +544,7 @@ export function buildSchemas() {
           {
             field: `platforms.${p.id}.enabled`,
             label: `启用 ${p.label}`,
-            bottomHelpMessage: '关掉后这一家完全不出现（命令不响应，帮助卡与锅巴里也是）',
+            bottomHelpMessage: '关掉后这一家完全不出现（命令不响应，帮助卡与 Karin WebUI 里也是）',
             component: 'Switch',
           },
           // ── 这家平台**自己的功能**（不是每家都一样的通用开关）──
@@ -617,7 +617,7 @@ export function getConfigData() {
   return {
     ...c,
     // 带默认值的开关：配置里没有该键时也给界面一个明确布尔值，
-    // 否则锅巴显示"关"、实际却是"开"，对不上
+    // 否则 Karin WebUI 显示"关"、实际却是"开"，对不上
     extraSources: c.extraSources !== false,
     defaultPickSong: c.defaultPickSong === true,
     forceMasterAccount: c.forceMasterAccount === true,
@@ -626,7 +626,7 @@ export function getConfigData() {
     uiTheme: String(c.uiTheme || 'classic'),
     // 2.0 主题：？？？打开后用它（默认「星云·鎏光」；老主题仍可显式选）
     // ⚠️ 这里的默认值必须与 utils/theme.js 的 DEFAULT_THEME_V2 一致 ——
-    //    两边写不一样的话，锅巴显示的主题和实际渲染的主题会不是一个（踩过）
+    //    两边写不一样的话，Karin WebUI 显示的主题和实际渲染的主题会不是一个（踩过）
     uiThemeV2: String(c.uiThemeV2 || 'nebula'),
     uiDark: darkPrefOf(c.uiDark),
     uiTimeColor: c.uiTimeColor !== false,
@@ -637,7 +637,7 @@ export function getConfigData() {
     uiBgValue: String(c.uiBgValue || ''),
     uiBgCacheMin: c.uiBgCacheMin === undefined || c.uiBgCacheMin === '' ? 10 : Number(c.uiBgCacheMin) || 0,
     songRequestMaxList: c.maxList ?? c.songRequestMaxList ?? 10,
-    // 试听片段：缺省 30（与 default_config 一致）；锅巴里填了非法值也先兜住
+    // 试听片段：缺省 30（与 default_config 一致）；Karin WebUI 里填了非法值也先兜住
     previewSec: Math.max(10, Math.min(60, Number(c.previewSec) || 30)),
     // 订阅扫描间隔：缺省 6 小时，0 = 关闭
     subScanHours: c.subScanHours === undefined || c.subScanHours === '' ? 6 : Math.max(0, Number(c.subScanHours) || 0),
@@ -653,7 +653,7 @@ export function getConfigData() {
     pullLoginMeta: false,
     // QQ 音源开关：缺省=开（老配置没有这个键 → 与 1.x 完全一致）
     qqEnabled: c.qqEnabled !== false,
-    // 2.0 开关：**必须给出明确布尔值**（否则锅巴显示"关"、实际 undefined 也算关，
+    // 2.0 开关：**必须给出明确布尔值**（否则 Karin WebUI 显示"关"、实际 undefined 也算关，
     // 但用户点一下"保存"会把整个 platforms 段写成字符串，见 setConfigData 的 setPath）
     [V2_FIELD]: isV2Unlocked(c),
     // 平台段：给界面补全每一家的默认值（缺省=开；条数留空=跟随全局 maxList）
@@ -667,7 +667,7 @@ export function getConfigData() {
           quality: platformQualityPref(c, p.id),
           maxList: c?.platforms?.[p.id]?.maxList ?? '',
           // 凭据输入框**不落盘**（它是"上传动作"，值由 API 保管）：给界面一个明确的
-          // 空串/关状态，免得锅巴把 undefined 显示成一半开一半关的样子
+          // 空串/关状态，免得 Karin WebUI 把 undefined 显示成一半开一半关的样子
           ck: '',
           ckClear: false,
         },
@@ -710,7 +710,7 @@ export async function setConfigData(data, { Result } = {}) {
     }
 
     // 白名单直接由 schema 推导 —— 以前是手写数组，加了新开关忘了同步这里，
-    // 锅巴保存时会被静默丢弃（表现：开关一打开就弹回原状）
+    // Karin WebUI 保存时会被静默丢弃（表现：开关一打开就弹回原状）
     const UI_ONLY_FIELDS = new Set(['pullLoginMeta']) // 仅界面用，不落盘
     // 平台凭据输入框同理（**绝不落盘**）：它是"上传动作"，值由 API 保管 ——
     // 落进插件配置就等于把 cookie 明文写进 yaml（还会跟着配置备份到处跑）
@@ -744,7 +744,7 @@ export async function setConfigData(data, { Result } = {}) {
     //
     // 它是"上传动作"而不是配置项：填了内容 + 点保存 = 上传一次（配置里不留明文，
     // 所以 ck/ckClear 也不进上面的 keys 白名单）。槽位固定为**主人的账号槽** ——
-    // 锅巴里没有"谁在保存"这个信息，而凭据在 API 侧是按槽位存的（见 masterCredSlot）。
+    // Karin WebUI 里没有"谁在保存"这个信息，而凭据在 API 侧是按槽位存的（见 masterCredSlot）。
     const credMsgs = []
     const credSlot = masterCredSlot(cur)
     const isOn = (v) => v === true || v === 1 || v === '1' || v === 'true'

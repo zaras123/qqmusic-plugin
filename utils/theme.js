@@ -148,8 +148,8 @@ export function loadManifest(id) {
  * 1:1 局部对比（文字 + 品牌色轨 + pill）看不出差别；而这张图**每发一次都要上传给 QQ**，
  * 慢网下"卡片半天发不出去"多半就是它。
  *
- * ⚠️ 放在 theme.js（而不是 render.js）是因为它要**同时被**渲染、设置卡、锅巴三处读：
- *    card-data / 锅巴 schema 引 render.js 会把 Puppeteer 拽进启动路径（有条测试钉着
+ * ⚠️ 放在 theme.js（而不是 render.js）是因为它要**同时被**渲染、设置卡、Karin WebUI 三处读：
+ *    card-data / Karin WebUI schema 引 render.js 会把 Puppeteer 拽进启动路径（有条测试钉着
  *    "别把卡片模块静态引进来"）。归一函数只此一份，别再各写一遍。
  * ⚠️ 二维码那条路永远是 PNG（`saveQrImage`）：JPEG 的振铃会让码扫不出来。
  */

@@ -298,7 +298,7 @@ export function buildPosterCardData({
 /**
  * 这一行"下一步该做什么"：**能扫码就给登录命令，否则给粘贴命令**，匿名/已就绪给空
  *
- * 事实来自注册表（platformQrOf / platformCookieOf）—— 卡片 / 帮助 / 命令 / 锅巴共用一份。
+ * 事实来自注册表（platformQrOf / platformCookieOf）—— 卡片 / 帮助 / 命令 / Karin WebUI 共用一份。
  * 以前这里写的是 `POST /<平台>/cookies`，那是**运维接口**，群里没人会去 curl。
  */
 function nextActionOf(name, ready) {
@@ -662,7 +662,7 @@ export async function buildSettingsCardData(e = null) {
       { name: '一起听', desc: '把点歌列表加进群里的一起听（ICQQ / NapCat / SnowLuma）', example: '#qqm一起听 1' },
       { name: '连通测试', desc: '测试 API 是否正常响应', example: '#qqm 测试' },
     ],
-    tip: '详细开关可在锅巴面板修改；API 地址对所有人打码显示',
+    tip: '详细开关可在 Karin WebUI 面板修改；API 地址对所有人打码显示',
   }
 }
 

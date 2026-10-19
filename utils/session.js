@@ -11,6 +11,22 @@
 const mem = new Map()
 const TTL_DEFAULT = 600
 let writes = 0
+let redisPromise
+
+async function getRedis() {
+  if (!redisPromise) {
+    redisPromise = (async () => {
+      try {
+        const { redis } = await import('node-karin')
+        const client = typeof redis === 'function' ? redis() : redis
+        return client?.get && client?.set ? client : null
+      } catch {
+        return null
+      }
+    })()
+  }
+  return redisPromise
+}
 
 function key(scope) {
   return `qqmusic-plugin:song:${scope}`
@@ -39,7 +55,7 @@ function readMem(k) {
 }
 
 async function readRedis(k) {
-  const redis = global.redis
+  const redis = await getRedis()
   if (!redis) return null
   try {
     const raw = await redis.get(k)
@@ -69,7 +85,7 @@ export async function setSession(scope, session, ttlSec = TTL_DEFAULT) {
   }
   const expireAt = Date.now() + ttlSec * 1000
   mem.set(key(scope), { data, expireAt })
-  const redis = global.redis
+  const redis = await getRedis()
   if (redis) {
     try {
       await redis.set(key(scope), JSON.stringify(data), { EX: ttlSec })

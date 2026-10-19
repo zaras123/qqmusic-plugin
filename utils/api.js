@@ -431,7 +431,7 @@ export async function searchMultiSongs(keyword, sources, { pageSize = 10, userKe
  * 外部平台来源 → 展示名 + 图标 + 颜色
  *
  * ⚠️ 定义已**搬到 utils/platforms.js**（单一事实来源，那里还带别名/音质/命令用正则片段）。
- * 这里保留同名导出，老调用方（卡片、锅巴、解析）不用改。
+ * 这里保留同名导出，老调用方（卡片、Karin WebUI、解析）不用改。
  */
 export { SOURCE_META, SOURCE_LABEL } from './platforms.js'
 

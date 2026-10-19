@@ -14,12 +14,13 @@ import { getCfg, replyCardOrText, replyListCardOrText } from '../utils/common.js
 import { logError } from '../utils/log.js'
 import { formatSongList } from '../utils/format.js'
 import { replySafe } from '../utils/async.js'
+import { ensureSegment } from '../utils/adapter.js'
 
 export class qqmusicChart extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-排行榜',
-      dsc: '排行榜、推荐、电台、日推、收藏',
+      desc: '排行榜、推荐、电台、日推、收藏',
       event: 'message',
       priority: 500,
       rule: [
@@ -350,7 +351,7 @@ export class qqmusicChart extends (await loadPluginBase()) {
      * 统一走 replySafe —— 永远返回 Promise、永远不抛，发失败返回 false 让调用方落文本兜底。
      */
     const sendVideo = async (videoFile, title) => {
-      const seg = global.segment
+      const seg = await ensureSegment()
       if (!seg?.video) return false
       return replySafe(e, seg.video(videoFile, `${title}.mp4`), { tag: 'MV 视频' })
     }

@@ -18,23 +18,22 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 // 夹具模块是**纯数据**（只 import node 内置模块）：静态 import 会提前求值，
-// 它不碰 utils/*，所以不会打乱下面 QQMUSIC_YUNZAI_PATH 的先后顺序。
+// 它不碰 utils/*，所以不会打乱下面 QQMUSIC_KARIN_PATH 的先后顺序。
 import { samples, logoUrl } from './preview-samples.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const pluginPath = path.resolve(__dirname, '..')
 
-/** 找框架根目录：预览要借它的 node_modules（art-template / puppeteer） */
-function resolveYunzai() {
+/** 找 Karin 根目录：预览要借它的 node_modules（node-karin / puppeteer） */
+function resolveKarin() {
   const candidates = [
-    process.env.QQMUSIC_YUNZAI_PATH,
-    path.resolve(pluginPath, '../Yunzai'),
-    path.resolve(pluginPath, '../Miao-Yunzai'),
-    path.resolve(pluginPath, '../../机器人框架/Yunzai'),
-    path.resolve(pluginPath, '../../机器人框架/Miao-Yunzai'),
+    process.env.QQMUSIC_KARIN_PATH,
+    path.resolve(pluginPath, '../karin-project/karin-project'),
+    path.resolve(pluginPath, '../../karin-project/karin-project'),
+    path.resolve(pluginPath, '../../../karin-project/karin-project'),
   ].filter(Boolean)
   for (const c of candidates) {
-    if (fs.existsSync(path.join(c, 'node_modules/art-template'))) return c
+    if (fs.existsSync(path.join(c, 'node_modules/node-karin'))) return c
   }
   for (const base of [path.resolve(pluginPath, '..'), path.resolve(pluginPath, '../..')]) {
     let entries = []
@@ -46,14 +45,29 @@ function resolveYunzai() {
     for (const d of entries) {
       if (!d.isDirectory()) continue
       const p = path.join(base, d.name)
-      if (fs.existsSync(path.join(p, 'node_modules/art-template'))) return p
+      if (fs.existsSync(path.join(p, 'node_modules/node-karin'))) return p
     }
   }
-  throw new Error('找不到 Yunzai 框架目录；请设置 QQMUSIC_YUNZAI_PATH')
+  let base = pluginPath
+  for (let depth = 0; depth < 5; depth++) {
+    try {
+      for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        const dir = path.join(base, entry.name)
+        if (fs.existsSync(path.join(dir, 'node_modules/node-karin'))) return dir
+      }
+    } catch {
+      /* ignore */
+    }
+    const parent = path.dirname(base)
+    if (parent === base) break
+    base = parent
+  }
+  throw new Error('找不到 Karin 根目录；请设置 QQMUSIC_KARIN_PATH')
 }
 
 // 必须在 import utils/* 之前设好：path.js 在模块加载时就要解析框架目录
-process.env.QQMUSIC_YUNZAI_PATH = resolveYunzai()
+process.env.QQMUSIC_KARIN_PATH = resolveKarin()
 
 const { listThemeIds, loadManifest, resolveTheme, pageBgOf, viewportWidthOf, CARDS } = await import(
   '../utils/theme.js'

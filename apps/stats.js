@@ -45,7 +45,7 @@ export class qqmusicStats extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-听歌统计',
-      dsc: '本群点播时长统计与排行（本地记账）',
+      desc: '本群点播时长统计与排行（本地记账）',
       event: 'message',
       priority: 460,
       rule: [
@@ -68,7 +68,7 @@ export class qqmusicStats extends (await loadPluginBase()) {
 
   /** 关着就直说（静默不响应会让人以为命令写错了） */
   async disabled(e) {
-    await e.reply('听歌统计已关闭（主人可在锅巴 →「听歌时长统计」打开）')
+    await e.reply('听歌统计已关闭（主人可在 Karin WebUI →「听歌时长统计」打开）')
     return true
   }
 

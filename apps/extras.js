@@ -149,7 +149,7 @@ export class qqmusicExtras extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-试听海报订阅',
-      dsc: '副歌试听、歌词海报、歌手新歌订阅、定时点歌',
+      desc: '副歌试听、歌词海报、歌手新歌订阅、定时点歌',
       event: 'message',
       priority: 520,
       rule: [

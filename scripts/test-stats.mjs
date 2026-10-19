@@ -1,7 +1,7 @@
 /**
  * 听歌统计单测：`node --test scripts/test-stats.mjs`
  *
- * 全是纯函数 + 内存态断言，不需要 Yunzai / 不需要 API（统计这块本来就是本地的）。
+ * 全是纯函数 + 内存态断言，不需要 Karin / 不需要 API（统计这块本来就是本地的）。
  * ⚠️ 必须在 **import utils/stats.js 之前**设好 QQMUSIC_STATS_FILE —— 那个模块在顶层
  *    就把落盘路径定下来了，import 之后再改等于没改（会写到真实的 data/ 里去）。
  */

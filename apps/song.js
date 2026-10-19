@@ -164,7 +164,7 @@ async function currentSourceOf(e, cfg) {
 async function resolvePlay(song, cfg, userKey = '') {
   /**
    * 档位：QQ 本体用全局 `quality`；**外部平台用这家自己的档位**
-   * （锅巴 → 该平台页签 → 音质档位）。不这样做的话，外源永远只能"按它默认"，
+   * （Karin WebUI → 该平台页签 → 音质档位）。不这样做的话，外源永远只能"按它默认"，
    * 页签里的档位选择器就成了摆设。
    * API 侧还会再核一遍"现在能不能兑现"（要账号/会员的档位会如实回落）。
    */
@@ -201,7 +201,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-点歌',
-      dsc: '对接 qqmusic-api-enhanced 的点歌',
+      desc: '对接 qqmusic-api-enhanced 的点歌',
       event: 'message',
       priority: 400,
       rule: [
@@ -212,7 +212,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
           fnc: 'onSongCmd',
         },
         {
-          // 无前缀「#点歌」：只在锅巴开启「接管无前缀点歌」后响应，未开启时返回 false 让给其它插件
+          // 无前缀「#点歌」：只在 Karin WebUI 开启「接管无前缀点歌」后响应，未开启时返回 false 让给其它插件
           reg: '^#?点歌\\s*(.+)$',
           fnc: 'pickSongDefault',
         },
@@ -307,7 +307,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
     if (!cfg.enable || cfg.enableSongRequest === false) return false
 
     const msg = String(e.msg || '').trim()
-    // 兼容无前缀「#点歌 关键词」（锅巴开关打开时才接管）
+    // 兼容无前缀「#点歌 关键词」（Karin WebUI 开关打开时才接管）
     const bare = msg.match(RE_PICK_PLAIN)
     const parsed = parseSongCmd(msg)
     const keyword = parsed.keyword || (bare?.groups?.kw || '').trim()
@@ -340,10 +340,10 @@ export class qqmusicSong extends (await loadPluginBase()) {
        *
        * ⚠️ `qqEnabled` 是 **2.0 的开关**（"QQ 不是主营"是 2.0 才有的设定），
        * 所以它和平台清单一样**受？？？闸门管**：
-       *   · 未解锁：锅巴里看不到这个字段（见 guoba/schemas.js），行为也一律当"开着"，
+       *   · 未解锁：Karin WebUI 里看不到这个字段（见 web/schemas.js），行为也一律当"开着"，
        *     与 2.0 之前逐字一致 —— 老用户即使 yaml 里留着 `qqEnabled: false`
        *     （比如从 2.0 退回去），点歌也不会突然只搜外源；
-       *   · 解锁：开关才真正生效（锅巴里也才会出现）。
+       *   · 解锁：开关才真正生效（Karin WebUI 里也才会出现）。
        */
       if (isV2Unlocked(cfg) && !qqSourceEnabled(cfg)) {
         await e.reply(`正在搜索（${multiLabel(cfg)}）：${keyword}`)
@@ -354,7 +354,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
       const list = await searchSongs(keyword, {
         pageSize: Math.min(Number(cfg.maxList) || 10, 20),
         userKey,
-        // 补充曲：默认开启，锅巴里显式关掉才不补（老配置没有该键 → 视为开）
+        // 补充曲：默认开启，Karin WebUI 里显式关掉才不补（老配置没有该键 → 视为开）
         fill: cfg.extraSources !== false,
         // 2.0：只补"参与了跨平台补歌"的那几家（未解锁时传 null = 不过滤，与 1.x 一致）
         fillSources: isV2Unlocked(cfg) ? fillSourceIds(cfg) : null,
@@ -394,7 +394,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
   async pickAcrossPlatforms(e, { keyword, cfg, userKey, reason = '', qqError = '' }) {
     const ids = standaloneSourceIds(cfg)
     if (!ids.length) {
-      await e.reply('没有可用的音源平台（锅巴 → 「？？？」打开后选几家）')
+      await e.reply('没有可用的音源平台（Karin WebUI → 「？？？」打开后选几家）')
       return true
     }
     const label = multiLabel(cfg)
@@ -455,7 +455,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
     const p = platformOf(platName)
     if (!p) return false
     if (!platformEnabled(cfg, p.id)) {
-      await e.reply(`${p.label} 音源已被关闭（锅巴 → 音源平台）`)
+      await e.reply(`${p.label} 音源已被关闭（Karin WebUI → 音源平台）`)
       return true
     }
 
@@ -564,7 +564,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
     if (!isV2Unlocked(cfg)) return false
     const list = enabledPlatforms(cfg)
     if (!list.length) {
-      await e.reply('当前没有可用的外部音源平台（可在锅巴 → 音源平台里打开）')
+      await e.reply('当前没有可用的外部音源平台（可在 Karin WebUI → 音源平台里打开）')
       return true
     }
     const cur = await currentSourceOf(e, cfg)
@@ -619,7 +619,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
           `当前音源：${cur ? `${cur.p.label}（${cur.own ? '你自己设的' : '主人给全群设的'}）` : qqSourceEnabled(cfg) ? 'QQ 曲库' : '未设置（QQ 音源已关）'}`,
           list.length
             ? `可切换：${list.map((p) => `#qqm源 ${platformShort(p.id)}`).join('　')}`
-            : '（还没有可用平台：锅巴 → 「？？？」打开后选几家）',
+            : '（还没有可用平台：Karin WebUI → 「？？？」打开后选几家）',
           isMaster ? '你设的是**全群默认**；成员自己设的只影响他自己' : '你设的只影响你自己（不影响群里其他人）',
           '切回 QQ：#qqm源 默认',
         ].join('\n')
@@ -645,7 +645,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
       return true
     }
     if (!platformEnabled(cfg, p.id)) {
-      await e.reply(`${p.label} 音源已被关闭（锅巴 → 音源平台）`)
+      await e.reply(`${p.label} 音源已被关闭（Karin WebUI → 音源平台）`)
       return true
     }
     await setPref(scope, { source: p.id })
@@ -841,7 +841,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
     const p = platformOf(platName)
     if (!p) return false
     if (!platformEnabled(cfg, p.id)) {
-      await e.reply(`${p.label} 音源已被关闭（锅巴 → 音源平台）`)
+      await e.reply(`${p.label} 音源已被关闭（Karin WebUI → 音源平台）`)
       return true
     }
     const userKey = String(e.user_id || '')
@@ -954,7 +954,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
           : null
     if (platName && !isV2Unlocked(cfg)) return false // 未解锁：平台写法静默放行
     if (lyricPlat && !platformEnabled(cfg, lyricPlat.id)) {
-      await e.reply(`${lyricPlat.label} 音源已被关闭（锅巴 → 音源平台）`)
+      await e.reply(`${lyricPlat.label} 音源已被关闭（Karin WebUI → 音源平台）`)
       return true
     }
 

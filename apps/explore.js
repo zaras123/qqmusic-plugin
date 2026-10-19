@@ -23,7 +23,7 @@ export class qqmusicExplore extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-探索',
-      dsc: '歌手、专辑、歌单、评论',
+      desc: '歌手、专辑、歌单、评论',
       event: 'message',
       priority: 510,
       rule: [

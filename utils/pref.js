@@ -15,6 +15,22 @@ const PREFIX = 'qqmusic-plugin:pref:'
 const TTL_SEC = 30 * 24 * 3600
 const mem = new Map()
 let writes = 0
+let redisPromise
+
+async function getRedis() {
+  if (!redisPromise) {
+    redisPromise = (async () => {
+      try {
+        const { redis } = await import('node-karin')
+        const client = typeof redis === 'function' ? redis() : redis
+        return client?.get && client?.set ? client : null
+      } catch {
+        return null
+      }
+    })()
+  }
+  return redisPromise
+}
 
 function keyOf(scope) {
   return `${PREFIX}${scope}`
@@ -47,7 +63,7 @@ function sweep() {
 /** 读偏好（认不出就是 {}，调用方用默认值兜） */
 export async function getPref(scope) {
   const k = keyOf(scope)
-  const redis = global.redis
+  const redis = await getRedis()
   if (redis) {
     try {
       const raw = await redis.get(k)
@@ -64,7 +80,7 @@ export async function setPref(scope, patch = {}) {
   const next = { ...(await getPref(scope)), ...patch, updatedAt: Date.now() }
   const k = keyOf(scope)
   mem.set(k, { data: next, expireAt: Date.now() + TTL_SEC * 1000 })
-  const redis = global.redis
+  const redis = await getRedis()
   if (redis) {
     try {
       await redis.set(k, JSON.stringify(next), { EX: TTL_SEC })

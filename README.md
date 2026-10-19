@@ -2,22 +2,25 @@
   <img src="resources/img/logo.png" width="120" alt="logo">
 </p>
 
-<h1 align="center">qqmusic-plugin</h1>
+<h1 align="center">karin-plugin-qqmusic</h1>
 
 <p align="center">
-  <strong>Yunzai-Bot / TRSS-Yunzai QQ 音乐插件</strong>
+  <strong>node-karin QQ 音乐插件</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Node.js-18+-green?logo=node.js" alt="node">
-  <img src="https://img.shields.io/badge/Yunzai-v3-blue" alt="yunzai">
-  <img src="https://img.shields.io/badge/TRSS-Multi--Protocol-purple" alt="trss">
+  <img src="https://img.shields.io/badge/node--karin-1.18+-blue" alt="karin">
   <img src="https://img.shields.io/badge/License-MIT-yellow" alt="license">
   <img src="https://img.shields.io/github/stars/zaras123/qqmusic-plugin?style=flat&logo=github" alt="stars">
   <a href="https://github.com/zaras123/qqmusic-plugin">
     <img src="https://count.getloli.com/get/@zaras123.qqmusic-plugin?theme=rule34" alt="visitors">
   </a>
 </p>
+
+> **分支说明**：`karin` 分支是 **node-karin 专用**版本（ESM JavaScript，目录名必须为
+> `karin-plugin-qqmusic`）；`main` 分支是 **Yunzai / TRSS-Yunzai** 版本。
+> 两条分支各自维护，请不要交叉安装 —— Karin 装 `karin` 分支，Yunzai 装 `main` 分支。
 
 ---
 
@@ -66,8 +69,8 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 | 演出票务 | `#qqm演出同步 北京` | 主人按城市同步公开演出；`#qqm演出城市` / `#qqm演出分类` 查看选项 |
 | 🎵 点歌 | `#qqm点歌 关键词` | 搜索列表（带 🎬 MV 徽标），`#qqm听N` 选曲播放（名单按人隔离，千人群互不串号） |
 | 🎵 点歌 | `#qqm播放 关键词` | 直接播放第一条 |
-| 🎵 点歌 | 其它平台补充曲 | QQ 音乐没版权的歌自动补几条网易云/酷我的**免费曲**（128k）到列表尾部，带来源图标；锅巴可关 |
-| 🎵 点歌 | 主人账号回落 | 「一律走主人账号」默认开：所有人点歌都按主人的 ck（自动取最近扫码登录的账号，无需手填）——全群都能播 VIP 曲；锅巴可关 |
+| 🎵 点歌 | 其它平台补充曲 | QQ 音乐没版权的歌自动补几条网易云/酷我的**免费曲**（128k）到列表尾部，带来源图标；Karin WebUI 可关 |
+| 🎵 点歌 | 主人账号回落 | 「一律走主人账号」默认开：所有人点歌都按主人的 ck（自动取最近扫码登录的账号，无需手填）——全群都能播 VIP 曲；Karin WebUI 可关 |
 | 🎵 点歌 | `#qqm歌词 关键词` | 歌词查询（补充曲走对应平台的歌词接口） |
 | 🎵 点歌 | `#qqm试听 关键词` | 副歌试听：只发 30 秒左右的片段，先听听好不好听（点歌后可用 `#qqm试听2` 序号） |
 | 🎵 点歌 | `#qqm海报 关键词` | 歌词海报：副歌那几句 + 封面排成一张分享图（点歌后可用 `#qqm海报2` 序号） |
@@ -134,11 +137,11 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 - **落盘**：`data/qqmusic-store.json` 之外的独立文件 `data/qqmusic-stats.json`（`.gitignore` 内，
   `#qqm强制更新` 的 `git clean` 豁免清单含 `data/`，强制更新不会冲掉）。写盘是**合并写**：
   5 秒内的多次点歌并成一次，群里连点几首不会触发几次全量序列化。
-- **怎么调**：锅巴 →「① 基础设置 → 听歌时长统计 / 统计保留天数 / 统计人数上限」。
+- **怎么调**：Karin WebUI →「① 基础设置 → 听歌时长统计 / 统计保留天数 / 统计人数上限」。
   配置键 `statsEnable`（默认开）、`statsKeepDays`（默认 60 天）、`statsMaxUsersPerGroup`（默认 100 人）。
   保留天数只裁剪**日粒度**（今日/近 7 天/连续天数用到的部分），累计时长不受影响；
   人数超限时先丢**最久没点歌**的那个人，活跃的人不会被顶掉。
-- **单测**：`npm run test:stats`（纯本地，不需要 Yunzai / 不需要 API）。
+- **单测**：`npm run test:stats`（纯本地，不需要 Karin / 不需要 API）。
 
 ### 勋章进度（只读）
 
@@ -159,7 +162,7 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
   然后照常把能读到的播放页任务列出来。
 - **按请求者本人查**：勋章进度不会套用「一律走主人账号」；谁发 `#qqm勋章`，就读谁的
   QQ 音乐账号进度，避免群里所有人都看到主人的数据。
-- **活动 ID**：勋章任务按平台**当期活动**查，ID 会随活动轮换。填锅巴 →「勋章活动 ID」
+- **活动 ID**：勋章任务按平台**当期活动**查，ID 会随活动轮换。填 Karin WebUI →「勋章活动 ID」
   （配置键 `medalActID`），留空就只查听歌时长。拿法是进 QQ 音乐 App 的勋章活动页，
   从请求里抓 `actID` —— 这是活动参数，不是账号凭据，不涉密。
   没填 `medalActID` 时会用**播放页任务**兜底：不需要活动 ID，直接读平台当前播放页的任务；
@@ -167,9 +170,9 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 - **字段名还没钉死**：上游返回的字段名在插件侧**没有固化**（登录态下还没抓到样本）。
   所以解析是「已知候选名优先 + 其余标量原样列出」：真换了字段名，命令不会变空白，而是把
   平台返回的东西照实摆出来。拿到真实样本后再把名字收紧。
-- **怎么调**：锅巴 →「① 基础设置 → 勋章进度（只读）/ 勋章活动 ID」。
+- **怎么调**：Karin WebUI →「① 基础设置 → 勋章进度（只读）/ 勋章活动 ID」。
   配置键 `medalEnable`（默认开）、`medalActID`（默认空）。
-- **单测**：`npm run test:medal`（纯本地，不需要 Yunzai / 不需要 API / 不打网络）。
+- **单测**：`npm run test:medal`（纯本地，不需要 Karin / 不需要 API / 不打网络）。
 
 ### 音质选项
 
@@ -185,7 +188,7 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 > 只影响「播歌 / 取数据」；登录状态、取 CK、刷新这些仍只认请求者本人（否则会把别人的登录态误报成本人的）。访客 Token 也无法指定主人账号。
 >
 > 多账号想固定用某一个时，才在 `config/config/qqmusic.yaml` 里手动填 `publicAccount`（留空=自动）。
-> 不需要全员共用主人号时，在锅巴关闭「一律走主人账号」即可。
+> 不需要全员共用主人号时，在 Karin WebUI 关闭「一律走主人账号」即可。
 
 > 📌 **关于其它平台凭据**：QQ 音乐之外的平台各有**独立**通道（哪家能配、怎么配，以帮助卡的音源行为准）：
 > - **能扫码的**（`#qqm<平台>登录`）：QQ 音乐 App · 网易云 · 酷狗 · 汽水。
@@ -194,8 +197,8 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 > - **免登录的**（B站 / 咪咕 / Audius / JioSaavn）不用配；**YouTube** 卡的是出网代理（`YOUTUBE_PROXY`），配 cookie 没用。
 >
 > 粘贴 cookie 的命令**必须私聊**：凭据按人存（写进发命令那个人的槽位），群里发等于把账号借给全群 —— 机器人会直接拒收。
-> 自己配的这份想全站共用 → 开「一律走主人账号」（锅巴 ① 基础设置）；`#qqm<平台>清ck` 只清自己那份，共享的与别人的都不动。
-> 也可以在**锅巴 → 平台**里逐平台粘贴，与私聊发命令等效。
+> 自己配的这份想全站共用 → 开「一律走主人账号」（Karin WebUI ① 基础设置）；`#qqm<平台>清ck` 只清自己那份，共享的与别人的都不动。
+> 也可以在**Karin WebUI → 平台**里逐平台粘贴，与私聊发命令等效。
 
 > 📌 **关于高音质（FLAC 以上）**：`hires` / `atmos` / `master` / `atmos_master` 是 **QQ 音乐绿钻会员限定**，且部分歌曲未上架这些音质。若显式设置了高音质却被降级，点歌卡片会直接标明原因（如「API 未返回链接（通常需绿钻会员）」，即账号非会员；「该歌曲未提供此音质」，即歌曲本身没出该档）。日志中 `音质选定: flac ... [hires:no-url, flac:ok]` 也可定位。
 
@@ -219,16 +222,19 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 ### 1. 安装插件
 
 ```bash
-cd Yunzai/plugins
-git clone https://github.com/zaras123/qqmusic-plugin.git
-cd qqmusic-plugin && pnpm install
+cd Karin/plugins
+git clone -b karin https://github.com/zaras123/qqmusic-plugin.git karin-plugin-qqmusic
+cd karin-plugin-qqmusic && pnpm install
 ```
+
+> 目录名必须是 `karin-plugin-qqmusic`（Karin 按 `karin-plugin-*` 识别插件），
+> `package.json` 的 `main` 指向 `index.js`，Karin 会据此调用 `KARIN_PLUGIN_INIT`。
 
 ### 2. 配置 API
 
 本插件需要配合后端 API 使用。API 因特殊原因不开源，请加入用户群申请 API 地址和 Token。
 
-在锅巴配置中填写：
+在配置文件中填写（`config/config/qqmusic.yaml`，也可在 Karin WebUI 的插件配置里编辑）：
 - **API 地址**：入群后申请获取
 - **API Token**：入群后申请获取
 
@@ -236,11 +242,15 @@ cd qqmusic-plugin && pnpm install
 
 ### 3. 启动
 
-重启 Yunzai，日志出现 `qqmusic-plugin 已加载` 即成功。
+重启 Karin，日志出现 `[qqmusic-plugin] karin-plugin-qqmusic 初始化入口已注册` 即成功。
 
 首次启动（或删除 `config/config/qqmusic.yaml` 后重启）会自动从 `config/default_config/` 生成用户配置文件。
 
 主人发送 `#qqm登录` 扫码即可开始使用。
+
+> **卡片渲染**：Karin 下按「直连 puppeteer → Karin 渲染器 → 文本」的顺序降级。
+> 想让卡片走 Karin 的渲染器，请在插件市场安装 `@karinjs/plugin-puppeteer`；
+> 没装时插件会用自带的 puppeteer 直连截图（需本机有 Chrome/Chromium，见「卡片字体」一节）。
 
 ### 3.5 卡片字体（**Linux 容器必看**）
 
@@ -298,14 +308,12 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 需通过 `git clone` 安装（目录内有 `.git`）。主人发送：
 
 ```text
-#qqm更新        # 快进拉取（本地有改动时会提示）
+#qqm更新        # 快进拉取 karin 分支（本地有改动时会提示）
 #qqm强制更新    # reset 到远程，丢弃插件内未提交修改（保留 config/config）
 #qqm更新日志    # 最近提交记录
 ```
 
-也可使用 Yunzai 自带：`#更新qqmusic-plugin`。
-
-更新成功后请 `#重启` 使新代码生效。若 `package.json` 有变更，插件会尝试自动 `pnpm/npm install`。
+更新成功后请重启 Karin 使新代码生效。若 `package.json` 有变更，请在插件目录执行 `pnpm install`。
 
 > 📌 **关于 API**：后端 API 涉及平台接口对接等技术细节，出于安全和合规考虑不对外开源。如需使用请加入用户群申请。
 
@@ -313,16 +321,16 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 
 ## 适配器支持
 
-| 能力 | ICQQ | OneBot WS | QQBot 官方 |
-|------|:----:|:---------:|:----------:|
+| 能力 | OneBot 11（NapCat / Lagrange / LLOneBot） | QQBot 官方 | ICQQ 适配器 |
+|------|:-----------------------------------------:|:----------:|:-----------:|
 | 文本 / 图片 | ✅ | ✅ | ✅ |
 | 语音 | ✅ | ✅ | ✅ |
-| 视频（MV） | ✅ 本地下载后发 | ✅ 直链 / 本地 | ✅ 直链 |
+| 视频（MV） | ✅ 直链 / 本地 | ✅ 直链 | ✅ 本地下载后发 |
 | 群文件 | ✅ | ✅ | ✅ |
-| 原生音乐卡 | 视协议 | 视协议 | — |
-| 一起听（群听歌） | ✅ | ✅ NapCat / SnowLuma（待实测） | — |
+| 原生音乐卡 | 视协议 | — | 视协议 |
+| 一起听（群听歌） | ✅ NapCat / SnowLuma（待实测） | — | ✅ |
 
-> 📌 **关于原生音乐卡**：NTQQ 系协议端（NapCat / Lagrange / LLOneBot 等）不支持 go-cq 风格的 `type:qq` 音乐卡（该类型需协议端服务端拉歌单，会以 `retcode 1200` 拒绝）。插件在 OneBot 上**直接用 custom 卡**（带真实播放链 + 封面 + 歌手，效果与官方客户端分享一致，参考小飞插件做法）；ICQQ 仍走原生 `type:qq`。同一适配器连续失败 3 次后本会话内自动跳过并静默降级为语音 / 群文件（点歌功能不受影响）。彻底关闭可在锅巴中关掉「发送原生 QQ 音乐卡」。
+> 📌 **关于原生音乐卡**：NTQQ 系协议端（NapCat / Lagrange / LLOneBot 等）不支持 go-cq 风格的 `type:qq` 音乐卡（该类型需协议端服务端拉歌单，会以 `retcode 1200` 拒绝）。插件在 OneBot 上**直接用 custom 卡**（带真实播放链 + 封面 + 歌手，效果与官方客户端分享一致，参考小飞插件做法）；ICQQ 适配器仍走原生 `type:qq`。同一适配器连续失败 3 次后本会话内自动跳过并静默降级为语音 / 群文件（点歌功能不受影响）。彻底关闭可在配置中关掉「发送原生 QQ 音乐卡」。
 >
 > 📌 **关于高音质语音**：FLAC 等高音质文件体积大，直接作为语音（record）发送会被协议端以体积/格式限制拒绝。插件发送语音前会自动用 ffmpeg 压成紧凑 mp3（保证能发出去），**群文件仍保留原始高音质文件**。需系统安装 `ffmpeg`（`ffmpeg -version` 可验证）。
 >
@@ -340,27 +348,27 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 >
 > 注意：写入模式会在群里留下真实房间（可能残留空房间，需要手动结束），**请在测试群跑**。
 >
-> **默认关闭**：锅巴「启用一起听」`togetherEnable` 关着时指令不走 API（`#qqm一起听 探测` 除外，它是排障路径）；「点歌后自动同步」`togetherAuto` 是第二个开关，**要与总开关同时打开**才生效。
+> **默认关闭**：Karin WebUI「启用一起听」`togetherEnable` 关着时指令不走 API（`#qqm一起听 探测` 除外，它是排障路径）；「点歌后自动同步」`togetherAuto` 是第二个开关，**要与总开关同时打开**才生效。
 >
 > 首次使用还要在真实群里探测一次：`POST /together/start {"action":"probe"}`（只读），把结果的 `aio_type`/`media_type` 写进 API 的 `data/together.json`（`aioType` 为 0 时同样拒绝写入）。探测不受开关限制。
 
-> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置四套：`classic`（原始界面，1.x 默认）、`apple`（排印对齐 apple.com.cn 的实测值：近白底 + 白玻璃卡 + 蓝色小标），以及 **2.0 专版**的 `nebula`「星云 · 鎏光」（暖象牙底 + 液态玻璃 + 香槟金烫字，2.0 的默认主题）与 `multi`「多平台」（冷中性底 + 单一主光，来源色标走色轨/色点/同色玻璃标，一眼看出这首歌来自哪家）。四套都支持深色与时段配色。主人发 `#qqm界面` 查看与切换，深浅色支持「浅色 / 深色 / 跟随时间（夜晚自动深色）」，锅巴里都有。
+> 📌 **关于卡片界面（多套 UI）**：所有图片卡片都由 `resources/themes/<主题>/` 下的模板渲染，**丢一个目录进来就是一套新 UI**（详见 [resources/themes/README.md](resources/themes/README.md)）。内置四套：`classic`（原始界面，1.x 默认）、`apple`（排印对齐 apple.com.cn 的实测值：近白底 + 白玻璃卡 + 蓝色小标），以及 **2.0 专版**的 `nebula`「星云 · 鎏光」（暖象牙底 + 液态玻璃 + 香槟金烫字，2.0 的默认主题）与 `multi`「多平台」（冷中性底 + 单一主光，来源色标走色轨/色点/同色玻璃标，一眼看出这首歌来自哪家）。四套都支持深色与时段配色。主人发 `#qqm界面` 查看与切换，深浅色支持「浅色 / 深色 / 跟随时间（夜晚自动深色）」，Karin WebUI 里都有。
 >
 > **换主题、改模板、改 `theme.json` 都是热更新** —— 不用重启机器人（渲染前比对文件 mtime，变了就让 art-template 重新编译；它默认按文件名永久缓存，这正是以前改模板必须重启的原因）。批量改动后想强制重来：`#qqm界面 重载`。
 >
-> 📌 **自定义背景（apple / nebula / multi 三套支持，classic 忽略）**：`#qqm界面 背景 <路径或链接>`（锅巴里也能设）。三种来源**自动识别**：服务器本地路径（`D:\图片\a.jpg` / `/root/pics/a.jpg`）、图片直链、图片 API（返回 JSON 里有图片地址，或直接返回图片）。开启后卡片材质自动切成 **iOS 液态玻璃**（半透明 + 强模糊 + 边缘高光）；2.0 的星云/多平台本来就是玻璃材质，背景图直接当"玻璃后面的那张墙纸"。
-> 远端图**由插件侧取回并缓存成本地文件**（不让浏览器去拉）—— 否则每次渲染都要等远端图，慢图/挂掉的图会把整张卡拖死；缓存时长锅巴可调（`0` = 每次渲染都换）。取不到图时**自动回落主题自带底色**，不影响发卡（日志里有原因）。
+> 📌 **自定义背景（apple / nebula / multi 三套支持，classic 忽略）**：`#qqm界面 背景 <路径或链接>`（Karin WebUI 里也能设）。三种来源**自动识别**：服务器本地路径（`D:\图片\a.jpg` / `/root/pics/a.jpg`）、图片直链、图片 API（返回 JSON 里有图片地址，或直接返回图片）。开启后卡片材质自动切成 **iOS 液态玻璃**（半透明 + 强模糊 + 边缘高光）；2.0 的星云/多平台本来就是玻璃材质，背景图直接当"玻璃后面的那张墙纸"。
+> 远端图**由插件侧取回并缓存成本地文件**（不让浏览器去拉）—— 否则每次渲染都要等远端图，慢图/挂掉的图会把整张卡拖死；缓存时长 Karin WebUI 可调（`0` = 每次渲染都换）。取不到图时**自动回落主题自带底色**，不影响发卡（日志里有原因）。
 >
 > 主题可以只实现部分卡片，缺的自动回落到 `classic`（**内置的四套必须实现全** —— 缺一张就会出现"内容是这套主题的、皮肤是经典绿"的拼接感，`test.mjs` 会拦）。本地预览（不进机器人）：`node scripts/preview-cards.mjs`，产出 `temp/preview/<主题>[-dark]/<卡>.png`，走的与生产同一条渲染路径。
 
 > ⚡ **卡片图片格式：默认 JPEG（2026-09-25 性能优化）**：同一张 2.0 帮助卡（2064×6030）实测
 > **PNG 4.98 s / 9.75 MB** → **JPEG(q92) 0.56 s / 1.44 MB**（快 8.9×、小 6.8×），1:1 局部对比看不出差别。
-> 卡片每次都要上传给 QQ，慢网下"半天发不出去"多半就是这 8MB。锅巴 →「② 界面与外观 → 卡片图片格式」
+> 卡片每次都要上传给 QQ，慢网下"半天发不出去"多半就是这 8MB。Karin WebUI →「② 界面与外观 → 卡片图片格式」
 > 可切回 `png`（做素材/海报时用）。二维码那条路**永远是 PNG**（JPEG 的振铃会让码扫不出来），
 > 本地预览脚本也固定 PNG。
 
 > ⚡ **帮助图是缓存的（2026-09-30，2C2G 专项）**：`#qqm帮助` 出的那张图**只跟"身份 + 配置 + 模板"有关**
-> —— 十分钟内谁再发一次都是**秒回**（实测 2654ms → 1ms），换了主题 / 改了锅巴开关 / 改了模板立刻重截。
+> —— 十分钟内谁再发一次都是**秒回**（实测 2654ms → 1ms），换了主题 / 改了 Karin WebUI 开关 / 改了模板立刻重截。
 > 弱机器（2C2G、无 GPU 的容器）上原来"每发一次都要等几秒"有两个原因：1.x 老帮助卡**根本没缓存**，
 > 而且截图里有两段固定 `setTimeout` 白等。现在两条都修了；长卡还会按**像素预算**自动降清晰度倍数
 > （8.7M 像素 → 截图 539ms、882KB），细节见「⚡ 性能红线」⑥⑦。
@@ -391,7 +399,7 @@ qqmusic-plugin/
 │   ├── theme.js             # 主题发现/解析/缓存失效（多套 UI）
 │   ├── background.js        # 自定义背景：本地路径/直链/图片 API + 本地缓存
 │   ├── card-data.js         # 卡片数据构建
-│   ├── adapter.js           # 适配器识别（ICQQ / OneBot / QQBot）
+│   ├── adapter.js           # Karin 适配器识别（ICQQ / OneBot / QQBot）
 │   ├── together.js          # 一起听：协议端识别 + 发包（协议知识在 API 侧）
 │   ├── session.js           # 点歌会话
 │   ├── extras.js            # 四件套的纯函数（时间解析 / 副歌窗口 / 歌词选句 / 触发窗口）
@@ -409,7 +417,7 @@ qqmusic-plugin/
 │   ├── privacy.js           # API 地址脱敏
 │   ├── common.js            # 通用工具
 │   └── path.js / log.js / plugin-base.js
-├── guoba/                   # 锅巴网页配置支持
+├── web.config.mjs / web/     # Karin WebUI 配置支持
 ├── config/
 │   ├── default_config/      # 默认配置
 │   └── config/              # 运行时配置
@@ -418,12 +426,11 @@ qqmusic-plugin/
 
 ---
 
-## 锅巴配置
+## Karin WebUI 配置
 
-安装 [Guoba-Plugin](https://github.com/guoba-yunzai/guoba-plugin) 后可在网页配置：
+在 Karin WebUI 的插件配置页可直接修改：
 
-> 配置项按**三大组**折叠（① 基础设置 / ② 界面与外观 / ③ 发送与下载，写法与 R 插件的
-> `SOFT_GROUP_BEGIN` 一致）：字段与键名一个都没变，只是不用在一页里翻半天了。
+> 配置项按**三大组**折叠（① 基础设置 / ② 界面与外观 / ③ 发送与下载）：字段与键名一个都没变，只是不用在一页里翻半天了。
 
 - API 地址 / Token
 - 插件、点歌、解析、扫码登录命令开关
@@ -436,7 +443,7 @@ qqmusic-plugin/
 - 接管无前缀「#点歌」（默认关；开启后不加 `#qqm` 前缀的点歌也由本插件处理）
 - 其它平台补充曲（默认开；QQ 音乐没有的免费曲从网易云/酷我补进来，128k）
 - 音源平台：一家一个页签，各自独立的开关 / 点歌条数 / **凭据段**（能扫码的给扫码命令说明，能粘贴的给 cookie 输入框 —— 凭据只上传到 API，不写进插件配置）
-- 一律走主人账号（默认开；主人账号自动取最近扫码登录的账号，所有人点歌都按主人的 ck，锅巴可关）
+- 一律走主人账号（默认开；主人账号自动取最近扫码登录的账号，所有人点歌都按主人的 ck，Karin WebUI 可关）
 - 主人账号手动指定（`publicAccount`，留空=自动；多账号想固定用某一个时才填）
 - 从 API 一键回填登录态
 - 一起听：启用开关（默认关）/ 点歌后自动同步（默认关，需总开关同时打开）—— 协议参数在 API 侧：`data/together.json` 的 `aioType`/`mediaType`/`shareAppid`/`cutSong`/`autoCreate`
@@ -448,8 +455,7 @@ qqmusic-plugin/
 
 ## 致谢
 
-- [TRSS-Yunzai](https://gitee.com/TimeRainStarSky/Yunzai) — 多协议 Bot 框架，本插件运行基础
-- [Miao-Yunzai](https://gitee.com/yoimiya-kokomi/Miao-Yunzai) — 优秀的 Yunzai 分支，插件兼容参考
+- [node-karin](https://github.com/KarinJS/Karin) — 多协议 Bot 框架，本插件运行基础
 - [rconsole-plugin](https://gitee.com/kyrzy0416/rconsole-plugin) — 点歌交互与卡片解析的设计参考
 
 ---
@@ -459,10 +465,10 @@ qqmusic-plugin/
 卡片是高频操作，而插件与所有别的插件共用**同一条事件循环** —— 下面几条都是踩过之后写下来的：
 
 **① 判定必须每次现读配置，别缓存在模块顶层。**
-`#qqm界面`、「？？？」开关这类判定（`utils/v2.js`）每次都拿 `Config.getConfig()` 现算。老代码把开关读一次写进模块变量，锅巴里改完要重启才生效，而且「未开启」那个分支还会被缓存成永久的。
+`#qqm界面`、「？？？」开关这类判定（`utils/v2.js`）每次都拿 `Config.getConfig()` 现算。老代码把开关读一次写进模块变量，Karin WebUI 里改完要重启才生效，而且「未开启」那个分支还会被缓存成永久的。
 
 **② `Config.getConfig()` 的结果按文件指纹（mtime + size）缓存，返回浅拷贝。**
-一次调用要读 + 解析**两份** yaml（实测 ~4.2ms，而且是同步的），一条命令里会被叫好几次，所以必须有缓存；但缓存的是**文件内容**、不是判定结果 —— 锅巴保存 / 手改 yaml / 插件更新覆盖 `default_config`，指纹一变下一次就立刻读到新的（`setConfig` 另有一次主动失效）。返回值是浅拷贝，调用方随便改自己那份不会污染缓存；**将来若要改配置里的嵌套对象，得先把这里改成深拷贝**。
+一次调用要读 + 解析**两份** yaml（实测 ~4.2ms，而且是同步的），一条命令里会被叫好几次，所以必须有缓存；但缓存的是**文件内容**、不是判定结果 —— Karin WebUI 保存 / 手改 yaml / 插件更新覆盖 `default_config`，指纹一变下一次就立刻读到新的（`setConfig` 另有一次主动失效）。返回值是浅拷贝，调用方随便改自己那份不会污染缓存；**将来若要改配置里的嵌套对象，得先把这里改成深拷贝**。
 
 **③ 卡片模块只能动态 import。**
 `utils/card-data.js` / `utils/render.js` 会把 art-template 和 Puppeteer 一起拉起来，不能在插件启动时加载（列表卡的统一出口 `replyListCardOrText()` 就负责这件事）。
@@ -477,7 +483,7 @@ qqmusic-plugin/
 
 **⑥ 帮助图（1.x 老卡与 2.0 新卡）都要走缓存，别每次现截。**
 `renderHelpCard()` / `renderGuideCard()` 都过 `renderHelpCardCached()`：帮助卡内容只跟「身份 + 配置 + 模板」有关，键一样就直接把上一张图还回去 —— 实测 **2654ms → 1ms**（1.x）、**1473ms → 1ms**（2.0）。1.x 老帮助卡（默认配置走的那张，592×3654 CSS、8.7M 像素）以前**根本没有缓存**，所以默认环境下"每发一次 #qqm帮助 都要等好几秒"。
-⚠️ 键里必须带**模板 mtime**（`templateStamp()`）：`#qqm更新` 换了模板而进程没重启时，光看配置是发现不了的 —— 少这一项就会发出旧模板截的图。缓存有上限（`HELP_CACHE_MAX`），改锅巴会换键，别让它无限长。
+⚠️ 键里必须带**模板 mtime**（`templateStamp()`）：`#qqm更新` 换了模板而进程没重启时，光看配置是发现不了的 —— 少这一项就会发出旧模板截的图。缓存有上限（`HELP_CACHE_MAX`），改 Karin WebUI 会换键，别让它无限长。
 
 **⑦ 长卡按像素预算降 dpr（`deviceScaleFor()`）。**
 像素数直接决定光栅 + JPEG 编码的耗时，而 2C2G / 无 GPU 的容器走软件光栅，这一步最贵。本机 `--disable-gpu` 实测 2.0 帮助卡：dpr3 = 12.9M 像素 / 截图 1124ms / 1082KB；**dpr2 = 5.7M 像素 / 484ms / 606KB**；1.x 帮助卡 dpr3 = 19.5M / 962ms → dpr2 = 8.7M / 539ms。预算 8M，超了降 2 倍、不超保持 3 倍（小字更锐）；量不到尺寸时保持老行为（3 倍），别猜。

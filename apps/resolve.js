@@ -112,7 +112,7 @@ function collectMessageText(e) {
   push(e.raw_message)
   push(e.raw)
   push(e.message_id && e.message)
-  // QQBot / TRSS 常见字段
+  // QQBot / OneBot 常见字段
   push(e.toString?.())
   push(e.raw?.content)
   push(e.raw?.message)
@@ -179,7 +179,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-解析',
-      dsc: '解析 QQ 音乐分享卡片与链接',
+      desc: '解析 QQ 音乐分享卡片与链接',
       event: 'message',
       // 数值越小越先匹配。R 插件 qqMusic 常为 500~1500，这里用 50 抢先处理
       priority: 50,

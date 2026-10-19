@@ -1,4 +1,4 @@
-// Miao-Yunzai 插件功能测试脚本
+// Karin 插件功能测试脚本
 //
 // 顺序有讲究：**先做全量语法检查，再 import 业务模块**。
 // 起因（2026-09-20）：card-data.js 里两条语句被粘到同一行（模板字符串后紧跟 const），
@@ -65,7 +65,43 @@ try {
 }
 console.log('')
 
-import { loadPluginBase } from './utils/plugin-base.js'
+/**
+ * 离线测试优先借本机 Karin 根目录里的 node-karin（art-template / 类型）。
+ * 找不到就继续走 stub，纯函数与路由测试仍然可跑。
+ */
+function resolveKarinRoot() {
+  const candidates = [
+    process.env.QQMUSIC_KARIN_PATH,
+    path.resolve(pluginRoot, '../karin-project/karin-project'),
+    path.resolve(pluginRoot, '../../karin-project/karin-project'),
+    path.resolve(pluginRoot, '../../../karin-project/karin-project'),
+  ].filter(Boolean)
+  for (const c of candidates) {
+    if (fs.existsSync(path.join(c, 'node_modules/node-karin'))) return c
+  }
+  let base = pluginRoot
+  for (let depth = 0; depth < 5; depth++) {
+    try {
+      for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue
+        const dir = path.join(base, entry.name)
+        if (fs.existsSync(path.join(dir, 'node_modules/node-karin'))) return dir
+      }
+    } catch {
+      /* ignore */
+    }
+    const parent = path.dirname(base)
+    if (parent === base) break
+    base = parent
+  }
+  return ''
+}
+
+const karinRoot = resolveKarinRoot()
+if (karinRoot) process.env.QQMUSIC_KARIN_PATH = karinRoot
+process.env.QQMUSIC_TEMP_PATH = path.join(pluginRoot, 'temp')
+
+const { loadPluginBase } = await import('./utils/plugin-base.js')
 await loadPluginBase()
 
 const { qqmusicChart } = await import('./apps/chart.js')
@@ -152,7 +188,7 @@ const cases = [
   // 点歌 + 播放合成一条规则（onSongCmd），动词由解析决定动作
   ['#qqm点歌 晴天', 'onSongCmd'],
   ['#qqm 点歌 晴天', 'onSongCmd'],
-  ['#点歌 晴天', 'pickSongDefault'], // 无前缀：锅巴开关关着时该 handler 返回 false 放行
+  ['#点歌 晴天', 'pickSongDefault'], // 无前缀：Karin WebUI 开关关着时该 handler 返回 false 放行
   ['#qqm听1', 'chooseSong'],
   ['#听3', 'chooseSong'],
   ['#qqm播放 晴天', 'onSongCmd'],
@@ -998,12 +1034,7 @@ console.log('\n=== 命令解析（点歌/播放/平台前缀）===\n')
   routeBad += lbad
 }
 
-// ──────────── 异步兼容层（utils/async.js · plugin-base 并发去重 · index.js 护栏）────────────
-// 起因：同一个插件要在 TRSS-Yunzai 和 Miao-Yunzai 上跑，但两边对「异步」的约定并不一致 ——
-//  ① TRSS 在「适配器没给 reply」时**压根不装** e.reply（lib/plugins/loader.js:416 直接 return），
-//     `await e.reply(...)` 会 TypeError，用户端一条反馈都收不到；
-//  ② 插件基类的 reply() 在空消息时**同步**返回 false → `.then` 随时可能是 undefined；
-//  ③ setTimeout(async 回调) 抛错 → unhandledRejection，业务侧既看不到也补不了。
+// ──────────── 异步兼容层（utils/async.js · plugin-base 并发去重 · Karin 初始化入口）────────────
 console.log('\n=== 异步兼容层 ===\n')
 let asyncOk = 0
 let asyncBad = 0
@@ -1021,6 +1052,7 @@ function asyncCheck(name, got, want) {
 {
   const A = await import('./utils/async.js')
   const PB = await import('./utils/plugin-base.js')
+  const L = await import('./utils/log.js')
 
   // ── 归一化：同步值 / Promise / 同步抛，一律能当 Promise 用 ──
   asyncCheck('isThenable：Promise 是、同步值不是', [A.isThenable(Promise.resolve(1)), A.isThenable(false), A.isThenable(undefined), A.isThenable('x')].join(','), 'true,false,false,false')
@@ -1056,16 +1088,15 @@ function asyncCheck(name, got, want) {
   // ── 定时器：异步回调抛错被接住，不变成 unhandledRejection ──
   let unhandled = 0
   const onUnhandled = () => { unhandled++ }
-  const prevLogger = global.logger
   const quietLogger = { info() {}, warn() {}, error() {}, mark() {} }
   process.on('unhandledRejection', onUnhandled)
-  global.logger = quietLogger
+  L.setLogger(quietLogger)
   try {
     A.setSafeTimeout(async () => { throw new Error('timer boom') }, 1, '测试定时器')
     await new Promise((r) => setTimeout(r, 40))
   } finally {
     process.removeListener('unhandledRejection', onUnhandled)
-    global.logger = prevLogger
+    L.setLogger(null)
   }
   asyncCheck('setSafeTimeout：回调抛错被接住（0 次 unhandledRejection）', unhandled, 0)
 
@@ -1087,10 +1118,10 @@ function asyncCheck(name, got, want) {
   asyncCheck('hardenPlugin：幂等（同一个类包两次还是它）', A.hardenPlugin(H, 'fake') === H, true)
   // 下面两条走的是护栏的错误分支，日志静音一下 —— 不然梯子里会刷两条 Error
   //（护栏「记日志 + 返回 false」这件事本身由 utils/async.js 保证，这里只钉返回值）
-  global.logger = quietLogger
+  L.setLogger(quietLogger)
   const boomRet = await inst.boom()
   const syncRet = inst.syncBoom()
-  global.logger = prevLogger
+  L.setLogger(null)
   asyncCheck('hardenPlugin：async 处理函数 reject → false（不抛）', boomRet, false)
   asyncCheck('hardenPlugin：同步抛 → false（不抛）', syncRet, false)
   asyncCheck('hardenPlugin：非 thenable 返回值原样透传（框架要靠 res===false 判"没处理"）', inst.ok(), 'ok')
@@ -1112,7 +1143,8 @@ function asyncCheck(name, got, want) {
   asyncCheck('hardenPlugin：包装后 instanceof 原类不变', hardenedClasses.every((c, i) => new c() instanceof modules[i].class), true)
   asyncCheck('hardenPlugin：原始类留了痕（__qqmBase）', hardenedClasses.every((c, i) => c.__qqmBase === modules[i].class), true)
   const indexSrc = fs.readFileSync(path.join(pluginRoot, 'index.js'), 'utf8')
-  asyncCheck('index.js：apps 出口处确实过了一遍 hardenPlugin', /apps\[name\]\s*=\s*hardenPlugin\(/.test(indexSrc), true)
+  asyncCheck('index.js：导出 Karin 生命周期入口', /export const KARIN_PLUGIN_INIT/.test(indexSrc), true)
+  asyncCheck('index.js：不再包含旧 Yunzai 加载器', /旧 Yunzai 加载器|apps\[name\]\s*=\s*hardenPlugin/.test(indexSrc), false)
 
   // ── plugin-base：并发加载收敛成同一次（7 个 app 是同时被 import 的）──
   const p1 = PB.loadPluginBase()
@@ -1125,8 +1157,8 @@ function asyncCheck(name, got, want) {
 
 //
 // 这一段钉的是"**默认什么都不变**"这条硬约束：
-//   · 开关关着 → 多平台命令不响应、帮助还是老卡、锅巴里看不到平台分组
-//   · 开关打开 → 平台命令/帮助/锅巴分组一起出现，且**不用重启机器人**
+//   · 开关关着 → 多平台命令不响应、帮助还是老卡、Karin WebUI 里看不到平台分组
+//   · 开关打开 → 平台命令/帮助 / Karin WebUI 分组一起出现，且**不用重启机器人**
 // 顺带验配置读写：嵌套字段（platforms.<平台>.enabled）必须落成嵌套对象。
 console.log('\n=== 2.0 平台与神秘开关 ===\n')
 let v2Ok = 0
@@ -1185,7 +1217,7 @@ function v2Check(name, got, want) {
     const V = await import('./utils/v2.js')
     const HC = await import('./utils/help-card.js')
     const R = await import('./utils/render.js')
-    const { buildSchemas, setConfigData, getConfigData } = await import('./guoba/schemas.js')
+    const { buildSchemas, setConfigData, getConfigData } = await import('./web/schemas.js')
     const { default: Config2 } = await import('./components/Config.js')
     const setCfg = (patch) => Config2.setConfig('qqmusic', { ...Config2.getConfig('qqmusic'), ...patch })
     const cfgNow = () => Config2.getConfig('qqmusic')
@@ -1220,14 +1252,14 @@ function v2Check(name, got, want) {
     v2Check('闸门：关着时帮助仍是老卡（没有"多平台音源"段）', HC.buildHelpCardData({}).sections.every((s) => s.title !== '多平台音源'), true)
     const lockedSchemas = buildSchemas()
     const lockedGroups = lockedSchemas.filter((s) => s.component === 'SOFT_GROUP_BEGIN').map((s) => s.label)
-    v2Check('锅巴：关着时看不到平台分组', !lockedSchemas.some((s) => /音源平台（2\.0）/.test(s.label || '')), true)
-    v2Check('锅巴：关着时也没有 platforms.* 字段', !lockedSchemas.some((s) => String(s.field || '').startsWith('platforms.')), true)
-    v2Check('锅巴：？？？开关一直在（关着时才需要它）', lockedSchemas.some((s) => s.field === 'unlockV2' && s.label === '？？？'), true)
-    v2Check('锅巴：给 ??？ 的默认值是布尔（不然开关显示不对）', getConfigData().unlockV2, false)
+    v2Check('Karin WebUI：关着时看不到平台分组', !lockedSchemas.some((s) => /音源平台（2\.0）/.test(s.label || '')), true)
+    v2Check('Karin WebUI：关着时也没有 platforms.* 字段', !lockedSchemas.some((s) => String(s.field || '').startsWith('platforms.')), true)
+    v2Check('Karin WebUI：？？？开关一直在（关着时才需要它）', lockedSchemas.some((s) => s.field === 'unlockV2' && s.label === '？？？'), true)
+    v2Check('Karin WebUI：给 ??？ 的默认值是布尔（不然开关显示不对）', getConfigData().unlockV2, false)
     // 分组粒度：用户反馈"太细了" —— 锁定时必须只有 4 组（基础设置/界面与外观/发送与下载/？？？）
-    v2Check('锅巴：分组收敛到 4 组（不再按功能拆 7 组）', lockedGroups.join(' | '), '① 基础设置 | ② 界面与外观 | ③ 发送与下载 | ？？？')
+    v2Check('Karin WebUI：分组收敛到 4 组（不再按功能拆 7 组）', lockedGroups.join(' | '), '① 基础设置 | ② 界面与外观 | ③ 发送与下载 | ？？？')
     v2Check(
-      '锅巴：接口/开关/音质/点歌/一起听 都合并进「① 基础设置」',
+      'Karin WebUI：接口/开关/音质/点歌/一起听 都合并进「① 基础设置」',
       ['apiBase', 'enableSongRequest', 'quality', 'defaultPickSong', 'togetherEnable'].every((f) =>
         lockedSchemas.slice(0, lockedSchemas.findIndex((s) => s.label === '② 界面与外观')).some((s) => s.field === f)
       ),
@@ -1243,12 +1275,12 @@ function v2Check(name, got, want) {
     // 2.0 的平台是**每家一个页签**（与 R 插件的 B站/抖音/油管/网易云 页签同款）
     const platformTabs = P.VISIBLE_PLATFORMS.filter((p) => !p.own).map((p) => p.label)
     v2Check(
-      '锅巴：打开后每家平台一个页签（基础 4 个 + 平台 8 个）',
+      'Karin WebUI：打开后每家平台一个页签（基础 4 个 + 平台 8 个）',
       unlockedGroups.join(' | '),
       [...lockedGroups, ...platformTabs].join(' | ')
     )
     v2Check(
-      '锅巴：每个平台页签里有「启用 + 条数」两项（自己的设置只在自己页签里）',
+      'Karin WebUI：每个平台页签里有「启用 + 条数」两项（自己的设置只在自己页签里）',
       (() => {
         const ids = P.VISIBLE_PLATFORMS.filter((p) => !p.own).map((p) => p.id)
         const fields = unlockedSchemas.map((s) => s.field).filter(Boolean)
@@ -1257,14 +1289,14 @@ function v2Check(name, got, want) {
       true
     )
     v2Check(
-      '锅巴：页签顺序 = 注册表顺序（QQ 本体不占页签）',
+      'Karin WebUI：页签顺序 = 注册表顺序（QQ 本体不占页签）',
       unlockedGroups.slice(lockedGroups.length).join(','),
       P.VISIBLE_PLATFORMS.filter((p) => !p.own)
         .map((p) => p.label)
         .join(',')
     )
     v2Check(
-      '锅巴：每个平台页签都带用法提示（**最短写法**在最前：`#qqm<短名> 关键词`）',
+      'Karin WebUI：每个平台页签都带用法提示（**最短写法**在最前：`#qqm<短名> 关键词`）',
       P.VISIBLE_PLATFORMS.filter((p) => !p.own).every((p) =>
         unlockedSchemas.some(
           (s) => s.component === 'Divider' && String(s.label || '').includes(`用法：#qqm${p.short || p.label} 关键词`)
@@ -1273,25 +1305,25 @@ function v2Check(name, got, want) {
       true
     )
     v2Check(
-      '锅巴：需要凭据的平台在页签里标了 ⚠️（酷狗/汽水/YouTube/Apple）',
+      'Karin WebUI：需要凭据的平台在页签里标了 ⚠️（酷狗/汽水/YouTube/Apple）',
       P.VISIBLE_PLATFORMS.filter((p) => !p.own && p.needsCredential).every((p) =>
         unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(p.label) && /需要 API 侧先配好凭据/.test(s.label))
       ),
       true
     )
     v2Check(
-      '锅巴：不再有"多选一栏装所有平台"那种字段（那是上一版，用户要按平台分）',
+      'Karin WebUI：不再有"多选一栏装所有平台"那种字段（那是上一版，用户要按平台分）',
       unlockedSchemas.some((s) => s.field === 'enabledPlatforms'),
       false
     )
     // ── 每个平台页签里要有"这一家自己的功能"（不只是启用/条数）──
     v2Check(
-      '锅巴：每家页签都有"参与跨平台补歌"开关（不想被某家占位就关掉）',
+      'Karin WebUI：每家页签都有"参与跨平台补歌"开关（不想被某家占位就关掉）',
       P.VISIBLE_PLATFORMS.filter((p) => !p.own).every((p) => unlockedSchemas.some((s) => s.field === `platforms.${p.id}.fill`)),
       true
     )
     v2Check(
-      '锅巴：只有**真有多档**的平台才显示"音质档位"（不给假开关）',
+      'Karin WebUI：只有**真有多档**的平台才显示"音质档位"（不给假开关）',
       (() => {
         const withQuality = P.VISIBLE_PLATFORMS.filter((p) => !p.own && P.platformHasQualityChoice(p.id)).map((p) => p.id).sort()
         const schemaHas = unlockedSchemas
@@ -1304,13 +1336,13 @@ function v2Check(name, got, want) {
       true
     )
     v2Check(
-      '锅巴：档位里标清"要账号/会员"（点之前就知道）',
+      'Karin WebUI：档位里标清"要账号/会员"（点之前就知道）',
       /要账号|要会员/.test(JSON.stringify(P.platformQualities('netease'))) && /要账号|要会员/.test(JSON.stringify(P.platformQualities('kugou'))),
       true
     )
     // 酷我/YouTube 是真·单档（给选择器只会骗人）；B站 2026-09-24 起有 192/flac 两档
-    v2Check('锅巴：单档平台只给"自动"（酷我/YouTube 这类）', [P.platformHasQualityChoice('kuwo'), P.platformHasQualityChoice('youtube')].join(','), 'false,false')
-    v2Check('锅巴：B站 的档位选择器有 192 与 flac 两档（与 API QUALITY_OPTIONS 对齐）', P.platformQualities('bilibili').map((x) => x.value).join(','), 'auto,192,flac')
+    v2Check('Karin WebUI：单档平台只给"自动"（酷我/YouTube 这类）', [P.platformHasQualityChoice('kuwo'), P.platformHasQualityChoice('youtube')].join(','), 'false,false')
+    v2Check('Karin WebUI：B站 的档位选择器有 192 与 flac 两档（与 API QUALITY_OPTIONS 对齐）', P.platformQualities('bilibili').map((x) => x.value).join(','), 'auto,192,flac')
     // ── 前缀识别（外源曲不能被当成 QQ 曲）──
     v2Check(
       '前缀认平台：把所有外源前缀都覆盖到（别只认 ne_/kw_/bi_）',
@@ -1326,7 +1358,7 @@ function v2Check(name, got, want) {
     v2Check('档位偏好：配了合法值就用它', V.platformQualityPref({ platforms: { kugou: { quality: 'flac' } } }, 'kugou'), 'flac')
     v2Check('档位偏好：非法值回 auto（不把脏值带去 API）', V.platformQualityPref({ platforms: { kugou: { quality: 'atmos_master' } } }, 'kugou'), 'auto')
     v2Check('档位偏好：大小写不敏感且归一成注册表写法', V.platformQualityPref({ platforms: { kugou: { quality: 'FLAC' } } }, 'kugou'), 'flac')
-    // 注意：隐藏平台（JioSaavn）**也**参与补歌（它只是不在帮助/锅巴里露脸），所以用 SEARCH_PLATFORMS
+    // 注意：隐藏平台（JioSaavn）**也**参与补歌（它只是不在帮助 / Karin WebUI 里露脸），所以用 SEARCH_PLATFORMS
     v2Check('补歌：默认全部参与', V.fillSourceIds({}).length, P.SEARCH_PLATFORMS.length)
     v2Check(
       '补歌：关掉某家的"参与"后它不在补歌来源里（但平台仍可用）',
@@ -1350,7 +1382,7 @@ function v2Check(name, got, want) {
       `0,${P.VISIBLE_PLATFORMS.length - 1}`
     )
     v2Check(
-      '锅巴：基础设置里有「启用 QQ 音乐音源」且说明"关掉就只用其它平台"',
+      'Karin WebUI：基础设置里有「启用 QQ 音乐音源」且说明"关掉就只用其它平台"',
       (() => {
         const f = unlockedSchemas.find((s) => s.field === 'qqEnabled')
         return Boolean(f) && /只用其它平台/.test(f.bottomHelpMessage || '')
@@ -1360,7 +1392,7 @@ function v2Check(name, got, want) {
     // qqEnabled 是 **2.0 的开关**（"QQ 不是主营"是 2.0 才有的设定）：
     // 关着？？？时必须**看不见、也不生效**，否则"没开？？？ = 和 2.0 之前一样"就不成立
     v2Check(
-      '锅巴：关着？？？时看不到「启用 QQ 音乐音源」（2.0 专属字段）',
+      'Karin WebUI：关着？？？时看不到「启用 QQ 音乐音源」（2.0 专属字段）',
       lockedSchemas.some((s) => s.field === 'qqEnabled'),
       false
     )
@@ -1400,7 +1432,7 @@ function v2Check(name, got, want) {
       setCfg({ unlockV2: false })
       v2Check('版本：关着？？？也显示真实包版本（发版后）', U.displayVersion(cfgNow()), `v${U.getLocalVersion()}`)
       v2Check('版本：关着时帮助卡上的版本号同样是真的', HC.buildHelpCardData({}).version, `v${U.getLocalVersion()}`)
-      // 闸门管功能（命令/帮助卡/锅巴分组），版本号照实说 —— 所以关着时也应该是 v2.x
+      // 闸门管功能（命令/帮助卡/Karin WebUI 分组），版本号照实说 —— 所以关着时也应该是 v2.x
       v2Check('版本：关着时照实露出 2.x', /^v2\./.test(U.displayVersion(cfgNow())), true)
       setCfg({ unlockV2: true })
       v2Check('版本：打开？？？显示 2.0 专属版本', U.displayVersion(cfgNow()), `v${U.getLocalVersion()}`)
@@ -1679,8 +1711,8 @@ function v2Check(name, got, want) {
       // ① 能力矩阵：与 API 侧**实际有的接口**对齐（API：只有 qq/netease/kugou/qishui 有 qrcode 模块）
       v2Check('凭据：能扫码的外部平台 = 网易云/B站/酷狗/汽水', P.qrPlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,bilibili,kugou,qishui')
       v2Check('凭据：酷我**不能**扫码（曾经错标成能扫，用户照着帮助发命令只得到"没这条通道"）', P.platformCanQrLogin('kuwo'), false)
-      v2Check('凭据：酷狗**能**扫码（曾经漏标，帮助/锅巴都不提它）', P.platformCanQrLogin('kugou'), true)
-      v2Check('凭据：B站**能**扫码也能粘贴（曾经是 mode:none —— 命令/帮助/锅巴三处都不提它有通道）', [P.platformCanQrLogin('bilibili'), P.platformCanCookie('bilibili')].join(','), 'true,true')
+      v2Check('凭据：酷狗**能**扫码（曾经漏标，帮助 / Karin WebUI 都不提它）', P.platformCanQrLogin('kugou'), true)
+      v2Check('凭据：B站**能**扫码也能粘贴（曾经是 mode:none —— 命令/帮助 / Karin WebUI 三处都不提它有通道）', [P.platformCanQrLogin('bilibili'), P.platformCanCookie('bilibili')].join(','), 'true,true')
       v2Check('凭据：能粘贴的外部平台 = 网易云/酷我/B站/酷狗/汽水/YouTube/Apple', P.cookiePlatforms().filter((x) => !x.own).map((x) => x.id).join(','), 'netease,kuwo,bilibili,kugou,qishui,youtube,apple')
       // ⚠️ YouTube 2026-09-24 起**收 cookie**（yt-dlp 的 --cookies 能过机器人校验/会员曲）——
       //    以前写的是"配 cookie 没用"，那句是错的
@@ -1713,7 +1745,7 @@ function v2Check(name, got, want) {
         const c = P.platformCookieOf(id)
         return c && [c.post, c.field, c.clear.path, c.clear.method].join('|') === w.join('|')
       }), true)
-      // ③ 命令写法（帮助 / 锅巴 / 卡片 / handler 共用同一份）：用**最短平台名**
+      // ③ 命令写法（帮助 / Karin WebUI / 卡片 / handler 共用同一份）：用**最短平台名**
       v2Check(
         '凭据：命令用最短平台名（#qqm网易登录 / #qqmB站登录 / #qqmamck / #qqm网易清ck）',
         [
@@ -1747,12 +1779,12 @@ function v2Check(name, got, want) {
       // ⑤b 上传失败的回执（2026-09-25 实撞：「⚠️ 凭据上传失败：…；保存成功」——
       //     一边说失败一边说保存成功，还没说凭据到底存没存）
       {
-        const guobaSrc = fs.readFileSync(path.join(pluginRoot, 'guoba', 'schemas.js'), 'utf8')
+        const webSchemaSrc = fs.readFileSync(path.join(pluginRoot, 'web', 'schemas.js'), 'utf8')
         const apiSrc = fs.readFileSync(path.join(pluginRoot, 'utils', 'api.js'), 'utf8')
         const loginSrc3 = fs.readFileSync(path.join(pluginRoot, 'apps', 'login.js'), 'utf8')
-        v2Check('锅巴：上传失败说的是"凭据**没传上去**"（不再只说"上传失败"就完事）', /凭据\*\*没传上去\*\*/.test(guobaSrc), true)
-        v2Check('锅巴：把 API 的 tip 与 howto 分步清单一起显示（照着做就行）', /e\.tip/.test(guobaSrc) && /Array\.isArray\(e\.howto\)/.test(guobaSrc), true)
-        v2Check('锅巴：提醒粘贴框不保留内容（修好后要重新粘一次）', /粘贴框不保留内容/.test(guobaSrc), true)
+        v2Check('Karin WebUI：上传失败说的是"凭据**没传上去**"（不再只说"上传失败"就完事）', /凭据\*\*没传上去\*\*/.test(webSchemaSrc), true)
+        v2Check('Karin WebUI：把 API 的 tip 与 howto 分步清单一起显示（照着做就行）', /e\.tip/.test(webSchemaSrc) && /Array\.isArray\(e\.howto\)/.test(webSchemaSrc), true)
+        v2Check('Karin WebUI：提醒粘贴框不保留内容（修好后要重新粘一次）', /粘贴框不保留内容/.test(webSchemaSrc), true)
         v2Check('聊天命令：失败回执也带 tip/howto（以前只有一句 errMsg）', /err\.tip \? String\(err\.tip\)/.test(loginSrc3) && /Array\.isArray\(err\.howto\)/.test(loginSrc3), true)
         v2Check('插件请求层把 howto 挂到 Error 上（不然上面两处拿不到）', /err\.howto = data\.howto/.test(apiSrc), true)
       }
@@ -1880,26 +1912,26 @@ function v2Check(name, got, want) {
       //    所以仍然不该被催着配。判据从"有没有通道"变成"是不是可选的"（API 的 optional）
       v2Check('状态卡：可选凭据的平台（YouTube/B站）不进"还没配的"（它们不配也能用）', /YouTube (私聊|扫码|见)/.test(platTips), false)
 
-      // ⑩ 锅巴：凭据段按平台独立（能粘贴的才有输入框），且**绝不落盘**
+      // ⑩ Karin WebUI：凭据段按平台独立（能粘贴的才有输入框），且**绝不落盘**
       const ckIds = P.cookiePlatforms().filter((x) => !x.own && !x.hidden).map((x) => x.id).sort()
       const schemaCkIds = unlockedSchemas
         .map((s) => String(s.field || ''))
         .filter((f) => /^platforms\.[^.]+\.ck$/.test(f))
         .map((f) => f.split('.')[1])
         .sort()
-      v2Check('锅巴：只有能粘贴凭据的平台页签才有凭据输入框', schemaCkIds.join(','), ckIds.join(','))
-      v2Check('锅巴：每个凭据框旁边都有"清除"开关', ckIds.every((id) => unlockedSchemas.some((s) => s.field === `platforms.${id}.ckClear`)), true)
-      v2Check('锅巴：凭据默认值是空串/关（不是 undefined）', [getConfigData().platforms.netease.ck, getConfigData().platforms.netease.ckClear, getConfigData().platforms.kuwo.ck].join('|'), '|false|')
-      v2Check('锅巴：能扫码的页签里写了扫码命令', P.qrPlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}登录`))), true)
-      v2Check('锅巴：能粘贴的页签里写了粘贴命令且注明"私聊"', P.cookiePlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}ck`) && /私聊/.test(String(s.label)))), true)
+      v2Check('Karin WebUI：只有能粘贴凭据的平台页签才有凭据输入框', schemaCkIds.join(','), ckIds.join(','))
+      v2Check('Karin WebUI：每个凭据框旁边都有"清除"开关', ckIds.every((id) => unlockedSchemas.some((s) => s.field === `platforms.${id}.ckClear`)), true)
+      v2Check('Karin WebUI：凭据默认值是空串/关（不是 undefined）', [getConfigData().platforms.netease.ck, getConfigData().platforms.netease.ckClear, getConfigData().platforms.kuwo.ck].join('|'), '|false|')
+      v2Check('Karin WebUI：能扫码的页签里写了扫码命令', P.qrPlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}登录`))), true)
+      v2Check('Karin WebUI：能粘贴的页签里写了粘贴命令且注明"私聊"', P.cookiePlatforms().filter((x) => !x.own).every((x) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`#qqm${P.platformShort(x.id)}ck`) && /私聊/.test(String(s.label)))), true)
       // B站 与 YouTube 都不是匿名了（有凭据通道）→ 这条只对真·匿名的两家成立
-      v2Check('锅巴：真·匿名页签里写清"不用配凭据"', ['migu', 'jiosaavn'].every((id) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('不用配凭据'))), true)
-      v2Check('锅巴：B站 页签里既有扫码命令也有粘贴命令（与 #qqmB站登录/#qqmB站ck 同一份事实）', ['#qqmB站登录', '#qqmB站ck'].every((cmd) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(cmd))), true)
-      v2Check('锅巴：YouTube 页签里给出粘贴命令（以前写的是"不用配凭据"）', unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('#qqmytck')), true)
-      v2Check('锅巴：YouTube 页签里没有任何"扫码"命令（它没有扫码通道）', unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('#qqmyt登录')), false)
+      v2Check('Karin WebUI：真·匿名页签里写清"不用配凭据"', ['migu', 'jiosaavn'].every((id) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('不用配凭据'))), true)
+      v2Check('Karin WebUI：B站 页签里既有扫码命令也有粘贴命令（与 #qqmB站登录/#qqmB站ck 同一份事实）', ['#qqmB站登录', '#qqmB站ck'].every((cmd) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(cmd))), true)
+      v2Check('Karin WebUI：YouTube 页签里给出粘贴命令（以前写的是"不用配凭据"）', unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('#qqmytck')), true)
+      v2Check('Karin WebUI：YouTube 页签里没有任何"扫码"命令（它没有扫码通道）', unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes('#qqmyt登录')), false)
       // "卡的是代理不是凭据"这件事必须能在页签上看见（光看"免登录 128k"看不出来）
-      v2Check('锅巴：YouTube 页签里点出"必须配 YOUTUBE_PROXY"（代理才是硬前提）', unlockedSchemas.some((s) => s.component === 'Divider' && /YouTube/.test(String(s.label || '')) && /YOUTUBE_PROXY/.test(String(s.label || ''))), true)
-      // ── 页签瘦身（2026-09-24，用户反馈"锅巴显得太杂乱"）──────────────────
+      v2Check('Karin WebUI：YouTube 页签里点出"必须配 YOUTUBE_PROXY"（代理才是硬前提）', unlockedSchemas.some((s) => s.component === 'Divider' && /YouTube/.test(String(s.label || '')) && /YOUTUBE_PROXY/.test(String(s.label || ''))), true)
+      // ── 页签瘦身（2026-09-24，用户反馈"Karin WebUI 显得太杂乱"）──────────────────
       //    以前同一段"从哪拿"在**凭据提示行**和**粘贴框的说明**里各写一遍，
       //    加上三行长的开关说明，一个页签能堆到 700+ 字。这里的阈值是防回归的：
       //    再加文案时先想想"这句是不是已经在别处说过了"。
@@ -1913,7 +1945,7 @@ function v2Check(name, got, want) {
         }
         const others = P.VISIBLE_PLATFORMS.filter((p) => !p.own)
         v2Check(
-          '锅巴：页签里的"从哪拿"只出现一次（以前在提示行与粘贴框里各写一遍 = 看着杂乱的主因）',
+          'Karin WebUI：页签里的"从哪拿"只出现一次（以前在提示行与粘贴框里各写一遍 = 看着杂乱的主因）',
           others.every((p) => {
             const ck = P.platformCookieOf(p.id)
             if (!ck?.where) return true
@@ -1923,7 +1955,7 @@ function v2Check(name, got, want) {
           true
         )
         v2Check(
-          '锅巴：粘贴框的说明里不再复述命令（命令归上面那行"凭据："）',
+          'Karin WebUI：粘贴框的说明里不再复述命令（命令归上面那行"凭据："）',
           others.every((p) => {
             const ck = P.platformCookieOf(p.id)
             if (!ck) return true
@@ -1937,14 +1969,14 @@ function v2Check(name, got, want) {
           return { label: p.label, rows: tabRows(p).length, len: text.length }
         })
         v2Check(
-          '锅巴：每个平台页签 ≤ 9 行、说明文字 ≤ 500 字（一眼能看完；现在最长 489）',
+          'Karin WebUI：每个平台页签 ≤ 9 行、说明文字 ≤ 500 字（一眼能看完；现在最长 489）',
           sizes.every((s) => s.rows <= 9 && s.len <= 500),
           true
         )
         // 粘贴框的占位提示以前**所有平台都写网易云的** `MUSIC_U=xxx; __csrf=yyy` ——
-        // B站 / 酷狗 / 汽水 / YouTube 页签里那个例子是错的（锅巴截图里一眼就看得出来）
+        // B站 / 酷狗 / 汽水 / YouTube 页签里那个例子是错的（Karin WebUI 截图里一眼就看得出来）
       v2Check(
-        '锅巴：粘贴框的占位提示是这家自己的字段（不再是所有平台都写着 MUSIC_U）',
+        'Karin WebUI：粘贴框的占位提示是这家自己的字段（不再是所有平台都写着 MUSIC_U）',
           others.every((p) => {
             const ck = P.platformCookieOf(p.id)
             if (!ck) return true
@@ -1981,8 +2013,8 @@ function v2Check(name, got, want) {
         v2Check('扫码轮询：不再有"固定 40 次 × 3s"的老写法（超时按它算会拖到二维码过期后）', !/QR_MAX_TRIES \* \(QR_POLL_MS/.test(loginSrc), true)
       }
       await setConfigData({ 'platforms.netease.ck': 'definitely-not-a-cookie' }, {})
-      v2Check('锅巴：凭据不写进配置（明文 cookie 不进 yaml）', JSON.stringify(cfgNow()).includes('definitely-not-a-cookie'), false)
-      v2Check('锅巴：保存后 ck/ckClear 两个界面键都不存在', [cfgNow().platforms?.netease?.ck, cfgNow().platforms?.netease?.ckClear].join('|'), '|')
+      v2Check('Karin WebUI：凭据不写进配置（明文 cookie 不进 yaml）', JSON.stringify(cfgNow()).includes('definitely-not-a-cookie'), false)
+      v2Check('Karin WebUI：保存后 ck/ckClear 两个界面键都不存在', [cfgNow().platforms?.netease?.ck, cfgNow().platforms?.netease?.ckClear].join('|'), '|')
     }
 
     {
@@ -2010,7 +2042,7 @@ function v2Check(name, got, want) {
       v2Check('文本兜底：不再写"QQ 音乐本体"（多平台后不是唯一主干）', !/QQ 音乐本体/.test(txt), true)
     }
     v2Check(
-      '锅巴：段内不再有平台字段（都被分到各自页签了）',
+      'Karin WebUI：段内不再有平台字段（都被分到各自页签了）',
       (() => {
         const basic = unlockedSchemas.slice(0, unlockedSchemas.findIndex((s) => s.component === 'SOFT_GROUP_BEGIN' && /界面与外观/.test(s.label || '')))
         return basic.some((s) => String(s.field || '').startsWith('platforms.'))
@@ -2018,19 +2050,19 @@ function v2Check(name, got, want) {
       false
     )
     v2Check(
-      '锅巴：老字段一个没少（重构只分组、不动字段）',
+      'Karin WebUI：老字段一个没少（重构只分组、不动字段）',
       ['apiBase', 'apiToken', 'quality', 'uiTheme', 'maxList', 'sendVocal', 'togetherEnable', 'extraSources', 'defaultPickSong'].every((f) =>
         unlockedSchemas.some((s) => s.field === f)
       ),
       true
     )
     v2Check(
-      '锅巴：平台页签标题带上"免登录档位"（选哪家时心里有数）',
+      'Karin WebUI：平台页签标题带上"免登录档位"（选哪家时心里有数）',
       P.VISIBLE_PLATFORMS.filter((p) => !p.own).every((p) => unlockedSchemas.some((s) => s.component === 'Divider' && String(s.label || '').includes(`${p.label} · 免登录 ${p.quality}`))),
       true
     )
     v2Check(
-      '锅巴：分组用 R 插件同款写法（label + SOFT_GROUP_BEGIN）',
+      'Karin WebUI：分组用 R 插件同款写法（label + SOFT_GROUP_BEGIN）',
       unlockedSchemas.filter((s) => s.component === 'SOFT_GROUP_BEGIN').every((s) => typeof s.label === 'string' && s.label),
       true
     )
@@ -2081,7 +2113,7 @@ function v2Check(name, got, want) {
       )
       // 键里必须带模板指纹：`#qqm更新` 拉了新模板而进程没重启时，光看配置是发现不了的
       v2Check('帮助缓存：键里带模板指纹（改了模板不发过期图）', /templateStamp\(theme, card\)/.test(rsrc), true)
-      v2Check('帮助缓存：有上限（改一次锅巴多一个键，别无限长）', /HELP_CACHE_MAX/.test(rsrc), true)
+      v2Check('帮助缓存：有上限（改一次 Karin WebUI 多一个键，别无限长）', /HELP_CACHE_MAX/.test(rsrc), true)
       // 老帮助卡的数据也要算得出稳定的键：同输入同键、换身份换键
       const h1 = HC.buildHelpCardData({ isMaster: true })
       v2Check(
@@ -2329,7 +2361,7 @@ function fontCheck(name, got, want) {
 // ──────────── 2.0 重构收口（账号口径 / 配置缓存 / 列表卡 / 渲染复用）────────────
 //
 // 这一段钉的是「抄了多份 → 分叉」和「每次现算 → 拖慢整机」这两类问题：
-//   · 主人账号的回落链原本三处各一份，锅巴那份漏了 lastLoginUin（设置卡说已生效、锅巴说没启用）
+//   · 主人账号的回落链原本三处各一份，Karin WebUI 那份漏了 lastLoginUin（设置卡说已生效、Karin WebUI 说没启用）
 //   · getConfig 每次同步读+解析**两份** yaml（实测 ~4.2ms），一条命令里会被叫好几次
 //   · 列表卡的「动态 import + 渲染 → 文本兜底」在 6 个命令里各抄一遍
 //   · 渲染每张卡都 launch/close 一个 Chromium（实测单张 ~3.3s → 复用后 ~1.65s）
@@ -2359,7 +2391,7 @@ function refactorCheck(name, got, want) {
   refactorCheck('账号：手填 = 不是自动', isAutoPublicAccount({ publicAccount: '1' }), false)
   refactorCheck('账号：没手填但有回落 = 自动（设置卡要标注）', isAutoPublicAccount({ lastLoginUin: '888' }), true)
   refactorCheck('账号：彻底没有 = 也不是自动', isAutoPublicAccount({}), false)
-  // 历史死别名：yaml 与锅巴 schema 里从来没有过，删了就得焊死（否则又长出第二个口径）
+  // 历史死别名：yaml 与 Karin WebUI schema 里从来没有过，删了就得焊死（否则又长出第二个口径）
   // 正则**拼字符串**是为了别让这段检查命中自己（本文件里也会出现那个字面量）
   const deadAlias = new RegExp('\\.' + 'public' + '_account\\b')
   const aliasHits = collectJsFiles(pluginRoot).filter((f) => deadAlias.test(fs.readFileSync(f, 'utf8')))
@@ -2406,7 +2438,7 @@ function refactorCheck(name, got, want) {
     refactorCheck('图片格式：截图时按格式给 type（jpeg 才带 quality）', /type === 'jpeg' \? \{ quality:/.test(renderSrc), true)
     refactorCheck('图片格式：落地那份调试副本的**扩展名跟着格式走**（JPEG 不许写成 .png）', /\.\$\{format === 'png' \? 'png' : 'jpg'\}/.test(renderSrc), true)
     refactorCheck('图片格式：预览/展示图固定 PNG（素材要看细节）', /format: 'png'/.test(fs.readFileSync(path.join(pluginRoot, 'scripts/preview-cards.mjs'), 'utf8')), true)
-    refactorCheck('图片格式：兜底那条（Yunzai 渲染）仍留在 PNG —— 不能猜它认不认 jpeg', /imgType: 'png'/.test(renderSrc), true)
+    refactorCheck('渲染：旧 Yunzai puppeteer 兜底已移除', /lib\/puppeteer\/puppeteer\.js|imgType: 'png'/.test(renderSrc), false)
   }
 
   // ── 登录态落盘：四处逐字重复收成一个函数 ──

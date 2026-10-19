@@ -113,7 +113,7 @@ sourceText  detail  canQr  ownersCount  unreliable  note  action(下一步该发
 
 ## 支持自定义背景（可选）
 
-声明 `"bg": true` 后，用户在锅巴/`#qqm界面 背景 <路径或链接>` 打开背景时，渲染器会：
+声明 `"bg": true` 后，用户在 Karin WebUI / `#qqm界面 背景 <路径或链接>` 打开背景时，渲染器会：
 
 1. 把背景图解析成本地 `file://` 地址（远端图由 Node 侧取回并缓存，**不会**让 Chrome 去等远端图，否则会把渲染拖死）；
 2. 在 `<html>` 上加 `data-bg="1"`；

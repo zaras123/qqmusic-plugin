@@ -4,8 +4,7 @@
  * 为什么**不用**框架的 plugin.task：那套 task 是「插件类里写死的静态 cron」，
  * 而这里是**用户在群里随时加、随时删**的任务（时间存在 data/ 的 JSON 里）。
  * 框架 task 只能当"每分钟滴答器"用，due 判断、去重、落盘一样都少不了 ——
- * 与其多套一层框架方言（Miao / TRSS 的 task 形状还不同），不如自己开一个
- * 30s 的 ticker，所有框架通用，due 判断还是可测的纯函数（utils/extras.js 的
+ * 与其把动态任务硬塞进框架 task，不如自己开一个 30s 的 ticker，due 判断还是可测的纯函数（utils/extras.js 的
  * dueSchedules）。
  *
  * 重入保护：发送链路是长任务（搜歌 + 下载 + 发语音可以到几十秒），ticker 30s
@@ -90,7 +89,7 @@ async function resolvePlayFor(song, cfg, userKey) {
 }
 
 async function fireSchedule(job) {
-  const e = groupEventOf({ groupId: job.groupId, preferUin: job.botUin, userId: job.createdBy })
+  const e = await groupEventOf({ groupId: job.groupId, preferUin: job.botUin, userId: job.createdBy })
   if (!e) return { ok: false, reason: 'offline' }
 
   const cfg = getCfg()
@@ -185,7 +184,7 @@ function mergeSongs(known = [], current = [], cap = 60) {
 }
 
 async function pushNewSongs(sub, news) {
-  const e = groupEventOf({ groupId: sub.groupId, preferUin: sub.botUin, userId: sub.createdBy })
+  const e = await groupEventOf({ groupId: sub.groupId, preferUin: sub.botUin, userId: sub.createdBy })
   if (!e) return false
 
   // 新歌列表写进本群会话：#qqm听1 就能直接播推送里的第一首

@@ -2,7 +2,7 @@
 /**
  * 异步用法静态体检（零依赖：node scripts/check-async.mjs [插件根目录]）
  *
- * 钉的是「同一个插件在两套框架（TRSS-Yunzai / Miao-Yunzai）上都能安全异步」这件事：
+ * 钉的是「插件在 Karin 事件与异步链路下都能安全执行」这件事：
  *
  *  R1  裸 `.then` / `.catch` / `.finally`
  *      接收者不保证是 Promise 时挂回调，要么当场 `.then is not a function`，
@@ -12,7 +12,7 @@
  *
  *      这不是假想的坑：apps/chart.js 的 MV 发送原来就是
  *      `e.reply(seg.video(...)).then(() => true)` —— 而 `e.reply`
- *      在「适配器没装 reply」时（TRSS lib/plugins/loader.js:416 直接 return）
+ *      在「适配器没装 reply」时
  *      压根不存在，插件基类的 reply() 又会在空消息时**同步**返回 false，
  *      两边框架的返回值形态并不一致，`.then` 随时可能是 undefined。
  *

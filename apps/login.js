@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 扫码登录
  */
 
@@ -27,7 +27,8 @@ import {
 // 命令解析放 utils（见 utils/command.js 顶部注释：apps 里多导出函数会让加载器认错插件类）
 import { RE_PLATFORM_CK, RE_PLATFORM_CK_CLEAR, parsePlatformCkCmd, parsePlatformCkClearCmd } from '../utils/command.js'
 import { isV2Unlocked, platformEnabled } from '../utils/v2.js'
-import { setSafeTimeout } from '../utils/async.js'
+import { setSafeTimeout, replySafe } from '../utils/async.js'
+import { logInfo, logWarn, logError } from '../utils/log.js'
 
 /** 进行中的扫码任务 user_id -> { qrcodeID, timer, e, stopped } */
 const activeLogins = new Map()
@@ -125,13 +126,8 @@ async function saveQrImage(base64) {
 
 async function sendImage(e, fileOrUrl) {
   try {
-    // 保证 TRSS / ICQQ / QQBot 都有 segment
-    try {
-      const { ensureSegment } = await import('../utils/adapter.js')
-      await ensureSegment()
-    } catch {
-      /* ignore */
-    }
+    const { ensureSegment } = await import('../utils/adapter.js')
+    const segment = await ensureSegment()
 
     let file = fileOrUrl
     const isRemote =
@@ -141,7 +137,7 @@ async function sendImage(e, fileOrUrl) {
       file = path.resolve(file)
     }
 
-    if (global.segment?.image) {
+    if (segment?.image) {
       await e.reply(segment.image(file))
       return true
     }
@@ -153,7 +149,7 @@ async function sendImage(e, fileOrUrl) {
     })
     return true
   } catch (err) {
-    logger?.warn?.(`[qqmusic-plugin] 发图失败: ${err.message}`)
+    logWarn(`[qqmusic-plugin] 发图失败: ${err.message}`)
     // OneBot 兜底 base64
     try {
       if (
@@ -162,7 +158,9 @@ async function sendImage(e, fileOrUrl) {
         fs.existsSync(fileOrUrl)
       ) {
         const b64 = fs.readFileSync(fileOrUrl).toString('base64')
-        if (global.segment?.image) {
+        const { ensureSegment } = await import('../utils/adapter.js')
+        const segment = await ensureSegment()
+        if (segment?.image) {
           await e.reply(segment.image(`base64://${b64}`))
           return true
         }
@@ -170,7 +168,7 @@ async function sendImage(e, fileOrUrl) {
         return true
       }
     } catch (err2) {
-      logger?.warn?.(`[qqmusic-plugin] 发图 base64 失败: ${err2.message}`)
+      logWarn(`[qqmusic-plugin] 发图 base64 失败: ${err2.message}`)
     }
     return false
   }
@@ -216,7 +214,7 @@ async function onLoginSuccess(e, info = {}) {
   try {
     meta = await pullLoginMeta(userKey)
   } catch (err) {
-    logger?.warn?.(`[qqmusic-plugin] 拉取登录态元信息失败: ${err.message}`)
+    logWarn(`[qqmusic-plugin] 拉取登录态元信息失败: ${err.message}`)
   }
 
   try {
@@ -229,7 +227,7 @@ async function onLoginSuccess(e, info = {}) {
       hasRefresh: meta?.hasRefresh,
     })
   } catch (err) {
-    logger?.warn?.(`[qqmusic-plugin] 写登录配置失败: ${err.message}`)
+    logWarn(`[qqmusic-plugin] 写登录配置失败: ${err.message}`)
   }
 
   await e.reply(
@@ -264,7 +262,7 @@ async function onLoginSuccess(e, info = {}) {
     }
     await e.reply(formatStatusText(data))
   } catch (err) {
-    logger?.warn?.(`[qqmusic-plugin] 登录后状态卡失败: ${err.message}`)
+    logWarn(`[qqmusic-plugin] 登录后状态卡失败: ${err.message}`)
     await e.reply('登录已成功，但状态卡渲染失败，可手动发送 #qqm状态')
   }
 }
@@ -295,7 +293,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-扫码登录',
-      dsc: '扫码登录 QQ 音乐',
+      desc: '扫码登录 QQ 音乐',
       event: 'message',
       priority: 450,
       rule: [
@@ -307,7 +305,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
            * 成员想用自己的账号 → 私聊发粘贴命令（`#qqm<平台>ck <cookie>`，见下面那条规则）。
            * 未解锁（？？？关着）时 handler 直接 return false —— 1.9 里没有这些命令。
            */
-          // 传 RegExp 对象（不是字符串）：Yunzai 会 new RegExp(字符串)，那样 `i` 标志会丢
+          // 传 RegExp 对象（不是字符串），保住大小写不敏感的 `i` 标志
           // 与 handler 共用同一个已编译实例（以前这里另编一份，等于同一张别名表编两次）
           reg: RE_PLATFORM_QR_LOGIN,
           fnc: 'platformQrLogin',
@@ -435,7 +433,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       return true
     }
     if (!platformEnabled(cfg, p.id)) {
-      await e.reply(`${p.label} 音源已被关闭（锅巴 → 音源平台）`)
+      await e.reply(`${p.label} 音源已被关闭（Karin WebUI → 音源平台）`)
       return true
     }
 
@@ -580,7 +578,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
           [
             `✅ ${p.label} 登录成功${scopeText ? `：凭据已写入${scopeText}` : ''}`,
             `换号：再发一次 ${qr.command}${ck ? `；清掉自己那份：${ck.clearCommand}` : ''}`,
-            e.isMaster ? '想让全站都用这一份：开「一律走主人账号」（锅巴 ① 基础设置）' : '',
+            e.isMaster ? '想让全站都用这一份：开「一律走主人账号」（Karin WebUI ① 基础设置）' : '',
           ].join('\n')
         )
         return true
@@ -695,7 +693,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         [
           `✅ ${p.label} 凭据已保存（你自己那份，只对你自己生效）`,
           d.note ? String(d.note) : '',
-          e.isMaster ? '想让全站都用这一份：开「一律走主人账号」（锅巴 ① 基础设置）' : '',
+          e.isMaster ? '想让全站都用这一份：开「一律走主人账号」（Karin WebUI ① 基础设置）' : '',
           `换号：再发一次 ${ck.command}；清掉：${ck.clearCommand}`,
         ]
           .filter(Boolean)
@@ -758,7 +756,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const cfg = Config.getConfig('qqmusic')
     if (!cfg.enable) return false
     if (cfg.qrLoginEnable === false) {
-      await e.reply('扫码登录已在配置中关闭（锅巴：允许扫码登录命令）')
+      await e.reply('扫码登录已在配置中关闭（Karin WebUI：允许扫码登录命令）')
       return true
     }
 
@@ -780,8 +778,10 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       if (qrcodeBase64) {
         const file = await saveQrImage(qrcodeBase64)
         imgSent = await sendImage(e, file)
-        if (!imgSent && global.segment?.image) {
+        if (!imgSent) {
           try {
+            const { ensureSegment } = await import('../utils/adapter.js')
+            const segment = await ensureSegment()
             await e.reply(segment.image(`base64://${qrcodeBase64}`))
             imgSent = true
           } catch {}
@@ -977,7 +977,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     const cfg = Config.getConfig('qqmusic')
     if (!cfg.enable) return false
     if (cfg.qrLoginEnable === false) {
-      await e.reply('扫码登录已在配置中关闭（锅巴：允许扫码登录命令）')
+      await e.reply('扫码登录已在配置中关闭（Karin WebUI：允许扫码登录命令）')
       return true
     }
 
@@ -1133,7 +1133,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
               d.keyAgeSec != null ? ` age=${d.keyAgeSec}s` : ''
             }`
           : 'API 显示未登录'
-        logger?.info?.(`[qqmusic-plugin] ${apiHint}`)
+        logInfo(`[qqmusic-plugin] ${apiHint}`)
       } catch (err) {
         apiHint = `API状态查询失败: ${err.message}`
       }
@@ -1144,12 +1144,12 @@ export class qqmusicLogin extends (await loadPluginBase()) {
       }
       const img = await renderStatusCard(e, data)
       if (img) {
-        await e.reply(img, true)
+        await replySafe(e, img, { quote: true, tag: '状态卡片' })
         return true
       }
       await e.reply(formatStatusText(data) + (apiHint ? `\n${apiHint}` : ''))
     } catch (err) {
-      logger?.error?.(`[qqmusic-plugin] 状态卡片失败: ${err.message}`)
+      logError(`[qqmusic-plugin] 状态卡片失败: ${err.message}`)
       await e.reply(`获取状态失败：${err.message}`)
     }
     return true

@@ -1,5 +1,5 @@
 /**
- * Generate plugin logo for Guoba (PNG + SVG)
+ * Generate plugin logo for Karin WebUI (PNG + SVG)
  * QQ Music green disc + white music note
  */
 import fs from 'node:fs'

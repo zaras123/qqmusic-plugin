@@ -7,10 +7,10 @@ import fs from 'node:fs'
 import path from 'node:path'
 import YAML from 'yaml'
 import { pluginPath } from '../utils/path.js'
+import { logInfo, logWarn, logError } from '../utils/log.js'
 
 const defDir = path.join(pluginPath, 'config/default_config')
 const cfgDir = path.join(pluginPath, 'config/config')
-const log = global.logger || console
 
 function isMissingOrEmpty(file) {
   if (!fs.existsSync(file)) return true
@@ -31,7 +31,7 @@ function ensureUserConfig(name) {
       fs.mkdirSync(cfgDir, { recursive: true })
     }
   } catch (e) {
-    log.error?.(`[qqmusic-plugin] 创建配置目录失败: ${cfgDir} — ${e.message}`)
+    logError(`创建配置目录失败: ${cfgDir} — ${e.message}`)
     throw e
   }
 
@@ -39,16 +39,16 @@ function ensureUserConfig(name) {
   const src = path.join(defDir, `${name}.yaml`)
 
   if (!fs.existsSync(src)) {
-    log.warn?.(`[qqmusic-plugin] 缺少默认配置: ${src}`)
+    logWarn(`缺少默认配置: ${src}`)
     return dst
   }
 
   if (isMissingOrEmpty(dst)) {
     try {
       fs.copyFileSync(src, dst)
-      log.info?.(`[qqmusic-plugin] 已生成用户配置: config/config/${name}.yaml`)
+      logInfo(`已生成用户配置: config/config/${name}.yaml`)
     } catch (e) {
-      log.error?.(`[qqmusic-plugin] 生成用户配置失败: ${dst} — ${e.message}`)
+      logError(`生成用户配置失败: ${dst} — ${e.message}`)
       throw e
     }
   }
@@ -67,7 +67,7 @@ function ensureUserConfig(name) {
       }
       if (changed) fs.writeFileSync(dst, YAML.stringify(user), 'utf8')
     } catch (e) {
-      log.warn?.(`[qqmusic-plugin] 合并配置字段失败（${name}）: ${e.message}`)
+      logWarn(`合并配置字段失败（${name}）: ${e.message}`)
     }
   }
   return dst
@@ -90,7 +90,7 @@ function loadYaml(file) {
  * 事件循环，这段解析拖的是整个机器人的响应。
  *
  * 失效靠**文件指纹**（mtime + size），不是靠"读一次写死"：
- *   · 锅巴保存 / 用户手改 yaml / 插件更新覆盖 default_config → 指纹变 → 下一次立刻读到新的
+ *   · Karin WebUI 保存 / 用户手改 yaml / 插件更新覆盖 default_config → 指纹变 → 下一次立刻读到新的
  *   · 所以不违反 utils/v2.js 那条「判定必须每次现读配置」的红线 —— 缓存的是**文件内容**，
  *     不是判定结果；判定函数照旧每次现算
  * 返回的是**浅拷贝**，调用方照旧可以随便改自己那份，不会污染缓存。
@@ -126,7 +126,7 @@ export default class Config {
         ensureUserConfig(name)
       }
     } catch (e) {
-      log.error?.(`[qqmusic-plugin] 初始化配置失败: ${e.message}`)
+      logError(`初始化配置失败: ${e.message}`)
     }
   }
 

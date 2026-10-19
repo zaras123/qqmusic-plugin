@@ -1,6 +1,6 @@
 /**
  * 插件自更新（git pull / 强制 reset / 更新日志）
- * 仅覆盖本插件目录，不改 Yunzai 本体
+ * 仅覆盖本插件目录，不改 Karin 本体
  */
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -41,7 +41,7 @@ export function getLocalVersion() {
  *    原来"发版后 + 没解锁 → 顶一个冻结的 1.10.5"是为了假装还停在 2.0 之前，
  *    但 2.0 已经发出去了 —— 再冻结等于对自己撒谎（主人自己就撞上过
  *    "更新完了、帮助卡右上角版本号却没动"，还以为没更新成功）。
- *    闸门管的是**功能**（新命令、新帮助卡、锅巴分组），版本号照实说。
+ *    闸门管的是**功能**（新命令、新帮助卡、Karin WebUI 分组），版本号照实说。
  */
 export const V2_DISPLAY_VERSION = '2.0.0'
 
@@ -279,14 +279,14 @@ export async function updatePlugin({ force = false } = {}) {
     if (force) {
       let upstream = await getUpstream()
       if (!upstream) {
-        const b = branch || 'main'
+        const b = branch || 'karin'
         upstream = `origin/${b}`
       }
       // 丢弃本地提交/改动，对齐远程
       const resetRet = await git(['reset', '--hard', upstream])
       if (!resetRet.ok) {
-        // 兜底 origin/main / origin/master
-        const fallbacks = ['origin/main', 'origin/master', upstream]
+        // 这个分支只服务 Karin，强制更新兜底也不能把 main（Yunzai）拉进来
+        const fallbacks = ['origin/karin', upstream]
         let ok = false
         for (const ref of fallbacks) {
           const r = await git(['reset', '--hard', ref])

@@ -1,7 +1,7 @@
 /**
  * 勋章进度单测：`node --test scripts/test-medal.mjs`
  *
- * 全是纯函数断言：解析、错误码映射、文案。**不打网络、不需要 Yunzai / API** ——
+ * 全是纯函数断言：解析、错误码映射、文案。**不打网络、不需要 Karin / API** ——
  * 上游那两个方法要登录才有数据，这里就把「各形状的响应」直接喂给文案层。
  *
  * ⚠️ utils/medal.js 会 import utils/stats.js（共用 formatDuration），后者在顶层就把

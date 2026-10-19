@@ -45,7 +45,7 @@ export const RE_SONG_CMD = new RegExp(
   'i'
 )
 
-/** 无前缀「#点歌 关键词」（锅巴开关打开时才接管） */
+/** 无前缀「#点歌 关键词」（Karin WebUI 开关打开时才接管） */
 export const RE_PICK_PLAIN = /^#?点歌\s*(?<kw>.+)$/
 
 /**

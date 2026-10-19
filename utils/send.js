@@ -1,16 +1,13 @@
 /**
  * 发送音乐：文本 / 卡片 / 下载语音 / 群文件
- * 适配 TRSS-Yunzai：
- *  - ICQQ-Plugin + 本地 @icqqjs/icqq
- *  - OneBotv11 反向 WS（NapCat / LLOneBot / Lagrange 等）
- *  - QQBot-Plugin（gitee.com/ts-yf/QQBot-Plugin 官方机器人）
+ * 适配 node-karin 的 contact / sendMsg / uploadFile 抽象。
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import axios from 'axios'
-import { yunzaiPath } from './path.js'
+import { tempPath } from './path.js'
 import {
   detectAdapter,
   ensureSegment,
@@ -56,12 +53,12 @@ async function withRetry(fn, { times = 3, baseMs = 1500, retryIf = () => true, t
   throw lastErr
 }
 
-/** OneBot sendApi 封装（TRSS 绑定为 bot.sendApi(action, params)） */
+/** 兼容带 sendApi 的 Karin 适配器。 */
 export async function botSendApi(e, action, params = {}) {
   const bot = e?.bot
   if (!bot?.sendApi) return null
   try {
-    // TRSS OneBotv11: sendApi(action, params)
+    // 常见绑定：sendApi(action, params)
     return await bot.sendApi(action, params)
   } catch (err) {
     // 兼容偶发 (data, ws, action, params) 未 bind 的情况
@@ -142,7 +139,7 @@ export async function sendNativeMusicCard(
   }
 
   const id = String(musicId)
-  await ensureSegment()
+  const segment = await ensureSegment()
 
   const markFail = (err) => {
     st.failCount += 1
@@ -160,7 +157,7 @@ export async function sendNativeMusicCard(
     if (st.failCount === NATIVE_CARD_MAX_FAIL) {
       logWarn(
         `原生音乐卡连续失败 ${st.failCount} 次，本会话内自动跳过（${adapter.name || adapter.kind}）。` +
-          '如需彻底关闭可在锅巴中关闭「发送原生 QQ 音乐卡」'
+          '如需彻底关闭可在 Karin WebUI 中关闭「发送原生 QQ 音乐卡」'
       )
     }
     return { ok: false, reason: unsupported ? 'unsupported' : 'failed', error: err }
@@ -185,7 +182,7 @@ export async function sendNativeMusicCard(
   }
 
   // 2) segment.music（ICQQ 若挂载了 oicq 扩展）
-  if (global.segment?.music) {
+  if (segment?.music) {
     const ok = await tryFallbackCard(e, platformType, id)
     if (ok) { nativeCardState.delete(key); return { ok: true } }
     return markFail(new Error('segment.music 发送失败'))
@@ -199,7 +196,8 @@ export async function sendNativeMusicCard(
 
 /** 依次尝试 segment.music / 原始 music 对象两条兜底路径 */
 async function tryFallbackCard(e, platformType, id) {
-  if (global.segment?.music) {
+  const segment = await ensureSegment()
+  if (segment?.music) {
     try {
       await e.reply(segment.music(platformType, id))
       return true
@@ -338,7 +336,7 @@ export async function prepareVocalFile(
  */
 export async function sendVocal(e, fileOrUrl, httpFallback) {
   if (!fileOrUrl) return false
-  await ensureSegment()
+  const segment = await ensureSegment()
   const adapter = detectAdapter(e)
 
   const trySend = async (raw) => {
@@ -352,7 +350,7 @@ export async function sendVocal(e, fileOrUrl, httpFallback) {
       if (isLocalPath(file) && fs.existsSync(file)) {
         file = await prepareVocalFile(file, { directExt: QQBOT_DIRECT_AUDIO_EXT })
       }
-      if (global.segment?.record) {
+      if (segment?.record) {
         await e.reply(segment.record(file))
         return true
       }
@@ -363,7 +361,7 @@ export async function sendVocal(e, fileOrUrl, httpFallback) {
     // OneBot：部分实现本地路径不稳，失败时再 base64
     if (adapter.kind === 'onebot' && isLocalPath(file) && fs.existsSync(file)) {
       try {
-        if (global.segment?.record) {
+        if (segment?.record) {
           await e.reply(segment.record(file))
           return true
         }
@@ -373,7 +371,7 @@ export async function sendVocal(e, fileOrUrl, httpFallback) {
         logWarn(`OneBot 本地语音失败，尝试 base64: ${err.message}`)
         const b64 = fs.readFileSync(file).toString('base64')
         const payload = `base64://${b64}`
-        if (global.segment?.record) {
+        if (segment?.record) {
           await e.reply(segment.record(payload))
           return true
         }
@@ -383,7 +381,7 @@ export async function sendVocal(e, fileOrUrl, httpFallback) {
     }
 
     // ICQQ / 通用
-    if (global.segment?.record) {
+    if (segment?.record) {
       await e.reply(segment.record(file))
       return true
     }
@@ -616,8 +614,12 @@ function buildDownloadCandidates(url) {
 
 export function getTempDir() {
   const cfg = getCfg()
-  const rel = cfg.tempDir || 'temp/qqmusic-plugin'
-  return path.isAbsolute(rel) ? rel : path.join(yunzaiPath, rel)
+  const rel = String(cfg.tempDir || 'qqmusic-plugin').trim() || 'qqmusic-plugin'
+  if (path.isAbsolute(rel)) return rel
+  // tempDir 历史默认值写成相对宿主根的 `temp/qqmusic-plugin`，而 tempPath 本身
+  // 就是宿主的 temp 根 —— 去掉重复的 temp/ 前缀，避免拼成 temp/temp/qqmusic-plugin。
+  const norm = rel.replace(/^[\\/]*temp[\\/]/i, '') || 'qqmusic-plugin'
+  return path.join(tempPath, norm)
 }
 
 export function formatSize(bytes) {
@@ -755,16 +757,44 @@ export async function uploadGroupFile(e, filePath, displayName) {
   )
 
   const adapter = detectAdapter(e)
-  await ensureSegment()
+  const segment = await ensureSegment()
 
   const namesToTry = prettyName === asciiName ? [prettyName] : [prettyName, asciiName]
+
+  // Karin（node-karin）：bot.uploadFile(contact, file, name) —— 群/私聊通用，优先走它。
+  // 拿不到 uploadFile 就退到 bot.sendMsg(contact, [segment.file(...)])。
+  if (adapter.kind === 'karin' && e.contact) {
+    const upload = e.bot?.uploadFile
+    if (typeof upload === 'function') {
+      for (const name of namesToTry) {
+        try {
+          await upload.call(e.bot, e.contact, abs, name)
+          logInfo(`Karin 文件上传成功: ${name}`)
+          return true
+        } catch (err) {
+          logWarn(`Karin uploadFile 失败(${name}): ${err.message}`)
+        }
+      }
+    }
+    if (segment?.file && typeof e.bot?.sendMsg === 'function') {
+      for (const name of namesToTry) {
+        try {
+          await e.bot.sendMsg(e.contact, [segment.file(abs, name)])
+          logInfo(`Karin 文件段发送成功: ${name}`)
+          return true
+        } catch (err) {
+          logWarn(`Karin 文件段失败(${name}): ${err.message}`)
+        }
+      }
+    }
+  }
 
   // 私聊
   if (!e.group_id) {
     for (const name of namesToTry) {
       try {
         if (adapter.kind === 'qqbot' || adapter.preferSegmentFile) {
-          if (global.segment?.file) {
+          if (segment?.file) {
             await e.reply(segment.file(abs, name))
             return true
           }
@@ -781,7 +811,7 @@ export async function uploadGroupFile(e, filePath, displayName) {
           })
           return true
         }
-        if (global.segment?.file) {
+        if (segment?.file) {
           await e.reply(segment.file(abs, name))
           return true
         }
@@ -795,7 +825,7 @@ export async function uploadGroupFile(e, filePath, displayName) {
 
   const errors = []
 
-  // —— OneBot：优先用适配器原生 sendFile（TRSS 适配器内部处理正确协议，参考 rconsole-plugin）——
+  // —— OneBot：优先用适配器原生 sendFile ——
   if (adapter.kind === 'onebot' && e.group?.sendFile) {
     for (const name of namesToTry) {
       // 兼容 (path, name) 与 (path) 两种签名（rconsole 用单参）
@@ -846,7 +876,7 @@ export async function uploadGroupFile(e, filePath, displayName) {
   if (adapter.kind === 'qqbot' || adapter.preferSegmentFile) {
     for (const name of namesToTry) {
       try {
-        if (global.segment?.file) {
+        if (segment?.file) {
           await e.reply(segment.file(abs, name))
           return true
         }
@@ -893,7 +923,7 @@ export async function uploadGroupFile(e, filePath, displayName) {
   }
 
   // —— 最后兜底 segment.file（sendApi 路径全失败后；OneBot 大文件走 send_msg 易 Highway 炸，但小文件通常没问题）——
-  if (global.segment?.file) {
+  if (segment?.file) {
     for (const name of namesToTry) {
       try {
         await e.reply(segment.file(abs, name))

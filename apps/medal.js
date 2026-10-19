@@ -34,7 +34,7 @@ export class qqmusicMedal extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-勋章进度',
-      dsc: '查询平台侧听歌时长与勋章任务进度（只读）',
+      desc: '查询平台侧听歌时长与勋章任务进度（只读）',
       event: 'message',
       priority: 458,
       rule: [
@@ -55,7 +55,7 @@ export class qqmusicMedal extends (await loadPluginBase()) {
   async medal(e) {
     const c = medalConfig(this.cfg())
     if (!c.enable) {
-      await e.reply('勋章进度查询已关闭（主人可在锅巴 →「勋章进度（只读）」打开）')
+      await e.reply('勋章进度查询已关闭（主人可在 Karin WebUI →「勋章进度（只读）」打开）')
       return true
     }
 

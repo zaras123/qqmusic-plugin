@@ -1,16 +1,17 @@
 /**
  * 卡片渲染（主题化）
  * - 模板来自 resources/themes/<主题>/，主题与配置由 utils/theme.js 解析
- * - 优先 Yunzai puppeteer.screenshot（与 R 插件相同）
- * - 失败则 puppeteer 直连截图（不依赖 redis）
+ * - 优先 puppeteer 直连截图，失败后走 node-karin render
  * - 热更新：模板文件 mtime 变了就让 art-template 重新编译（见 renderHtmlFile）
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
-import { pluginName, pluginPath, yunzaiPath } from './path.js'
+import { pluginName, pluginPath, karinPath, tempPath } from './path.js'
 import { getCfg } from './common.js'
+import { logInfo, logWarn } from './log.js'
+import { ensureSegment } from './adapter.js'
 import {
   DEFAULT_THEME,
   resolveTheme,
@@ -24,16 +25,49 @@ import {
   imageFormatOf,
 } from './theme.js'
 
-const require = createRequire(path.join(yunzaiPath, 'package.json'))
+// 以插件自身为解析基准，再按 Karin / 插件根目录逐级尝试。
+const require = createRequire(path.join(pluginPath, 'package.json'))
 
-function logWarn(...args) {
-  if (typeof global.logger?.warn === 'function') global.logger.warn(...args)
-  else console.warn(...args)
+/**
+ * Karin 自带 art-template（`node-karin/template` 转发的是 @karinjs/art-template 分支）。
+ * 离线预览时拿不到 node-karin，再走 require('art-template')。
+ */
+let karinTemplate = null
+if (karinPath) {
+  try {
+    const mod = await import('node-karin/template')
+    karinTemplate = mod.default || mod
+  } catch {
+    try {
+      const mod = await import(
+        pathToFileURL(
+          path.join(karinPath, 'node_modules/node-karin/dist/module/art-template.mjs')
+        ).href
+      )
+      karinTemplate = mod.default || mod
+    } catch {
+      karinTemplate = null
+    }
+  }
 }
-function logInfo(...args) {
-  if (typeof global.logger?.info === 'function') global.logger.info(...args)
-  else if (typeof global.logger?.mark === 'function') global.logger.mark(...args)
-  else console.log(...args)
+
+/**
+ * Karin 的渲染管理器（`node-karin.render`）。
+ * 真正截图由用户在插件市场装的渲染器（如 @karinjs/plugin-puppeteer）提供；
+ * 没装渲染器时 renderHtml 会抛错，由调用方回落。
+ */
+let karinRenderCache
+async function loadKarinRender() {
+  if (karinRenderCache !== undefined) return karinRenderCache
+  karinRenderCache = null
+  try {
+    const mod = await import('node-karin')
+    const cache = mod.render
+    if (cache && typeof cache.renderHtml === 'function') karinRenderCache = cache
+  } catch {
+    /* 非 Karin 宿主或解析不到 node-karin：保持 null */
+  }
+  return karinRenderCache
 }
 
 function ensureDir(dir) {
@@ -68,16 +102,11 @@ function logFontProbeOnce(probe) {
 }
 
 function loadArtTemplate() {
+  // Karin 宿主：直接用框架自带的那份，省一次「没装 art-template」的误报
+  if (karinTemplate) return karinTemplate
   const tries = [
     () => require('art-template'),
-    () => require(path.join(yunzaiPath, 'node_modules/art-template')),
-    () =>
-      require(
-        path.join(
-          yunzaiPath,
-          'node_modules/.pnpm/art-template@4.13.2/node_modules/art-template'
-        )
-      ),
+    () => require(path.join(pluginPath, 'node_modules/art-template')),
   ]
   let last
   for (const fn of tries) {
@@ -91,10 +120,9 @@ function loadArtTemplate() {
 }
 
 function loadPuppeteer() {
-  const tries = [
-    () => require('puppeteer'),
-    () => require(path.join(yunzaiPath, 'node_modules/puppeteer')),
-  ]
+  const tries = [() => require('puppeteer')]
+  if (karinPath) tries.push(() => require(path.join(karinPath, 'node_modules/puppeteer')))
+  tries.push(() => require(path.join(pluginPath, 'node_modules/puppeteer')))
   for (const fn of tries) {
     try {
       return fn()
@@ -124,7 +152,7 @@ export function renderHtmlFile(data, card, theme, { bgUrl = '' } = {}) {
   if (fileChanged(tpl.file)) art.defaults?.caches?.set?.(tpl.file, undefined)
 
   const html = art(tpl.file, { data })
-  const outDir = path.join(yunzaiPath, 'temp/html', pluginName, theme.id)
+  const outDir = path.join(tempPath, 'html', pluginName, theme.id)
   ensureDir(outDir)
   const outFile = path.join(outDir, `${card}.html`)
 
@@ -134,7 +162,7 @@ export function renderHtmlFile(data, card, theme, { bgUrl = '' } = {}) {
   let absHtml = html
     // 主题 / 明暗 / 时段（/ 是否有自定义背景）挂在 <html> 上：模板与 CSS 据此切样式
     //（不依赖 prefers-color-scheme，结果确定）。放在这里而不是 page.evaluate，
-    // 是为了 Yunzai / runtime.render 两条回退路径也吃得到。
+    // 是为了所有回退路径都吃得到。
     .replace(
       /<html\b([^>]*)>/,
       `<html$1 data-theme="${theme.id}" data-mode="${mode}" data-time="${theme.period || 'day'}"${
@@ -159,7 +187,7 @@ export function renderHtmlFile(data, card, theme, { bgUrl = '' } = {}) {
 }
 
 /**
- * 通用卡片渲染：Yunzai 截图 → 直连 puppeteer → runtime.render
+ * 通用卡片渲染：直连 puppeteer → Karin 宿主渲染器
  * @param {object} e
  * @param {object} data 模板数据
  * @param {string} tplName 模板目录名（与 html 文件同名）
@@ -171,29 +199,29 @@ export async function renderCard(e, data, card = 'qqmusic-status') {
     logWarn(`[qqmusic-plugin] 主题「${theme.requested}」不存在，已回落 ${DEFAULT_THEME}（可用主题见 #qqm界面）`)
   }
   const tpl = templateFile(theme, card)
-  const tplFileRel = `./plugins/${pluginName}/resources/themes/${tpl.from}/${card}.html`
-  const pluResPath = `${yunzaiPath.replace(/\\/g, '/')}/plugins/${pluginName}/resources/`
 
-  // 优先直连截图：可控底色/清晰度；Yunzai 默认页底常为白，容易出现“白背景”
-  try {
-    // 自定义背景：只有声明了 bg 能力的主题（apple）才接管；取不到就回落主题自带底色。
-    // 整段包起来 —— 背景是锦上添花，绝不能因为它让卡片发不出去。
-    let bg = null
-    if (theme.manifest?.bg === true) {
-      try {
-        const { resolveBackground } = await import('./background.js')
-        bg = await resolveBackground(cfg)
-      } catch (err) {
-        logWarn(`[qqmusic-plugin] 背景解析异常：${err.message}`)
-      }
+  // 自定义背景：只有声明了 bg 能力的主题（apple / nebula / multi）才接管；取不到就回落主题自带底色。
+  // 整段包起来 —— 背景是锦上添花，绝不能因为它让卡片发不出去。
+  let bg = null
+  if (theme.manifest?.bg === true) {
+    try {
+      const { resolveBackground } = await import('./background.js')
+      bg = await resolveBackground(cfg)
+    } catch (err) {
+      logWarn(`[qqmusic-plugin] 背景解析异常：${err.message}`)
     }
-    const { outFile } = renderHtmlFile(data, card, theme, { bgUrl: bg?.url || '' })
+  }
+  const bgUrl = bg?.url || ''
+
+  // 优先直连截图：可控底色/清晰度
+  try {
+    const { outFile } = renderHtmlFile(data, card, theme, { bgUrl })
     const vw = viewportWidthOf(theme, card)
     // 格式跟着配置走（默认 jpeg：实测同样一张卡 4.98s/9.75MB → 0.56s/1.44MB）
     const format = imageFormatOf(cfg)
     const buf = await screenshotDirect(outFile, { viewportWidth: vw, pageBg: pageBgOf(theme), format })
     // ⚠️ 扩展名要跟着格式走：把 JPEG 字节写进 `.png` 文件是骗人的（谁打开都会以为文件坏了）
-    const shotFile = path.join(yunzaiPath, 'temp', `${theme.id}-${card}.${format === 'png' ? 'png' : 'jpg'}`)
+    const shotFile = path.join(tempPath, `${theme.id}-${card}.${format === 'png' ? 'png' : 'jpg'}`)
     ensureDir(path.dirname(shotFile))
     fs.writeFileSync(shotFile, buf)
     logInfo(
@@ -201,45 +229,25 @@ export async function renderCard(e, data, card = 'qqmusic-status') {
         bg ? `·背景${bg.source === 'file' ? '本地' : `远端/${bg.from}`}` : ''
       }) ${(buf.length / 1024).toFixed(1)}KB`
     )
-    return toSegmentImage(buf)
+    return await toSegmentImage(buf)
   } catch (err) {
     logWarn(`[qqmusic-plugin] direct 截图失败 (${card}): ${err.message}`)
   }
 
+  // Karin：交给宿主渲染器（用户在插件市场装的 @karinjs/plugin-puppeteer 等）截图。
+  // 复用同一份已落盘的 HTML，样式与直连路径完全一致。
   try {
-    if (typeof global.redis !== 'undefined' && global.redis) {
-      const puppeteer = (await import('../../../lib/puppeteer/puppeteer.js')).default
-      const img = await puppeteer.screenshot(card, {
-        saveId: `${theme.id}-${card}`,
-        tplFile: tplFileRel,
-        pluResPath,
-        data,
-        // ⚠️ 这条是**兜底路**（直连截图抛错时才走），故意保持 PNG：
-        //    imgType 由 Yunzai 的渲染层消费，我们没法确认它认 'jpeg'；
-        //    为了不让兜底路失败，这里不动它（代价是偶发的兜底卡会大一些，日志里有 warning 可查）
-        imgType: 'png',
-      })
+    const cache = await loadKarinRender()
+    if (cache) {
+      const { outFile } = renderHtmlFile(data, card, theme, { bgUrl })
+      const img = await toSegmentImageFromBase64(await cache.renderHtml(outFile))
       if (img) {
-        logInfo(`[qqmusic-plugin] ${card} 截图成功 (yunzai)`)
+        logInfo(`[qqmusic-plugin] ${card} 截图成功 (karin · 主题 ${theme.id}${theme.dark ? '·深色' : ''})`)
         return img
       }
     }
   } catch (err) {
-    logWarn(`[qqmusic-plugin] yunzai 截图失败 (${card}): ${err.message}`)
-  }
-
-  try {
-    if (e?.runtime?.render) {
-      const ret = await e.runtime.render(
-        pluginName,
-        `themes/${tpl.from}/${card}`,
-        { ...data, data, saveId: `${theme.id}-${card}` },
-        { retType: 'base64' }
-      )
-      if (ret) return ret
-    }
-  } catch (err) {
-    logWarn(`[qqmusic-plugin] runtime.render 失败 (${card}): ${err.message}`)
+    logWarn(`[qqmusic-plugin] karin 截图失败 (${card}): ${err.message}`)
   }
 
   return null
@@ -396,7 +404,7 @@ process.once('exit', () => {
 })
 
 /** 直连 Chrome 截图（导出给本地预览复用，保证与真机同一套参数） */
-// 图片格式的定义在 utils/theme.js（那边是轻量模块，设置卡/锅巴也要读同一份）——
+// 图片格式的定义在 utils/theme.js（那边是轻量模块，设置卡/Karin WebUI 也要读同一份）——
 // 这里**转发导出**，免得调用方为了三个常量去记两个地方。
 export { DEFAULT_IMAGE_FORMAT, IMAGE_QUALITY, imageFormatOf } from './theme.js'
 
@@ -468,12 +476,23 @@ export async function screenshotDirect(
 ) {
   let puppeteer = loadPuppeteer()
   if (!puppeteer) {
-    puppeteer = (await import(pathToFileURL(path.join(yunzaiPath, 'node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js')).href)).default
+    // 逐宿主根找 puppeteer 的 ESM 入口（pnpm 下裸包名从插件目录不一定解析得到）
+    const roots = [karinPath, pluginPath].filter(Boolean)
+    for (const root of roots) {
+      const entry = path.join(root, 'node_modules/puppeteer/lib/esm/puppeteer/puppeteer.js')
+      if (!fs.existsSync(entry)) continue
+      try {
+        puppeteer = (await import(pathToFileURL(entry).href)).default
+        break
+      } catch {
+        /* 换下一个宿主根 */
+      }
+    }
   }
   // CJS default
   if (puppeteer?.default) puppeteer = puppeteer.default
   if (!puppeteer?.launch) {
-    // last resort dynamic from yunzai cwd
+    // last resort: 裸包名动态导入
     const mod = await import('puppeteer')
     puppeteer = mod.default || mod
   }
@@ -612,17 +631,28 @@ export async function closeDirectBrowser() {
   await closeBrowserQuietly(b)
 }
 
-function toSegmentImage(buf) {
+async function toSegmentImage(buf) {
   if (!buf) return null
   const file = `base64://${buf.toString('base64')}`
-  if (global.segment?.image) {
-    try {
-      return segment.image(file)
-    } catch {
-      /* fallthrough */
-    }
+  try {
+    const segment = await ensureSegment()
+    return segment.image(file)
+  } catch {
+    /* fallthrough */
   }
   return { type: 'image', file }
+}
+
+/** Karin 宿主渲染器返回的是 base64（可能带 data URI 前缀），归一成图片段 */
+async function toSegmentImageFromBase64(b64) {
+  const raw = String(b64 || '')
+  if (!raw) return null
+  const payload = raw.includes(',') && raw.startsWith('data:') ? raw.slice(raw.indexOf(',') + 1) : raw
+  try {
+    return await toSegmentImage(Buffer.from(payload, 'base64'))
+  } catch {
+    return null
+  }
 }
 
 export async function renderStatusCard(e, data) {
@@ -639,7 +669,7 @@ export async function renderStatusCard(e, data) {
  * ⚠️ 以前只有 **2.0** 那条路有缓存，1.x 的老帮助卡是**一遍一遍现截**的 ——
  *    而默认配置（没开「？？？」）走的恰恰是老卡，于是"每次发帮助都要等好几秒"。
  *    现在两条路都过这里，键 = 模板指纹 + 主题/配置摘要 + **data 整体**（模板能看到的都在里面），
- *    所以锅巴改了开关/平台、换了主题、改了模板、甚至只是 `#qqm帮助 全部`，下一次都会重新渲染，
+ *    所以 Karin WebUI 改了开关/平台、换了主题、改了模板、甚至只是 `#qqm帮助 全部`，下一次都会重新渲染，
  *    **不发过期图**；而同一张图正在截的时候，后面的人**跟车**（不重复开 Chrome page）。
  */
 const helpCache = new Map() // key → { img, at }
@@ -648,7 +678,7 @@ const helpInflight = new Map()
 /** 代际：clearGuideCache() 时 +1，用来丢掉"重载期间还在画的那张旧图" */
 let helpCacheGen = 0
 const HELP_CACHE_TTL_MS = 10 * 60 * 1000
-/** 上限：键会随「配置 / 身份 / 主题」变，改一次锅巴就多一个键，别让它无限长 */
+/** 上限：键会随「配置 / 身份 / 主题」变，改一次 Karin WebUI 就多一个键，别让它无限长 */
 const HELP_CACHE_MAX = 8
 
 /**

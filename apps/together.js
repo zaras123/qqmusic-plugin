@@ -5,7 +5,7 @@
  *   #qqm一起听 探测  只读探测一起听参数（主人）
  *
  * 插件这里只做「取歌 + 收发」：包怎么拼、什么情况该开房、失败文案，都在 API 侧。
- * 规则顺序有硬约束：Miao-Yunzai/lib/plugins/loader.js:274 在权限不足时 `break a`
+ * 规则顺序有硬约束：无权限的规则必须排在通用规则之后
  * ——直接跳出**所有**插件。所以全员规则必须排在 master 规则之前，且探测正则不能
  * 写成 `^#qqm一起听\s*(.+)$` 这种会吞掉数字指令的宽形状。
  */
@@ -26,7 +26,7 @@ export class qqmusicTogether extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-一起听',
-      dsc: '把点歌结果加进群里的一起听',
+      desc: '把点歌结果加进群里的一起听',
       event: 'message',
       priority: 450,
       rule: [

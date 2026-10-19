@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 主人配置命令
  */
 import { loadPluginBase } from '../utils/plugin-base.js'
@@ -21,7 +21,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
   constructor() {
     super({
       name: 'QQ音乐-管理',
-      dsc: '配置 QQ 音乐插件',
+      desc: '配置 QQ 音乐插件',
       event: 'message',
       priority: 500,
       rule: [
@@ -298,7 +298,7 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
             '  · 本地路径  D:\\图片\\a.jpg   或  /root/pics/a.jpg',
             '  · 图片直链  https://example.com/a.jpg',
             '  · 图片 API  https://api.example.com/random（JSON 里有图片地址，或直接返回图片）',
-            '远端图会缓存到本地（锅巴可调分钟数，0=每次都换）；取不到时自动回落主题底色。',
+            '远端图会缓存到本地（Karin WebUI 可调分钟数，0=每次都换）；取不到时自动回落主题底色。',
             `支持自定义背景的主题：${bgIds}（其余主题忽略此设置）。`,
           ].join('\n')
         )

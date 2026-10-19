@@ -21,41 +21,81 @@ export const pluginName = path.basename(pluginPath)
 
 /**
  * 插件 logo 的绝对 file URL。
- * 卡片有两条渲染路径（直连截图 / Yunzai puppeteer 回退），绝对路径在两条里都有效，
- * 相对路径只在其中一条能被子路径改写规则正确处理。
+ * 卡片有两条渲染路径（直连截图 / Karin 渲染器），绝对路径在两条里都有效。
  */
 export const logoUrl = pathToFileURL(path.join(pluginPath, 'resources/img/logo.png')).href
 
+function safeReadJson(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
 /**
- * Yunzai 根目录
- * 优先 QQMUSIC_YUNZAI_PATH 环境变量（脱离框架的脚本/本地预览用这个指定）
- * → process.cwd()（Bot 从 Yunzai 根启动）→ 从插件路径向上找
+ * Karin（node-karin）根目录
+ *
+ * 判定：目录里有 `plugins/`，且 `index.mjs`（`import('node-karin/start')`）或
+ * `package.json` 里依赖了 `node-karin`。找不到就返回空串 —— 非 Karin 宿主下
+ * 这不是错误，只是「没有这个宿主」。
+ * 可用 QQMUSIC_KARIN_PATH 显式指定（脱离框架的脚本 / 本地预览）。
  */
-function resolveYunzaiPath() {
-  const fromEnv = String(process.env.QQMUSIC_YUNZAI_PATH || '').trim()
+function resolveKarinPath() {
+  const fromEnv = String(process.env.QQMUSIC_KARIN_PATH || '').trim()
   if (fromEnv && fs.existsSync(fromEnv)) return real(fromEnv)
 
-  const cwd = process.cwd()
-  if (
-    fs.existsSync(path.join(cwd, 'plugins')) &&
-    (fs.existsSync(path.join(cwd, 'lib/plugins/plugin.js')) ||
-      fs.existsSync(path.join(cwd, 'package.json')))
-  ) {
-    return real(cwd)
-  }
-  // 插件在 Yunzai/plugins/xxx
-  const up1 = path.join(pluginPath, '..')
-  const up2 = path.join(pluginPath, '../..')
-  for (const cand of [up1, up2, path.join(pluginPath, '../../..')]) {
+  const roots = [
+    process.cwd(),
+    path.resolve(pluginPath, '..'),
+    path.resolve(pluginPath, '..', '..'),
+    path.resolve(pluginPath, '..', '..', '..'),
+  ]
+  for (const cand of roots) {
     const r = real(cand)
-    if (
-      fs.existsSync(path.join(r, 'plugins')) &&
-      fs.existsSync(path.join(r, 'lib'))
-    ) {
+    if (!fs.existsSync(path.join(r, 'plugins'))) continue
+    if (fs.existsSync(path.join(r, 'index.mjs'))) return r
+    const pkg = safeReadJson(path.join(r, 'package.json'))
+    if (pkg && (pkg.dependencies?.['node-karin'] || pkg.devDependencies?.['node-karin'])) {
       return r
     }
   }
-  return real(cwd)
+  return ''
 }
 
-export const yunzaiPath = resolveYunzaiPath()
+export const karinPath = resolveKarinPath()
+
+/**
+ * 运行期临时目录
+ *
+ * 优先 QQMUSIC_TEMP_PATH（脚本 / 预览指定）→ Karin 的 `@karinjs/temp`。
+ * KARIN_PLUGIN_INIT 拿到 `node-karin` 的 `tempPath` 后会用 setTempPath()
+ * 覆盖成框架真正认的那个目录。
+ */
+function resolveTempPath() {
+  const fromEnv = String(process.env.QQMUSIC_TEMP_PATH || '').trim()
+  if (fromEnv) return real(fromEnv)
+  if (karinPath) {
+    for (const rel of ['@karinjs/temp', 'temp', 'data/temp']) {
+      const p = path.join(karinPath, rel)
+      if (fs.existsSync(p)) return real(p)
+    }
+    return path.join(karinPath, '@karinjs/temp')
+  }
+  return path.join(pluginPath, 'temp')
+}
+
+/** 运行期临时目录 */
+export let tempPath = resolveTempPath()
+
+/** 运行期目录（缓存 / 截图产物 / 下载落盘都挂这里）—— 与 tempPath 同步 */
+export let runtimePath = tempPath
+
+/** 由 KARIN_PLUGIN_INIT 用 node-karin.tempPath 覆盖（拿不到就保持启发式结果） */
+export function setTempPath(p) {
+  const v = String(p || '').trim()
+  if (!v) return tempPath
+  tempPath = real(v)
+  runtimePath = tempPath
+  return tempPath
+}

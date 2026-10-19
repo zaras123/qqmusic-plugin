@@ -1,54 +1,52 @@
 /**
- * qqmusic-plugin 入口
- * 放到 Yunzai/plugins/qqmusic-plugin/
- * 适配 TRSS-Yunzai：ICQQ / OneBotv11 WS / QQBot-Plugin(ts-yf)
+ * karin-plugin-qqmusic 入口
+ * 放到 Karin/plugins/karin-plugin-qqmusic/
+ * 宿主：node-karin（>=1.18）
+ *
+ * Karin 的加载分两条：
+ *   1. 扫 `apps/` 目录、找到每个模块导出的插件类，自己 `new` 一份（不走本文件）；
+ *   2. 读到 `package.json.main`（= 本文件）里的具名导出 `KARIN_PLUGIN_INIT`，
+ *      启动时调一次，用来做宿主相关的初始化（日志 / 临时目录 / 配置 / 调度器）。
+ * 所以「护栏」不能只写在本文件 —— 它落在 utils/plugin-base.js 的基类构造里，
+ * 两条加载路径都能吃到；本文件只负责把宿主能力接进来。
  */
-import fs from 'node:fs'
-import path from 'node:path'
-import { pluginPath } from './utils/path.js'
-import { ensureSegment } from './utils/adapter.js'
-import { hardenPlugin } from './utils/async.js'
+import { setTempPath } from './utils/path.js'
+import { setLogger, logInfo } from './utils/log.js'
 import { startScheduler } from './utils/scheduler.js'
 import Config from './components/Config.js'
 
-const log = global.logger || console
+let runtimeReady = false
 
-await ensureSegment()
+/**
+ * 宿主初始化：注入 Karin 的 logger / tempPath，生成配置，拉起调度器。
+ * 幂等 —— 重复调用（多 bot / 热重载）只跑一次。
+ */
+async function initRuntime() {
+  if (runtimeReady) return
+  runtimeReady = true
 
-// 启动即生成/补全 config/config/*.yaml（删除后重启也会重新生成）
-Config.init()
-
-const appsDir = path.join(pluginPath, 'apps')
-const files = fs.readdirSync(appsDir).filter((f) => f.endsWith('.js'))
-
-let ret = []
-files.forEach((file) => {
-  ret.push(import(`./apps/${file}`))
-})
-ret = await Promise.allSettled(ret)
-
-const apps = {}
-for (let i = 0; i < files.length; i++) {
-  const name = files[i].replace(/\.js$/, '')
-  if (ret[i].status !== 'fulfilled') {
-    log.error?.(`[qqmusic-plugin] 载入失败: ${name}`)
-    log.error?.(ret[i].reason)
-    continue
+  // 注入宿主能力（拿不到就保持启发式结果 / console 日志）
+  try {
+    const karin = await import('node-karin')
+    setLogger(karin.logger)
+    setTempPath(karin.tempPath)
+  } catch {
+    /* 离线测试 / 预览：走 utils/path.js 的启发式结果 */
   }
-  const mod = ret[i].value
-  const key = Object.keys(mod).find((k) => typeof mod[k] === 'function') || Object.keys(mod)[0]
-  // 异步护栏（utils/async.js）：处理函数返回值统一成 Promise 且永不 reject，
-  // 并在事件进业务代码前补好回复通道。两套框架都优先拿本文件当入口，
-  // 所以这里是「一处上锁、两边生效」的唯一位置。
-  apps[name] = hardenPlugin(mod[key], name)
+
+  // 启动即生成/补全 config/config/*.yaml（删除后重启也会重新生成）
+  Config.init()
+
+  // 定时调度器（定时点歌触发 + 歌手新歌订阅扫描）：30s 一跳、幂等、防重入
+  startScheduler()
 }
 
-const msg = `qqmusic-plugin 已加载（${Object.keys(apps).length} 个模块 · ICQQ/OneBot/QQBot）`
-if (log.green && typeof log.info === 'function') log.info(log.green(msg))
-else if (typeof log.info === 'function') log.info(msg)
-else console.log(msg)
+/**
+ * Karin 生命周期入口（package.json.main 的具名导出）。
+ * 必须具名、异步 —— Karin 只认这一个约定。
+ */
+export const KARIN_PLUGIN_INIT = async () => {
+  await initRuntime()
+}
 
-// 定时调度器（定时点歌触发 + 歌手新歌订阅扫描）：30s 一跳、幂等、防重入
-startScheduler()
-
-export { apps }
+logInfo('karin-plugin-qqmusic 初始化入口已注册')

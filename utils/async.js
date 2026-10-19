@@ -1,27 +1,17 @@
 /**
- * 异步兼容层 —— 把「两套框架对异步的约定不一致」这件事收在一个模块里。
+ * 异步兼容层 —— 统一 Karin 事件补全、回复通道与异常护栏。
  *
  * 为什么需要（2026-09-24 对着两套框架源码实测）：
  *
- *  1. `e.reply` 不是永远存在
- *     · TRSS `lib/plugins/loader.js:415` 的 reply 包装有前置判断 `if (!e.reply?.bind) return`
- *       —— **适配器没提供 reply 时它根本不装**，于是 `e.reply` 是 undefined，
- *       业务侧 `await e.reply(...)` 直接抛 `TypeError: e.reply is not a function`，
- *       用户端一条反馈都收不到，只在框架日志里留一行。
- *     · Miao（`lib/plugins/loader.js:474/538`）两个分支都会装上，所以只在 TRSS 侧暴露。
+ *  1. `e.reply` 在某些适配器事件上可能缺失，业务代码需要一条可用的发送兜底。
  *
  *  2. `e.reply` 的返回值形态不统一
- *     · 装上之后两边都是 `async` 函数 → 返回 Promise；
- *     · 但插件基类的 `reply()`（Miao `lib/plugins/plugin.js:72`）在 `!this.e?.reply`
- *       或 msg 为空时**同步**返回 `false`。
- *     → 所以 `.then()` 不能直接挂上去（apps/chart.js 的 MV 发送踩过，已换成 replySafe）。
- *       静态闸：scripts/check-async.mjs（接在 test.mjs 的语法检查段之后）。
+ *     → 所以 `.then()` 不能直接挂上去，统一走 replySafe。
  *
  *  3. `setTimeout(async 回调)` 里的异常没人接 → unhandledRejection，
  *     只有框架 process 级的一行日志，业务侧既看不到也补不了（→ setSafeTimeout）。
  *
- *  4. 处理函数返回的 Promise，框架**不一定** await（老 Yunzai 分支 / 第三方加载器）
- *     → 同样掉进 unhandledRejection。兜底应该在插件自己这边（→ hardenPlugin）。
+ *  4. 处理函数返回的 Promise 出错时，由插件自己的护栏记日志并返回 false。
  *
  * 本模块只做归一化，不改业务语义。
  */
@@ -87,30 +77,69 @@ export function setSafeTimeout(fn, ms, tag = '定时任务') {
 const REPLY_PATCHED = Symbol.for('qqmusic.replyPatched')
 
 /**
+ * 这是不是一个 Karin（node-karin）事件
+ *
+ * Karin 的回复签名是 `e.reply(elements, { reply?, at?, recallMsg? })`。
+ * 判据取「Karin 事件一定有 contact + bot.sendMsg」，加上实例标记兜底。
+ */
+export function isKarinEvent(e) {
+  if (!e || typeof e !== 'object') return false
+  if (e.__qqmKarin === true) return true
+  if (e.contact && typeof e.bot?.sendMsg === 'function') return true
+  return false
+}
+
+/**
+ * 把 Karin 事件补成业务代码认识的样子
+ *
+ * Karin（node-karin）的事件自带 `user_id` / `self_id`（deprecated getter）、`msg`、
+ * `isGroup`、`isMaster`，**但没有 `group_id`** —— 群号藏在 `e.contact.peer`（且只有
+ * `contact.scene === 'group'` 时才是群）。插件里到处用 `e.group_id` 判群/私聊，
+ * 这里在事件进业务代码前补一个只读 `group_id`，避免改一箩筐调用点。
+ *
+ * 幂等、不覆盖已有值、不碰非 Karin 事件。
+ */
+export function normalizeEvent(e) {
+  if (!e || typeof e !== 'object') return e
+  if (e.__qqmNormalized) return e
+  if (isKarinEvent(e)) {
+    try {
+      if (e.group_id == null && e.contact?.scene === 'group' && e.contact.peer != null) {
+        Object.defineProperty(e, 'group_id', {
+          value: String(e.contact.peer),
+          writable: true,
+          configurable: true,
+          enumerable: false,
+        })
+      }
+    } catch {
+      /* 事件被冻结/密封：补不上就保持原样 */
+    }
+  }
+  try {
+    Object.defineProperty(e, '__qqmNormalized', { value: true, enumerable: false, configurable: true })
+  } catch {
+    /* ignore */
+  }
+  return e
+}
+
+/**
  * 按适配器的实际能力，给「没有 reply」的事件退出一条可用通道
  *
+ *   · e.bot.sendMsg(e.contact, elements) —— Karin（node-karin）原生
  *   · e.group.sendMsg / e.friend.sendMsg —— oicq / ICQQ 原生
- *   · bot.sendApi('send_group_msg' | 'send_private_msg') —— OneBot 反向 WS
- *     （复用 utils/send.js 的 botSendApi，那里已经处理了 TRSS 的绑定差异；
- *       动态 import 是为了避开 send.js → async.js 的循环依赖）
  */
 function buildFallbackReply(e) {
+  const bot = e.bot || null
+
+  // Karin：bot.sendMsg(contact, elements)
+  if (e.contact && typeof bot?.sendMsg === 'function') {
+    return (msg) => bot.sendMsg(e.contact, msg)
+  }
   if (typeof e.group?.sendMsg === 'function') return (msg) => e.group.sendMsg(msg)
   if (typeof e.friend?.sendMsg === 'function') return (msg) => e.friend.sendMsg(msg)
 
-  const bot = e.bot || (e.self_id != null ? global.Bot?.[e.self_id] : null)
-  const id = e.group_id || e.user_id
-  if (typeof bot?.sendApi === 'function' && id != null) {
-    const action = e.group_id ? 'send_group_msg' : 'send_private_msg'
-    const key = e.group_id ? 'group_id' : 'user_id'
-    return async (msg) => {
-      const { botSendApi } = await import('./send.js')
-      return botSendApi(e, action, {
-        [key]: String(id),
-        message: Array.isArray(msg) ? msg : String(msg),
-      })
-    }
-  }
   return null
 }
 
@@ -158,12 +187,113 @@ export async function replySafe(e, msg, { quote = false, data = {}, tag = '发�
     return false
   }
   try {
-    await e.reply(msg, quote, data)
+    await e.reply(msg, { reply: Boolean(quote), ...data })
     return true
   } catch (err) {
     logWarn(`${tag}失败: ${err?.message || err}`)
     return false
   }
+}
+
+/** 护栏包装的标记：同一个方法不会被套两层（hardenInstance / hardenPlugin 共用） */
+const GUARD_FLAG = '__qqmGuard'
+
+/**
+ * 把一个处理方法包成「同步抛 / 异步 reject 都记日志并返回 false」
+ * @param {Function} fn 原始方法
+ * @param {string} label 日志用插件名
+ * @param {string} name 方法名
+ */
+function wrapGuard(fn, label, name) {
+  const guarded = function hardenedHandler(...args) {
+    try {
+      normalizeEvent(args[0])
+      ensureReply(args[0])
+    } catch {
+      /* 归一/补通道失败不影响主流程 */
+    }
+    let ret
+    try {
+      ret = fn.apply(this, args)
+    } catch (err) {
+      logError(`[${label}.${name}] 同步异常: ${err?.message || err}`, err)
+      return false
+    }
+    if (!isThenable(ret)) return ret
+    return Promise.resolve(ret).catch((err) => {
+      logError(`[${label}.${name}] 异步异常: ${err?.message || err}`, err)
+      return false
+    })
+  }
+  Object.defineProperty(guarded, GUARD_FLAG, { value: true, enumerable: false })
+  return guarded
+}
+
+/** 收集实例 rule/task 里声明的方法名（accept 总是收） */
+function handlerNamesOf(inst) {
+  const names = new Set(['accept'])
+  const declared = new Set()
+  try {
+    for (const r of inst?.rule || []) {
+      if (r?.fnc) {
+        names.add(r.fnc)
+        declared.add(r.fnc)
+      }
+    }
+    for (const t of [].concat(inst?.task || [])) {
+      if (t?.fnc) {
+        names.add(t.fnc)
+        declared.add(t.fnc)
+      }
+    }
+  } catch {
+    /* rule/task 形状不标准就只覆盖 accept */
+  }
+  return { names, declared }
+}
+
+/**
+ * 给**实例**套异步护栏（Karin 下唯一的入口：框架直接 `new` app 类，不走 index.js）
+ *
+ * 与 hardenPlugin 的差别：这里把包装定义成实例的**自有属性**，覆盖原型上的方法。
+ * 因为 Karin 只 `new` 一次并直接调用 rule[].fnc，原型层改不改它不关心；
+ * 实例层包住同样能保证「同步抛 / 异步 reject → 记日志 + false」。
+ *
+ * 幂等：已经套过的实例 / 已经带护栏标记的方法都跳过。
+ * @param {object} instance 插件实例
+ * @param {string} label 日志用名字（默认取类名）
+ */
+export function hardenInstance(instance, label = 'plugin') {
+  if (!instance || typeof instance !== 'object') return instance
+  if (instance.__qqmHardenedInstance) return instance
+
+  const { names, declared } = handlerNamesOf(instance)
+  for (const n of names) {
+    if (!n) continue
+    const fn = instance[n]
+    if (typeof fn !== 'function') {
+      if (declared.has(n)) logWarn(`[${label}] rule/task 指向的方法不存在，护栏跳过: ${n}`)
+      continue
+    }
+    // 原型层已经套过（hardenPlugin 先跑）就不要再套一层
+    if (fn[GUARD_FLAG]) continue
+    try {
+      Object.defineProperty(instance, n, {
+        value: wrapGuard(fn, label, n),
+        writable: true,
+        configurable: true,
+        enumerable: false,
+      })
+    } catch {
+      /* 实例被冻结/密封：保持原方法，交给调用点自己兜 */
+    }
+  }
+  try {
+    Object.defineProperty(instance, '__qqmHardenedInstance', { value: true, enumerable: false })
+  } catch {
+    /* ignore */
+  }
+  return instance
 }
 
 /**
@@ -173,9 +303,7 @@ export async function replySafe(e, msg, { quote = false, data = {}, tag = '发�
  *   · 处理函数的返回值统一成 Promise，并且**永不 reject**：错误在本插件侧记日志后返回 false
  *     → 框架 await 也好、不 await 也好，都不会漏出 unhandledRejection
  *
- * 为什么能在这里一处上锁：两套框架的加载器都**优先**拿 `plugins/<名>/index.js` 当入口
- *（TRSS `lib/plugins/loader.js:55`、Miao `lib/plugins/loader.js:61`），本插件的 index.js
- * 是所有 app 类汇合的唯一出口 —— 一处上锁，两边同时生效。
+ * 生产入口主要走 `hardenInstance`；这个导出保留给离线测试与显式包装场景。
  *
  * @param {Function} cls 插件类
  * @param {string} label 日志用名字
@@ -185,16 +313,13 @@ export function hardenPlugin(cls, label = 'plugin') {
   if (cls.__qqmHardened) return cls
 
   const proto = cls.prototype
-  const names = new Set(['accept'])
-  /** 只记「插件自己声明的」方法名 —— accept 是可选的（只有 resolve.js 实现），
-   *  没实现就静默跳过，别拿它去报警告刷日志 */
-  const declaredFnc = new Set()
-
-  // 规则/定时任务的方法名：从实例的 rule / task 里读，别手抄
+  let names = new Set(['accept'])
+  let declaredFnc = new Set()
   try {
     const inst = new cls()
-    for (const r of inst.rule || []) if (r?.fnc) { names.add(r.fnc); declaredFnc.add(r.fnc) }
-    for (const t of [].concat(inst.task || [])) if (t?.fnc) { names.add(t.fnc); declaredFnc.add(t.fnc) }
+    const got = handlerNamesOf(inst)
+    names = got.names
+    declaredFnc = got.declared
   } catch (err) {
     logWarn(`[${label}] 读取 rule 失败，异步护栏只覆盖 accept: ${err?.message || err}`)
   }
@@ -207,25 +332,9 @@ export function hardenPlugin(cls, label = 'plugin') {
       if (declaredFnc.has(n)) logWarn(`[${label}] rule/task 指向的方法不存在，护栏跳过: ${n}`)
       continue
     }
-    overrides[n] = function hardenedHandler(...args) {
-      try {
-        ensureReply(args[0])
-      } catch {
-        /* 补通道失败不影响主流程 */
-      }
-      let ret
-      try {
-        ret = fn.apply(this, args)
-      } catch (err) {
-        logError(`[${label}.${n}] 同步异常: ${err?.message || err}`, err)
-        return false
-      }
-      if (!isThenable(ret)) return ret
-      return Promise.resolve(ret).catch((err) => {
-        logError(`[${label}.${n}] 异步异常: ${err?.message || err}`, err)
-        return false
-      })
-    }
+    // 原型上已经套过（比如类本身又被包了一次）就跳过，避免重复套娃
+    if (fn[GUARD_FLAG]) continue
+    overrides[n] = wrapGuard(fn, label, n)
   }
 
   const Hardened = class extends cls {}

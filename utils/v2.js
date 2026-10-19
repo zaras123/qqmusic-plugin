@@ -1,16 +1,16 @@
 /**
  * 2.0 功能闸门（**神秘开关**）
  *
- * 需求原话：「锅巴添加一个神秘开关，只有？？？的名字打开后……功能全部启用；
+ * 需求原话：「Karin WebUI 添加一个神秘开关，只有？？？的名字打开后……功能全部启用；
  *            没开启也和老版本一样，新版本命令也不响应」。
  *
  * 规则（只有这一处判定，别在别处写 `cfg.unlockV2 === true`）：
- *   · 开关字段 `unlockV2`，锅巴里**显示成 `？？？`**（见 guoba/schemas.js）
+ *   · 开关字段 `unlockV2`，Karin WebUI 里**显示成 `？？？`**（见 web/schemas.js）
  *   · 关着 = 与老版本**逐字节相同**：新命令不响应（返回 false 放行，不报错、不提示）、
- *     帮助卡还是老那张、锅巴里看不到任何 2.0 分组
- *   · 打开 = 多平台点歌 + 新帮助 UI + 锅巴里的平台分组一起出现
+ *     帮助卡还是老那张、Karin WebUI 里看不到任何 2.0 分组
+ *   · 打开 = 多平台点歌 + 新帮助 UI + Karin WebUI 里的平台分组一起出现
  *
- * ⚠️ 判定必须**每次现读配置**：锅巴保存后立刻生效，不能缓存在模块顶层
+ * ⚠️ 判定必须**每次现读配置**：Karin WebUI 保存后立刻生效，不能缓存在模块顶层
  *   （老代码里踩过"读一次就写死"的坑，见仓库 README 的性能红线）。
  * ⚠️ 关闭时**不要**给任何提示 —— 需求要的是"和没装这个功能一样"，
  *   回一句"功能未开启"等于把彩蛋喊出来。
@@ -18,7 +18,7 @@
 import Config from '../components/Config.js'
 import { PLATFORMS, VISIBLE_PLATFORMS, SEARCH_PLATFORMS, platformIdOf, platformQualities } from './platforms.js'
 
-/** 开关字段名（锅巴 UI 上显示为 `？？？`） */
+/** 开关字段名（Karin WebUI UI 上显示为 `？？？`） */
 export const V2_FIELD = 'unlockV2'
 
 /** 2.0 是否解锁（现读配置；任何异常都当作"没开"，绝不误放行） */
@@ -94,7 +94,7 @@ export function platformFillEnabled(cfg, id) {
  *   · 补歌只在 QQ 结果尾部加几条，冷门/外语曲多一家源是净赚，不该因为"界面上不展示"
  *     就把它的免费曲挡在外面；
  *   · 反过来，`#qqm<平台>点歌` 是要**教用户去用**的入口，隐藏平台不该出现在
- *     帮助/锅巴/点歌清单里，所以不进去。
+ *     帮助 / Karin WebUI / 点歌清单里，所以不进去。
  * 曾有人想把这两处统一成一个——别改，改了要么少一家免费源、要么把隐藏平台推到台前。
  */
 export function fillSourceIds(cfg) {
@@ -123,7 +123,7 @@ export function standaloneSourceIds(cfg) {
 /**
  * 当前**可用**的平台清单（2.0 未解锁 = 空数组）
  *
- * 帮助卡、`#qqm平台` 列表、锅巴预览都从它取，保证三处一致。
+ * 帮助卡、`#qqm平台` 列表、Karin WebUI 预览都从它取，保证三处一致。
  */
 export function enabledPlatforms(cfg) {
   if (!isV2Unlocked(cfg)) return []
