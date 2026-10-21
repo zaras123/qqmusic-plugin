@@ -61,6 +61,22 @@ function wrapBase(Base) {
     }
   }
 
+  // node-karin 的 Plugin 原型不带 reply；旧的 Yunzai 基类带。
+  // 业务 handler 主要用 e.reply，但插件实例上保留同一个调用形状，
+  // 既兼容测试/旧代码，也不会在 Karin 下变成一个 undefined。
+  if (typeof QQMusicPluginBase.prototype.reply !== 'function') {
+    Object.defineProperty(QQMusicPluginBase.prototype, 'reply', {
+      value: async function reply(msg, ...rest) {
+        const replyFn = this?.e?.reply
+        if (typeof replyFn !== 'function' || !msg) return false
+        return replyFn.call(this.e, msg, ...rest)
+      },
+      writable: true,
+      configurable: true,
+      enumerable: false,
+    })
+  }
+
   Object.defineProperty(QQMusicPluginBase, '__qqmKarin', {
     value: karinHost,
     enumerable: false,

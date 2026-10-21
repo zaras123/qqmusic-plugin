@@ -278,6 +278,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
                     reg: RE_PLATFORM_QR_LOGIN,
                     fnc: 'platformQrLogin',
                     permission: 'master',
+                    authFailMsg: '扫码登录仅限主人操作；成员可私聊发送 #qqm<平台>ck <cookie> 配置自己的账号',
                 },
                 {
                     /**
@@ -376,15 +377,21 @@ export class qqmusicLogin extends (await loadPluginBase()) {
     async platformQrLogin(e) {
         // ⚠️ login.js 里**没有** cfg() 方法（song.js 才有）——统一走 Config.getConfig
         const cfg = Config.getConfig('qqmusic') || {};
-        if (!cfg.enable)
-            return false;
-        if (!isV2Unlocked(cfg))
-            return false;
+        if (!cfg.enable) {
+            await e.reply('QQ音乐插件当前未启用，请先在 Karin WebUI 打开「启用插件」');
+            return true;
+        }
+        if (!isV2Unlocked(cfg)) {
+            await e.reply('外部平台扫码登录尚未启用：请先在 Karin WebUI 打开「？？？」并在「音源平台」启用对应平台');
+            return true;
+        }
         const msg = String(e.msg || '').trim();
         const m = msg.match(RE_PLATFORM_QR_LOGIN);
         const p = platformOf(m?.[1]);
-        if (!p)
-            return false;
+        if (!p) {
+            await e.reply('没有识别出要登录的平台，请使用 #qqm网易登录 / #qqm酷狗登录 / #qqm汽水登录');
+            return true;
+        }
         // "能不能扫码"从注册表读（QR_PLATFORMS 只放 API 那边的路径）：
         // 加平台却忘了同步这里，症状就是"命令没反应/说没这条通道"
         const qr = platformQrOf(p.id);
@@ -407,6 +414,7 @@ export class qqmusicLogin extends (await loadPluginBase()) {
         this.stopPoll(userKey); // 同一人重复发命令：先掐掉上一轮
         const task = { stopped: false, timer: null };
         activeLogins.set(userKey, task);
+        await e.reply(`正在获取${p.label}二维码，请稍候…`);
         let data;
         let body = null;
         try {

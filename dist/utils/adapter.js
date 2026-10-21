@@ -10,7 +10,7 @@
  * @returns {{
  *   id: string,
  *   name: string,
- *   kind: 'karin' | 'icqq' | 'onebot' | 'qqbot' | 'unknown',
+ *   kind: 'icqq' | 'onebot' | 'qqbot' | 'unknown',
  *   selfId: string|number|undefined,
  *   supportsNativeMusic: boolean,
  *   supportsRecord: boolean,
@@ -20,19 +20,29 @@
  */
 export function detectAdapter(e) {
     const bot = e?.bot || null;
-    const id = String(bot?.adapter?.id || e?.adapter_id || '').trim();
-    const name = String(bot?.adapter?.name || e?.adapter_name || '').trim();
     const protocol = String(bot?.adapter?.protocol || '').trim().toLowerCase();
+    const standard = String(bot?.adapter?.standard || '').trim().toLowerCase();
+    const id = String(bot?.adapter?.id || protocol || e?.adapter_id || '').trim();
+    const name = String(bot?.adapter?.name || e?.adapter_name || '').trim();
     const lowerId = id.toLowerCase();
     const lowerName = name.toLowerCase();
     let kind = 'unknown';
-    // Karin（node-karin）：事件带 contact，bot 上挂 sendMsg / uploadFile
-    if (e?.contact &&
-        (typeof bot?.sendMsg === 'function' || typeof bot?.uploadFile === 'function')) {
-        kind = 'karin';
-    }
-    else if (lowerId === 'qqbot' || lowerName === 'qqbot' || lowerName.includes('qqbot')) {
+    if (protocol === 'qqbot' ||
+        lowerId === 'qqbot' ||
+        lowerName === 'qqbot' ||
+        lowerName.includes('qqbot')) {
         kind = 'qqbot';
+    }
+    else if (protocol === 'icqq' ||
+        protocol === 'oicq' ||
+        standard === 'icqq' ||
+        standard === 'oicq') {
+        kind = 'icqq';
+    }
+    else if (['gocq-http', 'napcat', 'llonebot', 'lagrange', 'yogurt'].includes(protocol) ||
+        standard === 'onebot11' ||
+        standard === 'onebot12') {
+        kind = 'onebot';
     }
     else if (lowerId === 'qq' &&
         (lowerName === 'icqq' || lowerName.includes('icqq'))) {
@@ -55,23 +65,14 @@ export function detectAdapter(e) {
     else if (typeof bot?.sendApi === 'function') {
         kind = 'onebot';
     }
-    // Karin 的协议族（protocol）二次判定：napcat / onebot / icqq / qqbot 都可能挂在它下面
-    if (kind === 'unknown' && protocol) {
-        if (protocol.includes('qqbot'))
-            kind = 'qqbot';
-        else if (protocol.includes('icqq'))
-            kind = 'icqq';
-        else if (protocol.includes('onebot') || protocol.includes('napcat'))
-            kind = 'onebot';
-    }
     // 二次启发式：ICQQ 有 sdk/icqq；QQBot 有 sdk.request 或 path data/QQBot
     if (kind === 'unknown' || kind === 'onebot') {
-        if (bot?.icqq)
+        if (bot?.icqq || bot?.sdk?.pickGroup)
             kind = 'icqq';
         if (bot?.adapter?.path === 'data/QQBot/' || bot?.sdk?.sessionManager)
             kind = 'qqbot';
     }
-    const supportsNativeMusic = kind === 'karin' || kind === 'onebot' || kind === 'icqq';
+    const supportsNativeMusic = kind === 'onebot' || kind === 'icqq';
     const supportsRecord = true;
     const supportsGroupFile = true;
     // QQBot 官方走 segment.file → 适配器内部 files API；Karin / ICQQ 走原生上传
@@ -80,7 +81,7 @@ export function detectAdapter(e) {
         id: id || kind,
         name: name || kind,
         kind,
-        selfId: e?.self_id ?? e?.selfId ?? bot?.uin ?? bot?.self_id,
+        selfId: e?.self_id ?? e?.selfId ?? bot?.selfId ?? bot?.uin ?? bot?.self_id,
         supportsNativeMusic,
         supportsRecord,
         supportsGroupFile,

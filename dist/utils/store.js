@@ -10,9 +10,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { pluginPath } from './path.js';
+import { resolvePluginStateFile } from './path.js';
 import { logWarn } from './log.js';
-const FILE = path.join(pluginPath, 'data', 'qqmusic-store.json');
+const FILE = resolvePluginStateFile('data', 'qqmusic-store.json');
 const EMPTY = { version: 1, schedules: [], subs: [], lastSubScanAt: 0 };
 /** 兜成合法形状（手改坏 / 旧版本文件都不炸） */
 function normalize(data) {

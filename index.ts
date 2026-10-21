@@ -34,7 +34,7 @@ async function initRuntime() {
     /* 离线测试 / 预览：走 utils/path.js 的启发式结果 */
   }
 
-  // 启动即生成/补全 config/config/*.yaml（删除后重启也会重新生成）
+  // 启动即生成/补全 Karin 运行目录 @karinjs/<插件名>/config/*.yaml
   Config.init()
 
   // 定时调度器（定时点歌触发 + 歌手新歌订阅扫描）：30s 一跳、幂等、防重入

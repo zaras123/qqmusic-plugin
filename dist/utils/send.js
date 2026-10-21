@@ -737,7 +737,7 @@ export async function uploadGroupFile(e, filePath, displayName) {
     const namesToTry = prettyName === asciiName ? [prettyName] : [prettyName, asciiName];
     // Karin（node-karin）：bot.uploadFile(contact, file, name) —— 群/私聊通用，优先走它。
     // 拿不到 uploadFile 就退到 bot.sendMsg(contact, [segment.file(...)])。
-    if (adapter.kind === 'karin' && e.contact) {
+    if (e.contact) {
         const upload = e.bot?.uploadFile;
         if (typeof upload === 'function') {
             for (const name of namesToTry) {

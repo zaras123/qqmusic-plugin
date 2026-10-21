@@ -80,6 +80,24 @@ const SECTIONS = [
         ],
     },
     {
+        title: '账号操作',
+        tag: '主人',
+        master: true,
+        // 全部要带「确认」才执行 —— desc 里对用户明说，避免误触账号数据
+        items: [
+            { name: '新建 / 删除歌单', desc: '末尾带「确认」才执行', example: '#qqm歌单新建 我的歌单 确认' },
+            { name: '歌单加歌 / 删歌', desc: '歌曲用 songId:type，多首逗号分隔', example: '#qqm歌单加歌 123 456:1 确认' },
+            { name: '收藏 / 取消喜欢', desc: '收藏进「我喜欢」或移出', example: '#qqm喜欢歌曲 123:1 确认' },
+            { name: '收藏 / 取消收藏歌单', desc: '收藏外部歌单', example: '#qqm收藏歌单 7011264340 确认' },
+            { name: '收藏 / 取消收藏专辑', desc: '收藏外部专辑', example: '#qqm收藏专辑 9001 确认' },
+            { name: '不喜欢管理', desc: '歌曲 / 歌手 / 风格；可单项或清空', example: '#qqm不喜欢 歌曲 123 确认' },
+            { name: '发布 / 删除评论', desc: '支持歌曲 / 专辑 / 歌单 / 排行 / MV', example: '#qqm发评论 歌曲 123 好听 确认' },
+            { name: '音响力点赞 / 隐私', desc: '好友听歌榜点赞、取消与隐私开关', example: '#qqm音响力点赞 10001 确认' },
+            { name: '私信操作', desc: '发送、删除会话 / 消息、清空、设置、已读、卡片操作', example: '#qqm私信发送 10001 1 你好 确认' },
+            { name: '账号操作帮助', desc: '列出全部账号操作命令（仅主人）', example: '#qqm账号操作' },
+        ],
+    },
+    {
         title: '订阅与定时',
         tag: '计划',
         // 添加/删除限主人（整群推送与整群定时，不能谁都能加）；查看对全员开放
@@ -110,9 +128,9 @@ const SECTIONS = [
             },
             { name: '切换界面', desc: '换一套卡片 UI / 深浅色 / 热重载模板', example: '#qqm界面' },
             { name: '连通测试', desc: '探测 API 是否可用', example: '#qqm 测试' },
-            { name: '插件更新', desc: 'git 拉取最新代码', example: '#qqm更新' },
-            { name: '强制更新', desc: '丢弃本地改动同步远程', example: '#qqm强制更新' },
-            { name: '更新日志', desc: '查看最近提交', example: '#qqm更新日志' },
+            { name: '插件更新', desc: 'git / npm 更新到最新版本', example: '#qqm更新' },
+            { name: '强制更新', desc: 'git 丢弃本地改动；npm 更新 latest', example: '#qqm强制更新' },
+            { name: '更新日志', desc: '查看提交日志或 npm 版本状态', example: '#qqm更新日志' },
         ],
     },
     {
@@ -311,6 +329,28 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
         isMaster,
         tip: '外源曲免登录可直接播（档位看标签）；QQ 音乐付费曲仍需主人扫码登录。',
         sections,
+    };
+}
+/**
+ * 账号写操作专用卡片。
+ *
+ * 复用 2.0 guide 模板（四套主题都已具备），只把第一段从"多平台音源"切换成
+ * "账号操作"：模板靠 `kind === 'manage'` 跳过平台彩条与统计栏。
+ *
+ * 为什么不新增一个 card 名：`qqmusic-guide` 的 data 形状本来就是
+ * `sections[] / items[]`，账号操作正好是同一类内容；复用可以少维护 4 份模板。
+ */
+export function buildManageCardData(e = null) {
+    const base = buildGuideCardData(e, { full: true });
+    const accountSection = base.sections.find((s) => s.title === '账号操作');
+    return {
+        ...base,
+        kind: 'manage',
+        title: '账号操作',
+        subtitle: '24 个接口 · 末尾带「确认」才执行',
+        sources: [],
+        sections: accountSection ? [accountSection] : [],
+        tip: '仅主人可用；按主人账号执行。未带「确认」时只回用法，不会调用 API。这些操作会真实改动 QQ 音乐账号数据，请确认后再发。',
     };
 }
 /**

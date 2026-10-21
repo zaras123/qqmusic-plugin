@@ -1,4 +1,16 @@
 export declare function isGitRepo(): boolean;
+/**
+ * 判定插件是怎么装的。git 优先，因为源码目录也可能同时存在于 Karin 的 plugins/ 下；
+ * 没有 .git 时，再看插件是否来自 Karin 根目录的 node_modules。
+ */
+export declare function classifyUpdateMode({ hasGit, pluginDir, karinDir, packageName, rootPackage, }?: {
+    hasGit?: boolean;
+    karinDir?: string;
+    packageName?: string;
+    pluginDir?: string;
+    rootPackage?: any;
+}): "git" | "npm" | "unknown";
+export declare function getUpdateMode(): "git" | "npm" | "unknown";
 export declare function getLocalVersion(): string;
 /**
  * 2.0 占位版本号（**只在"发版前 + 解锁"这一格里用**）
@@ -43,33 +55,63 @@ export declare function updatePlugin({ force }?: {
     force?: boolean;
 }): Promise<{
     ok: boolean;
-    updating: boolean;
+    mode: string;
+    oldVersion: string;
     message: string;
     already?: undefined;
     changed?: undefined;
+    newVersion?: undefined;
+    remoteVersion?: undefined;
+} | {
+    ok: boolean;
+    already: boolean;
+    changed: boolean;
+    mode: string;
+    oldVersion: string;
+    newVersion: string;
+    remoteVersion: string;
+    message: string;
+} | {
+    already?: undefined;
+    changed?: undefined;
+    newVersion?: undefined;
+    ok: boolean;
+    mode: string;
+    oldVersion: string;
+    remoteVersion: string;
+    message: string;
+} | {
+    already?: undefined;
+    changed?: undefined;
+    newVersion?: undefined;
+    ok: boolean;
+    updating: boolean;
+    message: string;
     oldCommit?: undefined;
     newCommit?: undefined;
     oldVersion?: undefined;
-    newVersion?: undefined;
     time?: undefined;
     branch?: undefined;
     remoteUrl?: undefined;
     dep?: undefined;
 } | {
+    already?: undefined;
+    changed?: undefined;
+    newVersion?: undefined;
     updating?: undefined;
     ok: boolean;
     message: string;
-    already?: undefined;
-    changed?: undefined;
     oldCommit?: undefined;
     newCommit?: undefined;
     oldVersion?: undefined;
-    newVersion?: undefined;
     time?: undefined;
     branch?: undefined;
     remoteUrl?: undefined;
     dep?: undefined;
 } | {
+    already?: undefined;
+    changed?: undefined;
+    newVersion?: undefined;
     updating?: undefined;
     ok: boolean;
     message: string;
@@ -77,13 +119,12 @@ export declare function updatePlugin({ force }?: {
     branch: string;
     oldCommit: string;
     oldVersion: string;
-    already?: undefined;
-    changed?: undefined;
     newCommit?: undefined;
-    newVersion?: undefined;
     time?: undefined;
     dep?: undefined;
 } | {
+    already?: undefined;
+    changed?: undefined;
     updating?: undefined;
     ok: boolean;
     message: string;
@@ -93,8 +134,6 @@ export declare function updatePlugin({ force }?: {
     newCommit: string;
     oldVersion: string;
     newVersion: string;
-    already?: undefined;
-    changed?: undefined;
     time?: undefined;
     dep?: undefined;
 } | {
@@ -124,6 +163,12 @@ export declare function getUpdateLog({ since, limit }?: {
     limit?: number;
     since?: string;
 }): Promise<{
+    ok: boolean;
+    mode: string;
+    lines: any[];
+    message: string;
+} | {
+    mode?: undefined;
     ok: boolean;
     lines: any[];
     message: string;

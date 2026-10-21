@@ -105,6 +105,7 @@ function resolveKarinRoot() {
 const karinRoot = resolveKarinRoot()
 if (karinRoot) process.env.QQMUSIC_KARIN_PATH = karinRoot
 process.env.QQMUSIC_TEMP_PATH = path.join(pluginRoot, 'temp')
+process.env.QQMUSIC_PLUGIN_STATE_PATH = path.join(pluginRoot, 'temp', 'plugin-state')
 
 const { loadPluginBase } = await import('./dist/utils/plugin-base.js')
 await loadPluginBase()
@@ -120,6 +121,7 @@ const { qqmusicExtras } = await import('./dist/apps/extras.js')
 const { qqmusicTicket } = await import('./dist/apps/ticket.js')
 const { qqmusicStats } = await import('./dist/apps/stats.js')
 const { qqmusicMedal } = await import('./dist/apps/medal.js')
+const { qqmusicManage } = await import('./dist/apps/manage.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
 
@@ -135,6 +137,7 @@ const modules = [
   { name: '试听/海报/订阅/定时', class: qqmusicExtras },
   { name: '听歌统计', class: qqmusicStats },
   { name: '勋章进度', class: qqmusicMedal },
+  { name: '账号操作', class: qqmusicManage },
 ]
 
 let allPassed = asyncGateOk
@@ -332,6 +335,33 @@ const cases = [
   ['#qqm强制更新', 'forceUpdate'],
   ['#qqm更新日志', 'updateLog'],
   ['#qqm账号', 'listAccounts'],
+  // 账号写操作（24 个写接口；鉴权在 API，确认词在 handler 里二次校验）
+  ['#qqm歌单新建 测试歌单 确认', 'playlistWrite'],
+  ['#qqm歌单删除 123 确认', 'playlistWrite'],
+  ['#qqm歌单加歌 123 456:1 确认', 'playlistWrite'],
+  ['#qqm歌单删歌 123 456:1 确认', 'playlistWrite'],
+  ['#qqm喜欢歌曲 123:1 确认', 'playlistWrite'],
+  ['#qqm取消喜欢 123:1 确认', 'playlistWrite'],
+  ['#qqm收藏歌单 7011,7012 确认', 'playlistWrite'],
+  ['#qqm收藏歌单取消 7011 确认', 'playlistWrite'],
+  ['#qqm收藏专辑 9001,9002 确认', 'playlistWrite'],
+  ['#qqm收藏专辑取消 9001 确认', 'playlistWrite'],
+  ['#qqm不喜欢歌曲 123 确认', 'dislikeWrite'],
+  ['#qqm取消不喜欢歌手 888 确认', 'dislikeWrite'],
+  ['#qqm清空不喜欢 确认', 'dislikeWrite'],
+  ['#qqm发评论 歌曲 123 好听 确认', 'commentWrite'],
+  ['#qqm删评论 cm_123 确认', 'commentWrite'],
+  ['#qqm音响力点赞 10001 确认', 'soundpowerWrite'],
+  ['#qqm音响力取消点赞 10001 确认', 'soundpowerWrite'],
+  ['#qqm音响力隐私 1 确认', 'soundpowerWrite'],
+  ['#qqm私信发送 10001 1 你好 确认', 'privateWrite'],
+  ['#qqm私信删除会话 s_1 确认', 'privateWrite'],
+  ['#qqm私信删除消息 s_1 m_1 确认', 'privateWrite'],
+  ['#qqm私信清空会话 s_1 确认', 'privateWrite'],
+  ['#qqm私信设置 1 open 确认', 'privateWrite'],
+  ['#qqm私信全部已读 enc_1 确认', 'privateWrite'],
+  ['#qqm私信卡片操作 10001 1 m_1 确认', 'privateWrite'],
+  ['#qqm账号操作', 'usage'],
 ]
 
 /** 负例：这些不应被任何规则匹配（否则会误触发回复） */
@@ -465,6 +495,9 @@ console.log('\n=== 规则冲突体检 ===\n')
     '#qqm歌手 周杰伦', '#qqm专辑 叶惠美', '#qqm歌单 华语', '#qqm评论 晴天', '#qqm排行 飙升',
     '#qqm推荐', '#qqm推荐听2', '#qqm来首歌', '#qqm电台', '#qqm日推', '#qqm收藏', '#qqm新歌', '#qqm新歌 3',
     '#qqmMV', '#qqmMV 播放 1', '#qqm登录', '#qqm登录微信', '#qqm状态', '#qms', '#qqm设置',
+    '#qqm歌单新建 测试 确认', '#qqm喜欢歌曲 123:1 确认', '#qqm不喜欢歌曲 123 确认',
+    '#qqm发评论 歌曲 123 好听 确认', '#qqm音响力点赞 10001 确认',
+    '#qqm私信发送 10001 1 你好 确认',
     '#qqm 音质 flac', '#qqm 开启点歌', '#qqm一起听 1', '#qqm一起听 状态', '#qqm更新', '#qqm测试',
     ...aliasList.flatMap((a) => [`#qqm${a}点歌 晴天`, `#qqm${a}播放 晴天`]),
     '#qqm点歌 网易云的歌', '#qqm播放 网易云', '#qqm歌单 网易云',
@@ -524,6 +557,12 @@ const masterFnc = [
   'updateLog',
   'listAccounts',
   'togetherProbe', // 探测会回显群成员 uin 与房间内部 id，必须限主人
+  'playlistWrite',
+  'dislikeWrite',
+  'commentWrite',
+  'soundpowerWrite',
+  'privateWrite',
+  'usage', // #qqm账号操作：入口也仅主人
 ]
 for (const fnc of masterFnc) {
   const rules = allRules.filter((r) => r.fnc === fnc)
@@ -560,10 +599,12 @@ console.log('\n=== 纯函数抽查 ===\n')
 let pureOk = 0
 let pureBad = 0
 try {
-  const { parseQQMusicExtendedIds, buildPlayFailMessage, loginRenewHint, isPerUserScopePath, isAppleScopedRequest } =
+  const { parseQQMusicExtendedIds, parseQQMusicCard, buildPlayFailMessage, loginRenewHint, isPerUserScopePath, isAppleScopedRequest } =
     await import('./dist/utils/api.js')
   const { buildMusicFileName, formatSize, sniffAudioContainer } = await import('./dist/utils/send.js')
   const { isPluginCommandMsg } = await import('./dist/utils/common.js')
+  const { detectAdapter } = await import('./dist/utils/adapter.js')
+  const { collectMessageText, isQQMusicMessage } = await import('./dist/utils/resolve-text.js')
   // 一起听：插件侧只剩「协议端识别 + 开关」。
   // 协议字段、编排、限流、文案全在 API 侧（qqmusic-api-enhanced/scripts/test-together.js 有 48 项单测），
   // 插件这边如果还残留可复刻的协议实现，就是这套架构白改了。
@@ -586,6 +627,17 @@ try {
   // 四件套（试听/海报/订阅/定时）的可测逻辑全在 utils/extras.js —— 纯函数，不碰框架
   const { parseScheduleTime, chorusSegment, pickLyricLines, parseLrcLines, dueSchedules, dayKey, diffNewSongs } =
     await import('./dist/utils/extras.js')
+  // 账号写操作解析（24 个写接口）：确认词是硬门槛，用例密一点
+  const {
+    splitConfirm,
+    upstreamWriteError,
+    parseSongSpecs,
+    parsePlaylistCmd,
+    parseDislikeCmd,
+    parseCommentCmd,
+    parseSoundPowerCmd,
+    parsePrivateMsgCmd,
+  } = await import('./dist/utils/manage.js')
   const themeIds = listThemeIds()
   const classicTheme = resolveTheme({ uiTheme: 'classic' })
   const fallbackTheme = resolveTheme({ uiTheme: '__不存在的主题__' })
@@ -620,6 +672,29 @@ try {
   const snowlumaEv = mkEvent('SnowLuma')
   const qqbotEv = mkEvent('qqbot', { withSendApi: false })
   const privateEv = mkEvent('icqq', { withSendApi: false, group: null })
+  const karinEv = (protocol, standard = '') => ({
+    contact: { scene: 'group', peer: '100' },
+    bot: {
+      sendMsg: async () => ({}),
+      adapter: { protocol, standard, name: protocol },
+    },
+  })
+  const karinNapcatEv = karinEv('napcat', 'onebot11')
+  const karinIcqqEv = karinEv('icqq', 'icqq')
+  const karinQqbotEv = karinEv('qqbot')
+  const resolveRule = new qqmusicResolve().rule[0]
+  const resolveRe =
+    resolveRule.reg instanceof RegExp ? resolveRule.reg : new RegExp(String(resolveRule.reg))
+  const cardText = collectMessageText({
+    msg: '',
+    rawMessage: '',
+    elements: [
+      {
+        type: 'json',
+        data: '{"app":"com.tencent.structmsg","meta":{"music":{"title":"晴天","desc":"周杰伦","musicUrl":"https://y.qq.com/n/ryqq/songDetail/0039MnYb0qxYhV"}}}',
+      },
+    ],
+  })
 
   const pure = [
     // 专辑链接三种分享形态都要认得（少一种 = 那类链接用户发了没反应）
@@ -673,6 +748,27 @@ try {
     ['识别 #qqm一起听', isPluginCommandMsg('#qqm一起听 1'), true],
     ['识别 #qqm一起听 探测', isPluginCommandMsg('#qqm一起听 探测'), true],
     ['普通聊天不算命令', isPluginCommandMsg('今天天气不错'), false],
+    // Karin 把底层协议挂在 adapter.protocol/standard，不能再统一吞成 karin
+    ['Karin 协议端识别：NapCat', detectAdapter(karinNapcatEv).kind, 'onebot'],
+    ['Karin 协议端识别：ICQQ', detectAdapter(karinIcqqEv).kind, 'icqq'],
+    ['Karin 协议端识别：QQBot', detectAdapter(karinQqbotEv).kind, 'qqbot'],
+    ['Karin 协议端识别：NapCat 支持一起听', togetherAdapter(karinNapcatEv), 'onebot'],
+    ['Karin 协议端识别：ICQQ 支持一起听', togetherAdapter(karinIcqqEv), 'icqq'],
+    ['Karin 协议端识别：QQBot 不支持一起听', togetherAdapter(karinQqbotEv), ''],
+    // Karin JSON 卡片：e.msg 为空，正文只在 e.elements
+    ['解析：Karin 元素消息能提取 QQ 音乐 JSON', isQQMusicMessage(cardText), true],
+    ['解析：Karin 元素消息能真正解析出歌曲', parseQQMusicCard(cardText)?.title, '晴天'],
+    [
+      '解析：普通图片元素不误判成 QQ 音乐',
+      isQQMusicMessage(
+        collectMessageText({
+          msg: '',
+          elements: [{ type: 'image', file: 'https://example.com/a.jpg' }],
+        })
+      ),
+      false,
+    ],
+    ['解析规则：空文本消息仍会进入解析器', resolveRe.test(''), true],
     // DRM 曲目：服务端只说「仅提供加密文件」，此时再追加「需会员播放，请 #qqm登录」是自相矛盾
     [
       'DRM 曲不追加「需会员播放」（登录/会员都解决不了）',
@@ -938,6 +1034,63 @@ try {
       ['b'],
     ],
     ['订阅：没有增量就是空', diffNewSongs([{ songmid: 'a' }], [{ songmid: 'a' }]).length, 0],
+
+    // ──────────── 账号写操作（24 个写接口）解析 ────────────
+    // 确认词是硬门槛：不带确认词的写命令必须判成"只回用法、不执行"
+    ['写操作：确认词中文结尾', splitConfirm('123:1 确认'), { ok: true, rest: '123:1' }],
+    ['写操作：确认词英文结尾', splitConfirm('123:1 confirm'), { ok: true, rest: '123:1' }],
+    ['写操作：确认词在中间不算', splitConfirm('确认一下 123:1'), { ok: false, rest: '确认一下 123:1' }],
+    ['写操作：没有确认词不算', splitConfirm('123:1'), { ok: false, rest: '123:1' }],
+    // 外层 result=100 不代表业务成功：data.code 非 0 必须按失败处理
+    ['写操作：data.code=0 通过', upstreamWriteError({ code: 0 }), ''],
+    ['写操作：data.code="0" 通过', upstreamWriteError({ code: '0' }), ''],
+    ['写操作：业务码失败并取 errMsg', upstreamWriteError({ code: 123, errMsg: '失败' }), '失败'],
+    ['写操作：业务码失败无文案时保留 code', upstreamWriteError({ code: '-1' }), '上游返回 code=-1'],
+    ['写操作：没有 code 不误判', upstreamWriteError({ message: '普通返回' }), ''],
+    // 歌曲规格：缺 type 默认 1；非法片段丢弃
+    ['歌曲规格：能补默认 type', parseSongSpecs('123 456:2,789'), ['123:1', '456:2', '789:1']],
+    ['歌曲规格：非法片段丢弃', parseSongSpecs('abc 123:x'), []],
+    // 歌单：新建 / 删除 / 加歌 / 删歌
+    ['歌单新建：解析名称', parsePlaylistCmd('#qqm歌单新建 我的歌单 确认'), { action: 'playlistCreate', name: '我的歌单', dirId: 0, ids: [], songs: [], ok: true, usage: '' }],
+    ['歌单新建：没确认词不执行', parsePlaylistCmd('#qqm歌单新建 我的歌单').ok, false],
+    ['歌单删除：解析 dirId', parsePlaylistCmd('#qqm歌单删除 123 确认').dirId, 123],
+    ['歌单加歌：dirId + 歌曲', parsePlaylistCmd('#qqm歌单加歌 123 456:1 789 确认').songs, ['456:1', '789:1']],
+    ['歌单加歌：缺 dirId 回用法', parsePlaylistCmd('#qqm歌单加歌 确认').usage, '用法：#qqm歌单加歌 <dirId> <songId[:type]> 确认'],
+    ['歌单删歌：解析成功', parsePlaylistCmd('#qqm歌单删歌 123 456:1 确认').action, 'playlistDelSongs'],
+    // 「我喜欢」与外部歌单收藏
+    ['喜欢歌曲：解析歌曲', parsePlaylistCmd('#qqm喜欢歌曲 123:1 456 确认').songs, ['123:1', '456:1']],
+    ['取消喜欢：解析成功', parsePlaylistCmd('#qqm取消喜欢 123:1 确认').action, 'unlikeSong'],
+    ['收藏歌单：解析多个 id', parsePlaylistCmd('#qqm收藏歌单 7011,7012 确认').ids, [7011, 7012]],
+    ['收藏歌单取消：优先于收藏歌单匹配', parsePlaylistCmd('#qqm收藏歌单取消 7011 确认').action, 'unfavSonglist'],
+    ['收藏专辑：解析多个 id', parsePlaylistCmd('#qqm收藏专辑 9001,9002 确认').ids, [9001, 9002]],
+    ['收藏专辑取消：解析成功', parsePlaylistCmd('#qqm收藏专辑取消 9001 确认').action, 'unfavAlbum'],
+    // 不喜欢：三种类型 + 清空
+    ['不喜欢：歌曲类型', parseDislikeCmd('#qqm不喜欢 歌曲 123,456 确认').type, 1],
+    ['不喜欢：歌手类型', parseDislikeCmd('#qqm不喜欢 歌手 888 确认').type, 2],
+    ['不喜欢：风格类型', parseDislikeCmd('#qqm不喜欢 风格 9 确认').type, 3],
+    ['取消不喜欢：解析成功', parseDislikeCmd('#qqm取消不喜欢 歌曲 123 确认').action, 'cancelDislike'],
+    ['清空不喜欢：确认执行', parseDislikeCmd('#qqm清空不喜欢 确认').action, 'cancelAllDislike'],
+    ['不喜欢：没确认词不执行', parseDislikeCmd('#qqm不喜欢 歌曲 123').ok, false],
+    // 评论
+    ['发评论：歌曲', parseCommentCmd('#qqm发评论 歌曲 123 好听 确认').biztype, 1],
+    ['发评论：MV', parseCommentCmd('#qqm发评论 MV 456 好看 确认').biztype, 5],
+    ['发评论：内容可带空格', parseCommentCmd('#qqm发评论 歌曲 123 真的 好听 确认').content, '真的 好听'],
+    ['发评论：没确认词不执行', parseCommentCmd('#qqm发评论 歌曲 123 好听').ok, false],
+    ['删评论：解析 cmId', parseCommentCmd('#qqm删评论 cm_123 确认').cmId, 'cm_123'],
+    // 音响力
+    ['音响力点赞：解析 uin', parseSoundPowerCmd('#qqm音响力点赞 10001 确认').action, 'soundpowerLike'],
+    ['音响力取消点赞：解析 uin', parseSoundPowerCmd('#qqm音响力取消点赞 10001 确认').action, 'soundpowerUnlike'],
+    ['音响力隐私：隐藏', parseSoundPowerCmd('#qqm音响力隐私 1 确认').status, 1],
+    ['音响力隐私：非法值回用法', parseSoundPowerCmd('#qqm音响力隐私 2 确认').ok, false],
+    // 私信 7 个
+    ['私信发送：userId + msgType + 文本', parsePrivateMsgCmd('#qqm私信发送 10001 1 你好 确认').args, { userId: '10001', msgType: 1, content: '你好' }],
+    ['私信删除会话：sessionId', parsePrivateMsgCmd('#qqm私信删除会话 s_1 确认').args, { sessionId: 's_1' }],
+    ['私信删除消息：sessionId + msgId', parsePrivateMsgCmd('#qqm私信删除消息 s_1 m_1 确认').args, { sessionId: 's_1', msgId: 'm_1' }],
+    ['私信清空会话：sessionId', parsePrivateMsgCmd('#qqm私信清空会话 s_1 确认').action, 'privateClearSession'],
+    ['私信设置：configType + value', parsePrivateMsgCmd('#qqm私信设置 1 open 确认').args, { configType: 1, configValue: 'open' }],
+    ['私信全部已读：encryptUin', parsePrivateMsgCmd('#qqm私信全部已读 enc_1 确认').args, { encryptUin: 'enc_1', cmdFlag: 1 }],
+    ['私信卡片操作：targetUserId + msgType + msgId', parsePrivateMsgCmd('#qqm私信卡片操作 10001 1 m_1 确认').action, 'privateCardAction'],
+    ['私信发送：没确认词不执行', parsePrivateMsgCmd('#qqm私信发送 10001 1 你好').ok, false],
   ]
 
   for (const [name, got, want] of pure) {
@@ -1181,7 +1334,7 @@ function v2Check(name, got, want) {
 
 {
   // 配置是真会写盘的 —— 先备份用户配置，跑完原样恢复（与 data/tokens 的处理同思路）
-  const cfgFile = path.join(pluginRoot, 'config', 'config', 'qqmusic.yaml')
+  const cfgFile = path.join(pluginRoot, 'temp', 'plugin-state', 'config', 'qqmusic.yaml')
   const cfgBackup = fs.existsSync(cfgFile) ? fs.readFileSync(cfgFile, 'utf8') : null
   /**
    * ⚠️ 这是一段会改**真实用户配置**的测试，还原必须成对且可验证。
@@ -1207,13 +1360,13 @@ function v2Check(name, got, want) {
       if (cfgBackup !== null) {
         fs.writeFileSync(cfgFile, cfgBackup, 'utf8')
         if (fs.readFileSync(cfgFile, 'utf8') !== cfgBackup) {
-          console.log('❌ 配置还原后与备份不一致（请检查 config/config/qqmusic.yaml）')
+          console.log('❌ 配置还原后与备份不一致（请检查 temp/plugin-state/config/qqmusic.yaml）')
           allPassed = false
         }
       }
       else if (fs.existsSync(cfgFile)) fs.unlinkSync(cfgFile)
     } catch (e) {
-      console.log(`⚠️ 配置恢复失败（请检查 config/config/qqmusic.yaml）：${e.message}`)
+      console.log(`⚠️ 配置恢复失败（请检查 temp/plugin-state/config/qqmusic.yaml）：${e.message}`)
     }
   }
 
@@ -1222,7 +1375,8 @@ function v2Check(name, got, want) {
     const V = await import('./dist/utils/v2.js')
     const HC = await import('./dist/utils/help-card.js')
     const R = await import('./dist/utils/render.js')
-    const { buildSchemas, setConfigData, getConfigData } = await import('./dist/web/schemas.js')
+    const { buildSchemas, setConfigData, getConfigData, schemaUiKey } = await import('./dist/web/schemas.js')
+    const WC = await import('./dist/web/components.js')
     const { default: Config2 } = await import('./dist/components/Config.js')
     const setCfg = (patch) => Config2.setConfig('qqmusic', { ...Config2.getConfig('qqmusic'), ...patch })
     const cfgNow = () => Config2.getConfig('qqmusic')
@@ -1444,6 +1598,48 @@ function v2Check(name, got, want) {
       v2Check('版本：2.0 帮助卡用的是展示版本', HC.buildGuideCardData({}).version, `v${U.getLocalVersion()}`)
       v2Check('版本：已发版（package.json 进 2.x）', /^2\./.test(pkgVersion), true)
       v2Check('版本：展示口径与包版本同源（打包时别只改一处）', U.getLocalVersion(), pkgVersion)
+      v2Check(
+        '更新模式：有 .git 优先按 Git 更新',
+        U.classifyUpdateMode({
+          hasGit: true,
+          pluginDir: '/srv/karin/node_modules/karin-plugin-qqmusic',
+          karinDir: '/srv/karin',
+          packageName: 'karin-plugin-qqmusic',
+        }),
+        'git'
+      )
+      v2Check(
+        '更新模式：node_modules 安装识别为 npm',
+        U.classifyUpdateMode({
+          hasGit: false,
+          pluginDir: '/srv/karin/node_modules/.pnpm/karin-plugin-qqmusic@2.1.4/node_modules/karin-plugin-qqmusic',
+          karinDir: '/srv/karin',
+          packageName: 'karin-plugin-qqmusic',
+        }),
+        'npm'
+      )
+      v2Check(
+        '更新模式：根 package.json 依赖也能识别 npm',
+        U.classifyUpdateMode({
+          hasGit: false,
+          pluginDir: '/srv/cache/pkg',
+          karinDir: '/srv/karin',
+          packageName: 'karin-plugin-qqmusic',
+          rootPackage: { dependencies: { 'karin-plugin-qqmusic': '^2.1.4' } },
+        }),
+        'npm'
+      )
+      v2Check(
+        '更新模式：无法识别时不冒充 Git',
+        U.classifyUpdateMode({
+          hasGit: false,
+          pluginDir: '/tmp/qqmusic-plugin',
+          karinDir: '/srv/karin',
+          packageName: 'karin-plugin-qqmusic',
+          rootPackage: { dependencies: {} },
+        }),
+        'unknown'
+      )
       setCfg({ unlockV2: true, platforms: {} })
 
       // ── 更新器的"诚实"守卫 ──
@@ -1473,6 +1669,16 @@ function v2Check(name, got, want) {
         v2Check(
           '更新：「已是最新」不再依赖"两个提交号都存在"这种必然为假的组合',
           /already \|\| oldCommit === newCommit/.test(usrc),
+          true
+        )
+        v2Check(
+          '更新：npm 安装调用 node-karin updatePkg',
+          /async function updateNpmPlugin/.test(usrc) && /karin\.updatePkg\(pluginPackageName, 'latest'\)/.test(usrc),
+          true
+        )
+        v2Check(
+          '更新：npm 更新后要求重启',
+          /安装方式: npm \/ pnpm[\s\S]{0,100}请发送 #重启/.test(usrc),
           true
         )
       }
@@ -1792,6 +1998,8 @@ function v2Check(name, got, want) {
         v2Check('Karin WebUI：提醒粘贴框不保留内容（修好后要重新粘一次）', /粘贴框不保留内容/.test(webSchemaSrc), true)
         v2Check('聊天命令：失败回执也带 tip/howto（以前只有一句 errMsg）', /err\.tip \? String\(err\.tip\)/.test(loginSrc3) && /Array\.isArray\(err\.howto\)/.test(loginSrc3), true)
         v2Check('插件请求层把 howto 挂到 Error 上（不然上面两处拿不到）', /err\.howto = data\.howto/.test(apiSrc), true)
+        v2Check('扫码：非主人触发时给出权限提示', /authFailMsg:/.test(loginSrc3), true)
+        v2Check('扫码：请求 API 前先回执“正在获取二维码”', /正在获取\$\{p\.label\}二维码/.test(loginSrc3), true)
       }
 
       setCfg({ enable: true, unlockV2: true, platforms: {} })
@@ -1838,16 +2046,33 @@ function v2Check(name, got, want) {
       quoted.length = 0
       h = await loginApp.platformSetCookie(fakeE('#qqm网易ck'))
       v2Check('凭据：只发 #qqm网易ck（没带内容）时回用法与出处', h === true && /用法：#qqm网易ck/.test(quoted.join('\n')) && /MUSIC_U/.test(quoted.join('\n')), true)
-      // ⑦ ？？？关着：三条命令都必须静默（1.9 里它们不存在）
+      // ⑦ ？？？关着：粘贴/清除保持 1.x 静默；扫码要解释为什么不能继续
       setCfg({ unlockV2: false })
       quoted.length = 0
-      const locked = [
+      const lockedCredentialCommands = [
         await loginApp.platformSetCookie(fakeE('#qqm网易ck MUSIC_U=x')),
         await loginApp.platformClearCookie(fakeE('#qqm网易清ck')),
-        await loginApp.platformQrLogin(fakeE('#qqm网易登录', { isMaster: true })),
       ]
-      v2Check('凭据：？？？关着时三条命令都静默（不提示、不报错）', [locked.join(','), quoted.length].join('|'), 'false,false,false|0')
-      setCfg({ unlockV2: true, platforms: {} })
+      v2Check(
+        '凭据：？？？关着时粘贴/清除命令静默（1.x 兼容）',
+        [lockedCredentialCommands.join(','), quoted.length].join('|'),
+        'false,false|0'
+      )
+      const lockedQr = await loginApp.platformQrLogin(fakeE('#qqm网易登录', { isMaster: true }))
+      v2Check(
+        '扫码：？？？关着时明确提示开启方式，而不是无反应',
+        lockedQr === true && /打开「？？？」/.test(quoted.join('\n')),
+        true
+      )
+      quoted.length = 0
+      setCfg({ unlockV2: true, enable: false })
+      const disabledQr = await loginApp.platformQrLogin(fakeE('#qqm网易登录', { isMaster: true }))
+      v2Check(
+        '扫码：插件停用时明确提示，而不是无反应',
+        disabledQr === true && /插件当前未启用/.test(quoted.join('\n')),
+        true
+      )
+      setCfg({ enable: true, unlockV2: true, platforms: {} })
 
       // ⑧ 帮助卡：两条通道都列出来；扫码那条是主人专属（rule 上就是 permission: master）
       // 条目要**跨段**找：凭据那两条在独立的「平台凭据」段里（见下一条断言）
@@ -2093,6 +2318,23 @@ function v2Check(name, got, want) {
     v2Check('2.0 帮助：文本兜底含平台命令（最短写法）', /#qqm网易 关键词/.test(HC.formatGuideText({})), true)
     v2Check('2.0 帮助：非主人看不到主人段', guide.sections.every((s) => s.title !== '主人管理'), true)
     v2Check('2.0 帮助：主人能看到主人段', HC.buildGuideCardData({ isMaster: true }).sections.some((s) => s.title === '主人管理'), true)
+    v2Check('2.0 帮助：非主人看不到账号操作段', guide.sections.every((s) => s.title !== '账号操作'), true)
+    v2Check('2.0 帮助：主人能看到账号操作段', HC.buildGuideCardData({ isMaster: true }).sections.some((s) => s.title === '账号操作'), true)
+    const manageCard = HC.buildManageCardData({ isMaster: true })
+    v2Check('账号操作卡片：使用 guide 的 manage 模式', manageCard.kind === 'manage' && manageCard.title === '账号操作', true)
+    v2Check(
+      '账号操作卡片：含账号操作段与命令示例',
+      manageCard.sections.some((s) => s.title === '账号操作' && s.items.some((i) => /#qqm收藏专辑/.test(i.example || ''))),
+      true
+    )
+    v2Check('账号操作卡片：不渲染平台音源清单', manageCard.sources.length === 0, true)
+    v2Check(
+      '账号操作卡片：四套 guide 模板都支持 manage 模式',
+      ['classic', 'apple', 'nebula', 'multi'].every((t) =>
+        fs.readFileSync(path.join(pluginRoot, 'resources', 'themes', t, 'qqmusic-guide.html'), 'utf8').includes("data.kind")
+      ),
+      true
+    )
     const k1 = R.guideCacheKey(guide, 'classic')
     v2Check('帮助缓存：同输入稳定命中', k1 === R.guideCacheKey(HC.buildGuideCardData({}), 'classic'), true)
     v2Check('帮助缓存：换主题就换键（别发过期图）', k1 !== R.guideCacheKey(guide, 'apple'), true)
@@ -2187,6 +2429,69 @@ function v2Check(name, got, want) {
     v2Check('保存：页签里的条数生效', V.platformMaxList(cfgNow(), 'bilibili'), 6)
     await setConfigData({ evil: 1, 'evil.key': 1 }, {})
     v2Check('保存：非白名单字段不落盘', cfgNow().evil, undefined)
+
+    // ── Karin WebUI 真实组件树 / 保存载荷 ──
+    setCfg({ unlockV2: true, platforms: {} })
+    const currentSchemas = buildSchemas()
+    const fieldSchema = (field) => {
+      const index = currentSchemas.findIndex((item) => item.field === field)
+      return { schema: currentSchemas[index], key: schemaUiKey(currentSchemas[index], index) }
+    }
+    const fakeComponents = {
+      input: {
+        string: (key, options) => ({ componentType: 'input', key, ...options }),
+        password: (key, options) => ({ componentType: 'input', key, ...options }),
+        number: (key, options) => ({ componentType: 'input', key, ...options }),
+      },
+      switch: {
+        create: (key, options) => ({ componentType: 'switch', key, ...options }),
+      },
+      select: {
+        create: (key, options) => ({ componentType: 'select', key, ...options }),
+        createItem: (key, options) => ({ componentType: 'select-item', key, ...options }),
+      },
+      divider: {
+        create: (key, options) => ({ componentType: 'divider', key, ...options }),
+      },
+      accordion: {
+        create: (key, options) => ({ componentType: 'accordion', key, ...options }),
+        createItem: (key, options) => ({ componentType: 'accordion-item', key, ...options }),
+      },
+    }
+    const webTree = WC.buildKarinComponents(fakeComponents, currentSchemas, getConfigData())
+    v2Check('Karin WebUI：根节点使用标准 accordion', webTree[0]?.componentType, 'accordion')
+    v2Check('Karin WebUI：配置组全部是 accordion-item', webTree[0]?.children.every((item) => item.componentType === 'accordion-item'), true)
+    v2Check(
+      'Karin WebUI：表单控件放在 accordion-item.children，不直接塞进 accordion',
+      webTree[0]?.children.every((item) => Array.isArray(item.children) && item.children.every((child) => child.componentType !== 'accordion-item')),
+      true
+    )
+    const uiComponentKeys = webTree[0].children.flatMap((item) => item.children.map((child) => child.key))
+    v2Check('Karin WebUI：组件 key 不含点号（避免 React Hook Form 拆成嵌套路径）', uiComponentKeys.every((key) => !String(key).includes('.')), true)
+    v2Check('Karin WebUI：主人账号 publicAccount 已暴露', currentSchemas.some((item) => item.field === 'publicAccount'), true)
+    const appleCkKey = fieldSchema('platforms.apple.ck').key
+    const appleCk = webTree[0].children.flatMap((item) => item.children).find((child) => child.key === appleCkKey)
+    v2Check('Karin WebUI：多行凭据框 height 是纯数字（不能拼成 h-160pxpx）', appleCk?.height, '160')
+
+    // 与 Karin 1.18 前端 getComponentResult 的输出同形：顶层 key 下是分组数组。
+    const webPayload = {
+      'qqmusic-settings': [
+        {
+          [fieldSchema('apiBase').key]: 'https://web.example.com',
+          [fieldSchema('unlockV2').key]: true,
+          [fieldSchema('publicAccount').key]: '10001',
+        },
+        {
+          [fieldSchema('platforms.netease.enabled').key]: false,
+          [fieldSchema('platforms.kuwo.maxList').key]: 7,
+        },
+      ],
+    }
+    await setConfigData(webPayload, {})
+    const webSaved = cfgNow()
+    v2Check('Karin 保存载荷：分组数组能还原顶层字段', [webSaved.apiBase, webSaved.publicAccount].join('|'), 'https://web.example.com|10001')
+    v2Check('Karin 保存载荷：平台字段映射回真实嵌套路径', [webSaved.platforms?.netease?.enabled, webSaved.platforms?.kuwo?.maxList].join('|'), 'false|7')
+    v2Check('Karin 保存载荷：不残留 UI 组件 key', Object.keys(webSaved).some((key) => key.startsWith('qqmusic-')), false)
   } catch (err) {
     allPassed = false
     v2Bad++
@@ -2456,7 +2761,11 @@ function refactorCheck(name, got, want) {
   const fsMod = await import('node:fs')
   const { default: Config } = await import('./dist/components/Config.js')
   const scratchDef = path.join(pluginRoot, 'config/default_config/__cachetest.yaml')
-  const scratchUsr = path.join(pluginRoot, 'config/config/__cachetest.yaml')
+  const scratchUsr = path.join(pluginRoot, 'temp/plugin-state/config/__cachetest.yaml')
+  const scratchBadDef = path.join(pluginRoot, 'config/default_config/__badtest.yaml')
+  const scratchBadUsr = path.join(pluginRoot, 'temp/plugin-state/config/__badtest.yaml')
+  const scratchDotDef = path.join(pluginRoot, 'config/default_config/__dottest.yaml')
+  const scratchDotUsr = path.join(pluginRoot, 'temp/plugin-state/config/__dottest.yaml')
   const origRead = fsMod.default.readFileSync
   const reads = []
   fsMod.default.readFileSync = function (p, ...rest) {
@@ -2480,7 +2789,7 @@ function refactorCheck(name, got, want) {
     first.a = '我改我自己'
     delete first.b
     const third = Config.getConfig('__cachetest')
-    refactorCheck('配置：返回浅拷贝（改调用方那份不污染缓存）', [third.a, third.b].join(','), '1,2')
+    refactorCheck('配置：返回独立副本（改调用方那份不污染缓存）', [third.a, third.b].join(','), '1,2')
 
     const onEdit = reads.length
     fsMod.default.writeFileSync(scratchUsr, 'b: 3\nc: 4\n', 'utf8')
@@ -2494,9 +2803,47 @@ function refactorCheck(name, got, want) {
     fsMod.default.unlinkSync(scratchUsr)
     fsMod.default.writeFileSync(scratchDef, 'a: 7\n', 'utf8')
     refactorCheck('配置：默认配置被更新覆盖 → 同样失效', Config.getConfig('__cachetest').a, 7)
+
+    fsMod.default.writeFileSync(scratchBadDef, 'fallback: true\n', 'utf8')
+    fsMod.default.writeFileSync(scratchBadUsr, 'broken: [\n', 'utf8')
+    refactorCheck('配置：用户 YAML 损坏时保留文件并回落默认值', Config.getConfig('__badtest').fallback, true)
+    refactorCheck('配置：损坏的 YAML 不会被静默覆盖', fsMod.default.readFileSync(scratchBadUsr, 'utf8'), 'broken: [\n')
+
+    fsMod.default.writeFileSync(scratchDotDef, 'platforms: {}\n', 'utf8')
+    fsMod.default.writeFileSync(scratchDotUsr, 'platforms.netease.enabled: false\n', 'utf8')
+    const dotted = Config.getConfig('__dottest')
+    refactorCheck('配置：历史点号字面量键迁回嵌套对象', dotted.platforms?.netease?.enabled, false)
+    refactorCheck('配置：迁移后根节点不再残留点号键', Object.keys(dotted).some((key) => key.includes('.')), false)
+
+    const fakeKarin = path.join(pluginRoot, 'temp', '__karin-path-test')
+    fsMod.default.rmSync(fakeKarin, { recursive: true, force: true })
+    fsMod.default.mkdirSync(path.join(fakeKarin, 'plugins'), { recursive: true })
+    fsMod.default.writeFileSync(path.join(fakeKarin, 'index.mjs'), "import('node-karin/start')\n", 'utf8')
+    fsMod.default.writeFileSync(
+      path.join(fakeKarin, 'package.json'),
+      JSON.stringify({ type: 'module', dependencies: { 'node-karin': '^1.18.0' } }),
+      'utf8'
+    )
+    const pathOut = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        "const p=await import('./dist/utils/path.js'); console.log(JSON.stringify({config:p.pluginConfigPath,data:p.pluginDataPath}))",
+      ],
+      {
+        cwd: pluginRoot,
+        env: { ...process.env, QQMUSIC_KARIN_PATH: fakeKarin, QQMUSIC_PLUGIN_STATE_PATH: '' },
+        encoding: 'utf8',
+      }
+    ).trim()
+    const pathInfo = JSON.parse(pathOut)
+    refactorCheck('Karin 路径：用户配置在 @karinjs/<插件名>/config', pathInfo.config.endsWith(path.join('@karinjs', 'karin-plugin-qqmusic', 'config')), true)
+    refactorCheck('Karin 路径：运行期数据在 @karinjs/<插件名>/data', pathInfo.data.endsWith(path.join('@karinjs', 'karin-plugin-qqmusic', 'data')), true)
+    fsMod.default.rmSync(fakeKarin, { recursive: true, force: true })
   } finally {
     fsMod.default.readFileSync = origRead
-    for (const f of [scratchDef, scratchUsr]) {
+    for (const f of [scratchDef, scratchUsr, scratchBadDef, scratchBadUsr, scratchDotDef, scratchDotUsr]) {
       try {
         fsMod.default.unlinkSync(f)
       } catch {}

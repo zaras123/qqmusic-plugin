@@ -118,9 +118,52 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 | ⚙️ 配置 | `#qqm 测试` | 测试 API 连通（主人） |
 | ⚙️ 配置 | `#qqm账号` | 查看已登录账号（主人） |
 | 🎨 界面 | `#qqm界面` | 查看/切换卡片主题、深浅色、自定义背景、热重载模板（主人） |
-| 🔄 更新 | `#qqm更新` | 拉取最新插件代码（主人，需 git 安装） |
-| 🔄 更新 | `#qqm强制更新` | 丢弃本地改动并同步远程（主人） |
-| 🔄 更新 | `#qqm更新日志` | 查看最近提交（主人） |
+| 🔄 更新 | `#qqm更新` | 更新插件到最新版本（主人；支持 git 与 npm 安装） |
+| 🔄 更新 | `#qqm强制更新` | git 丢弃本地改动并同步远程；npm 更新到 latest（主人） |
+| 🔄 更新 | `#qqm更新日志` | 查看 Git 提交日志或 npm 当前/远程版本（主人） |
+
+### 账号操作
+
+账号操作**仅主人可用**，会真实修改主人账号数据；命令只按主人自己的账号槽位执行，
+不会被「一律走主人账号」换到别的槽位。每条命令末尾必须带 `确认` 或 `confirm`，否则只回用法、不执行。
+完整命令可在群里发 `#qqm账号操作` 查看。
+
+```text
+#qqm歌单新建 我的歌单 确认
+#qqm歌单删除 123 确认
+#qqm歌单加歌 123 456:1 789:1 确认
+#qqm歌单删歌 123 456:1 确认
+
+#qqm喜欢歌曲 123:1 确认
+#qqm取消喜欢 123:1 确认
+#qqm收藏歌单 7011,7012 确认
+#qqm收藏歌单取消 7011 确认
+#qqm收藏专辑 9001,9002 确认
+#qqm收藏专辑取消 9001 确认
+
+#qqm不喜欢 歌曲 123 确认
+#qqm取消不喜欢 歌手 888 确认
+#qqm清空不喜欢 确认
+
+#qqm发评论 歌曲 123 好听 确认
+#qqm删评论 cm_123 确认
+
+#qqm音响力点赞 10001 确认
+#qqm音响力取消点赞 10001 确认
+#qqm音响力隐私 1 确认
+
+#qqm私信发送 10001 1 你好 确认
+#qqm私信删除会话 s_1 确认
+#qqm私信删除消息 s_1 m_1 确认
+#qqm私信清空会话 s_1 确认
+#qqm私信设置 1 open 确认
+#qqm私信全部已读 enc_1 确认
+#qqm私信卡片操作 10001 1 m_1 确认
+```
+
+`歌曲ID:类型` 中，类型省略时默认为 `1`；多个歌曲、歌单或专辑 ID 可用英文逗号分隔。
+音响力隐私 `1` 表示隐藏、`0` 表示公开。写接口成功后如果上游仍在 `data.code` 返回非零业务码，
+插件会显示失败原因，不会误报成功。
 
 ### 听歌时长统计
 
@@ -134,7 +177,7 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
   时长拿不到的曲目只计**次数**，不编一个数字出来。
 - **连续天数**：今天还没听**不算断连**（从昨天往回数），所以每天早上的数字不会归零。
 - **隐私**：群聊记在群账本、私聊记在个人账本，两类不混；只在群里能看群榜。
-- **落盘**：`data/qqmusic-store.json` 之外的独立文件 `data/qqmusic-stats.json`（`.gitignore` 内，
+- **落盘**：Karin 运行目录 `@karinjs/karin-plugin-qqmusic/data/qqmusic-store.json` 之外的独立文件 `@karinjs/karin-plugin-qqmusic/data/qqmusic-stats.json`（插件包内 `.gitignore` 也豁免 `data/`，
   `#qqm强制更新` 的 `git clean` 豁免清单含 `data/`，强制更新不会冲掉）。写盘是**合并写**：
   5 秒内的多次点歌并成一次，群里连点几首不会触发几次全量序列化。
 - **怎么调**：Karin WebUI →「① 基础设置 → 听歌时长统计 / 统计保留天数 / 统计人数上限」。
@@ -187,7 +230,7 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 >
 > 只影响「播歌 / 取数据」；登录状态、取 CK、刷新这些仍只认请求者本人（否则会把别人的登录态误报成本人的）。访客 Token 也无法指定主人账号。
 >
-> 多账号想固定用某一个时，才在 `config/config/qqmusic.yaml` 里手动填 `publicAccount`（留空=自动）。
+> 多账号想固定用某一个时，才在 `@karinjs/karin-plugin-qqmusic/config/qqmusic.yaml` 里手动填 `publicAccount`（留空=自动）。
 > 不需要全员共用主人号时，在 Karin WebUI 关闭「一律走主人账号」即可。
 
 > 📌 **关于其它平台凭据**：QQ 音乐之外的平台各有**独立**通道（哪家能配、怎么配，以帮助卡的音源行为准）：
@@ -205,7 +248,7 @@ QQ 群：[点击加入](https://qm.qq.com/q/GKxEVvF8Ua)
 > 📌 **关于试听 / 海报 / 订阅 / 定时点歌**：
 > - **副歌片段怎么选**：没有音频分析，用的是「40% 进度起」的启发式（流行歌副歌大多在那之后）；时长拿不到时用 ffprobe/ffmpeg 探一次，再不行从 60s 起放。片段固定 **128k 重编成紧凑 mp3**（`previewSec` 可调 10-60 秒）—— 试听只为判断好不好听，无损片段没有意义。
 > - **歌词海报选句**：与试听同一副歌窗口（LRC 时间戳定位，兼容 QRC 字级标签，自动滤掉作词/作曲元数据行），四套主题都有独立的海报模板。
-> - **订阅 / 定时是群级数据**（存在插件的 `data/qqmusic-store.json`，按群隔离）：`#qqm强制更新` 的 git clean 已豁免 `data/`，不会把订阅冲掉；添加/删除限**主人**（整群推送的事），查看对全员开放。
+> - **订阅 / 定时是群级数据**（存在 `@karinjs/karin-plugin-qqmusic/data/qqmusic-store.json`，按群隔离）：插件包内 `data/` 已豁免 `#qqm强制更新` 的 git clean，不会把订阅冲掉；添加/删除限**主人**（整群推送的事），查看对全员开放。
 > - **订阅推送**以「歌手歌曲列表出现增量」为准（与 `#qqm歌手` 同一份热门列表）—— 新歌爬进列表就会被推到群里，并写入本群点歌会话，收到推送直接 `#qqm听1` 就能播。bot 被移出群 / 发送连续失败时该订阅自动停用。
 > - **定时点歌**到点后走与 `#qqm播放` 完全同一条发送链（详情卡 → 语音 → 群文件），「一律走主人账号」照常生效；机器人恰好在整点宕机时，**晚到 10 分钟内**照样补发。
 
@@ -248,7 +291,7 @@ cd karin-plugin-qqmusic && pnpm install && pnpm build
 
 本插件需要配合后端 API 使用。API 因特殊原因不开源，请加入用户群申请 API 地址和 Token。
 
-在配置文件中填写（`config/config/qqmusic.yaml`，也可在 Karin WebUI 的插件配置里编辑）：
+在配置文件中填写（`@karinjs/karin-plugin-qqmusic/config/qqmusic.yaml`，也可在 Karin WebUI 的插件配置里编辑）：
 - **API 地址**：入群后申请获取
 - **API Token**：入群后申请获取
 
@@ -258,7 +301,7 @@ cd karin-plugin-qqmusic && pnpm install && pnpm build
 
 重启 Karin，日志出现 `[qqmusic-plugin] karin-plugin-qqmusic 初始化入口已注册` 即成功。
 
-首次启动（或删除 `config/config/qqmusic.yaml` 后重启）会自动从 `config/default_config/` 生成用户配置文件。
+首次启动（或删除 `@karinjs/karin-plugin-qqmusic/config/qqmusic.yaml` 后重启）会自动从插件包内的 `config/default_config/` 生成用户配置文件。
 
 主人发送 `#qqm登录` 扫码即可开始使用。
 
@@ -319,18 +362,18 @@ dnf install -y google-noto-sans-cjk-fonts google-noto-emoji-color-fonts
 
 ### 4. 更新插件
 
-**方式 A 装的（npm）**：在 Karin 根目录执行 `pnpm up karin-plugin-qqmusic`（或走 Karin WebUI 的插件更新），
-然后重启 Karin。
+**方式 A 装的（npm）**：主人发送 `#qqm更新`，插件会调用 node-karin 的 npm 更新接口，在 Karin 根目录执行
+`pnpm up karin-plugin-qqmusic@latest` 并校验版本；也可以手动执行同一条命令或走 Karin WebUI 的插件更新。
 
 **方式 B 装的（`git clone`，目录内有 `.git`）**：主人发送：
 
 ```text
 #qqm更新        # 快进拉取 karin 分支（本地有改动时会提示）
-#qqm强制更新    # reset 到远程，丢弃插件内未提交修改（保留 config/config）
+#qqm强制更新    # reset 到远程，丢弃插件内未提交修改（保留 @karinjs/<插件名>/config）
 #qqm更新日志    # 最近提交记录
 ```
 
-更新成功后请重启 Karin 使新代码生效。源码安装（方式 B）若 `package.json` 或 TypeScript 源码有变更，
+两种安装方式更新成功后都要重启 Karin 使新代码生效。源码安装（方式 B）若 `package.json` 或 TypeScript 源码有变更，
 请在插件目录执行 `pnpm install && pnpm build`；npm 安装（方式 A）不需要，包在发布时已经构建过了。
 
 > 📌 **关于 API**：后端 API 涉及平台接口对接等技术细节，出于安全和合规考虑不对外开源。如需使用请加入用户群申请。
@@ -421,8 +464,8 @@ qqmusic-plugin/
 │   ├── together.ts          # 一起听：协议端识别 + 发包（协议知识在 API 侧）
 │   ├── session.ts           # 点歌会话
 │   ├── extras.ts            # 四件套的纯函数（时间解析 / 副歌窗口 / 歌词选句 / 触发窗口）
-│   ├── store.ts             # 订阅与定时点歌的落盘存储（data/qqmusic-store.json）
-│   ├── stats.ts             # 听歌统计：本地账本 + 文案（data/qqmusic-stats.json）
+│   ├── store.ts             # 订阅与定时点歌的落盘存储（@karinjs/<插件名>/data/qqmusic-store.json）
+│   ├── stats.ts             # 听歌统计：本地账本 + 文案（@karinjs/<插件名>/data/qqmusic-stats.json）
 │   ├── medal.ts             # 勋章进度：只读查询平台侧时长/任务 + 文案
 │   ├── bridge.ts            # 主动发消息的桥（定时/推送用：找 bot + 合成群事件）
 │   ├── scheduler.ts         # 定时调度器（30s 滴答：定时点歌触发 + 订阅扫描）
@@ -439,7 +482,7 @@ qqmusic-plugin/
 ├── dist/                    # tsc 编译产物（Karin 实际加载这里）
 ├── config/
 │   ├── default_config/      # 默认配置
-│   └── config/              # 运行时配置
+│   └── config/              # 兼容旧入口；Karin 运行时配置在 @karinjs/<插件名>/config
 └── resources/               # 图片资源 + themes/（各套卡片 UI 的模板）
 ```
 
@@ -450,6 +493,7 @@ qqmusic-plugin/
 在 Karin WebUI 的插件配置页可直接修改：
 
 > 配置项按**三大组**折叠（① 基础设置 / ② 界面与外观 / ③ 发送与下载）：字段与键名一个都没变，只是不用在一页里翻半天了。
+> 组件树按 Karin 1.18 标准使用 `accordion -> accordion-item -> children`；保存时插件会把 WebUI 的分组数组展开并映射回 `platforms.<平台>.<字段>`，不会把点号字段名直接交给 React Hook Form。
 
 - API 地址 / Token
 - 插件、点歌、解析、扫码登录命令开关
@@ -486,8 +530,8 @@ qqmusic-plugin/
 **① 判定必须每次现读配置，别缓存在模块顶层。**
 `#qqm界面`、「？？？」开关这类判定（`utils/v2.ts`）每次都拿 `Config.getConfig()` 现算。老代码把开关读一次写进模块变量，Karin WebUI 里改完要重启才生效，而且「未开启」那个分支还会被缓存成永久的。
 
-**② `Config.getConfig()` 的结果按文件指纹（mtime + size）缓存，返回浅拷贝。**
-一次调用要读 + 解析**两份** yaml（实测 ~4.2ms，而且是同步的），一条命令里会被叫好几次，所以必须有缓存；但缓存的是**文件内容**、不是判定结果 —— Karin WebUI 保存 / 手改 yaml / 插件更新覆盖 `default_config`，指纹一变下一次就立刻读到新的（`setConfig` 另有一次主动失效）。返回值是浅拷贝，调用方随便改自己那份不会污染缓存；**将来若要改配置里的嵌套对象，得先把这里改成深拷贝**。
+**② `Config.getConfig()` 的结果按文件指纹（mtime + size）缓存，返回深层副本。**
+一次调用要读 + 解析**两份** yaml（实测 ~4.2ms，而且是同步的），一条命令里会被叫好几次，所以必须有缓存；但缓存的是**文件内容**、不是判定结果 —— Karin WebUI 保存 / 手改 yaml / 插件更新覆盖 `default_config`，指纹一变下一次就立刻读到新的（`setConfig` 另有一次主动失效）。返回值是深层副本，调用方改嵌套对象也不会污染缓存。
 
 **③ 卡片模块只能动态 import。**
 `utils/card-data.ts` / `utils/render.ts` 会把 art-template 和 Puppeteer 一起拉起来，不能在插件启动时加载（列表卡的统一出口 `replyListCardOrText()` 就负责这件事）。

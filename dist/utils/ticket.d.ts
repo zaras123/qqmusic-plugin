@@ -3,18 +3,18 @@ export declare const TICKET_PAGE_SIZE = 6;
 export declare const TICKET_NOTICE = "\u5386\u53F2\u8BB0\u5F55\u4EC5\u8986\u76D6\u5DF2\u5F52\u6863\u6F14\u51FA\uFF0C\u5E76\u975E\u5B8C\u6574\u5386\u53F2\uFF1B\u65F6\u95F4\u3001\u7968\u4EF7\u4E0E\u4F59\u7968\u4EE5\u8D2D\u7968\u9875\u4E3A\u51C6\u3002";
 export declare const TICKET_HELP: string;
 export declare function parseTicketCommand(text?: string): {
-    error?: undefined;
     action: string;
     key: string;
     index?: undefined;
+    error?: undefined;
     delta?: undefined;
     city?: undefined;
     filters?: undefined;
 } | {
-    error?: undefined;
     key?: undefined;
     action: string;
     index: number;
+    error?: undefined;
     delta?: undefined;
     city?: undefined;
     filters?: undefined;
@@ -27,33 +27,33 @@ export declare function parseTicketCommand(text?: string): {
     action?: undefined;
     filters?: undefined;
 } | {
-    error?: undefined;
     key?: undefined;
     index?: undefined;
+    error?: undefined;
     action: string;
     delta?: undefined;
     city?: undefined;
     filters?: undefined;
 } | {
-    error?: undefined;
     key?: undefined;
     index?: undefined;
+    error?: undefined;
     action: string;
     delta: number;
     city?: undefined;
     filters?: undefined;
 } | {
-    error?: undefined;
     key?: undefined;
     index?: undefined;
+    error?: undefined;
     delta?: undefined;
     action: string;
     city: string;
     filters?: undefined;
 } | {
-    error?: undefined;
     key?: undefined;
     index?: undefined;
+    error?: undefined;
     delta?: undefined;
     city?: undefined;
     action: string;

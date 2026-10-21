@@ -164,6 +164,7 @@ const samples = {
   },
   // 2.0 帮助卡（解锁后才会真机渲染）：样例按"全平台都开着"来画，方便看彩条与两列布局
   'qqmusic-guide': {
+    kind: '',
     version: 'v2.0.0',
     logo: logoUrl,
     title: '2.0 帮助',

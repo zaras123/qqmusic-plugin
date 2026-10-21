@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
-import { pluginPath, pluginName } from './path.js';
+import { pluginPath, pluginName, pluginPackageName, karinPath } from './path.js';
 import { logInfo, logWarn, logError } from './log.js';
 // 版本号要受「？？？」闸门影响（未解锁时必须逐字还是 1.9.x），判定只有 utils/v2.js 那一处
 import { isV2Unlocked } from './v2.js';
@@ -17,6 +17,121 @@ function gitDir() {
 }
 export function isGitRepo() {
     return fs.existsSync(gitDir());
+}
+function readJson(file) {
+    try {
+        return JSON.parse(fs.readFileSync(file, 'utf8'));
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * 判定插件是怎么装的。git 优先，因为源码目录也可能同时存在于 Karin 的 plugins/ 下；
+ * 没有 .git 时，再看插件是否来自 Karin 根目录的 node_modules。
+ */
+export function classifyUpdateMode({ hasGit = isGitRepo(), pluginDir = pluginPath, karinDir = karinPath, packageName = pluginPackageName, rootPackage = karinDir ? readJson(path.join(karinDir, 'package.json')) : null, } = {}) {
+    if (hasGit)
+        return 'git';
+    const normalized = String(pluginDir || '').replace(/\\/g, '/').toLowerCase();
+    if (karinDir && normalized.includes('/node_modules/'))
+        return 'npm';
+    const deps = rootPackage?.dependencies || rootPackage?.devDependencies || {};
+    if (karinDir && packageName && Object.prototype.hasOwnProperty.call(deps, packageName))
+        return 'npm';
+    return 'unknown';
+}
+export function getUpdateMode() {
+    return classifyUpdateMode();
+}
+function getInstalledNpmVersion() {
+    if (!karinPath)
+        return '';
+    const pkg = readJson(path.join(karinPath, 'node_modules', pluginPackageName, 'package.json'));
+    return String(pkg?.version || '');
+}
+function npmErrorText(value) {
+    if (!value)
+        return 'pnpm 没有返回错误信息';
+    if (typeof value === 'string')
+        return value;
+    return String(value.message || value.stack || value);
+}
+async function updateNpmPlugin({ force = false } = {}) {
+    const type = force ? '强制更新' : '更新';
+    const oldVersion = getLocalVersion();
+    try {
+        const karin = await import('node-karin');
+        if (typeof karin.updatePkg !== 'function') {
+            return {
+                ok: false,
+                mode: 'npm',
+                oldVersion,
+                message: `当前 node-karin 没有导出 updatePkg，无法自动更新 npm 插件。请在 Karin 根目录执行：pnpm up ${pluginPackageName}@latest`,
+            };
+        }
+        const remote = await karin.getRemotePkgVersion(pluginPackageName, 'latest');
+        if (remote && remote === oldVersion) {
+            return {
+                ok: true,
+                already: true,
+                changed: false,
+                mode: 'npm',
+                oldVersion,
+                newVersion: oldVersion,
+                remoteVersion: remote,
+                message: `【${pluginPackageName} ${type}】\n已是最新\n包版本: v${oldVersion}\n安装方式: npm`,
+            };
+        }
+        const ret = await karin.updatePkg(pluginPackageName, 'latest');
+        if (ret.status !== 'ok') {
+            const detail = npmErrorText(ret.data);
+            if (/无更新|already|up.to.date/i.test(detail)) {
+                return {
+                    ok: true,
+                    already: true,
+                    changed: false,
+                    mode: 'npm',
+                    oldVersion,
+                    newVersion: oldVersion,
+                    remoteVersion: remote,
+                    message: `【${pluginPackageName} ${type}】\n已是最新\n包版本: v${oldVersion}\n安装方式: npm`,
+                };
+            }
+            return {
+                ok: false,
+                mode: 'npm',
+                oldVersion,
+                remoteVersion: remote,
+                message: `【${pluginPackageName} ${type}】\nnpm 更新失败\n${detail}\n可手动执行：pnpm up ${pluginPackageName}@latest`,
+            };
+        }
+        const newVersion = getInstalledNpmVersion() || String(ret.remote || oldVersion);
+        return {
+            ok: true,
+            already: false,
+            changed: newVersion !== oldVersion,
+            mode: 'npm',
+            oldVersion,
+            newVersion,
+            remoteVersion: ret.remote || remote,
+            message: [
+                `【${pluginPackageName} ${type}】`,
+                '更新成功',
+                `包版本: v${oldVersion}${newVersion !== oldVersion ? ` → v${newVersion}` : ''}`,
+                '安装方式: npm / pnpm',
+                '请发送 #重启 使插件代码生效',
+            ].join('\n'),
+        };
+    }
+    catch (err) {
+        return {
+            ok: false,
+            mode: 'npm',
+            oldVersion,
+            message: `【${pluginPackageName} ${type}】\nnpm 更新异常：${err.message || err}`,
+        };
+    }
 }
 export function getLocalVersion() {
     try {
@@ -206,10 +321,21 @@ export async function updatePlugin({ force = false } = {}) {
     if (updating) {
         return { ok: false, updating: true, message: '正在更新，请稍候再试' };
     }
-    if (!isGitRepo()) {
+    const mode = getUpdateMode();
+    if (mode === 'npm') {
+        updating = true;
+        try {
+            return await updateNpmPlugin({ force });
+        }
+        finally {
+            updating = false;
+        }
+    }
+    if (mode !== 'git') {
         return {
             ok: false,
-            message: `${pluginName} 不是 git 安装（缺少 .git），无法在线更新。\n请使用 git clone 安装，或手动覆盖文件。`,
+            message: `${pluginName} 无法识别安装方式（缺少 .git，且不在 Karin 的 node_modules 依赖里）。\n` +
+                '请使用 git clone 安装，或在 Karin 根目录执行 pnpm add karin-plugin-qqmusic。',
         };
     }
     updating = true;
@@ -396,8 +522,34 @@ export async function updatePlugin({ force = false } = {}) {
  * @param {{ since?: string, limit?: number }} opts
  */
 export async function getUpdateLog({ since = '', limit = 15 } = {}) {
-    if (!isGitRepo()) {
-        return { ok: false, message: '不是 git 仓库，无法读取更新日志', lines: [] };
+    const mode = getUpdateMode();
+    if (mode === 'npm') {
+        const local = getLocalVersion();
+        let remote = '';
+        try {
+            const karin = await import('node-karin');
+            if (typeof karin.getRemotePkgVersion === 'function') {
+                remote = await karin.getRemotePkgVersion(pluginPackageName, 'latest');
+            }
+        }
+        catch { }
+        return {
+            ok: true,
+            mode: 'npm',
+            lines: [],
+            message: [
+                `【${pluginPackageName} 更新日志】`,
+                `安装方式: npm`,
+                `当前版本: v${local}`,
+                remote ? `远程版本: v${remote}` : '',
+                'npm 安装没有 git 提交日志；发送 #qqm更新 可更新到最新版。',
+            ]
+                .filter(Boolean)
+                .join('\n'),
+        };
+    }
+    if (mode !== 'git') {
+        return { ok: false, message: '无法识别安装方式，无法读取更新日志', lines: [] };
     }
     const pretty = '%h||%cd||%s';
     const args = ['log', `-n`, String(limit), `--pretty=${pretty}`, '--date=format:%F %T'];

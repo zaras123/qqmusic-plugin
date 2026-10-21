@@ -19,14 +19,14 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
-import { pluginPath } from './path.js'
+import { resolvePluginStateFile } from './path.js'
 import { logWarn } from './log.js'
 import { SOURCE_LABEL } from './platforms.js'
 
 /** 统计文件；测试用 QQMUSIC_STATS_FILE 指到临时目录，别去动真实数据 */
 const FILE = process.env.QQMUSIC_STATS_FILE
   ? path.resolve(String(process.env.QQMUSIC_STATS_FILE))
-  : path.join(pluginPath, 'data', 'qqmusic-stats.json')
+  : resolvePluginStateFile('data', 'qqmusic-stats.json')
 
 const VERSION = 1
 const DAY_MS = 86_400_000

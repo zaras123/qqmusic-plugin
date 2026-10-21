@@ -25,6 +25,7 @@ import { QUALITY_LABEL } from '../utils/quality.js'
 import { setSession } from '../utils/session.js'
 import { getCfg, isPluginCommandMsg } from '../utils/common.js'
 import { logError, logInfo, logWarn } from '../utils/log.js'
+import { collectMessageText, isQQMusicMessage } from '../utils/resolve-text.js'
 
 const QM_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -93,88 +94,6 @@ function followQqRedirect(url, maxRedirects = 5) {
   })
 }
 
-function collectMessageText(e) {
-  const parts = []
-  const push = (v) => {
-    if (v == null) return
-    if (typeof v === 'string') {
-      if (v) parts.push(v)
-      return
-    }
-    if (typeof v === 'object') {
-      try {
-        parts.push(JSON.stringify(v))
-      } catch {}
-    }
-  }
-
-  push(e.msg)
-  push(e.raw_message)
-  push(e.raw)
-  push(e.message_id && e.message)
-  // QQBot / OneBot 常见字段
-  push(e.toString?.())
-  push(e.raw?.content)
-  push(e.raw?.message)
-  push(e.raw?.d?.content)
-  push(e.raw?.d?.message)
-  if (e.raw?.d?.attachments) push(e.raw.d.attachments)
-  if (Array.isArray(e.attachments)) push(e.attachments)
-
-  const walkSeg = (seg) => {
-    if (!seg) return
-    if (typeof seg === 'string') {
-      push(seg)
-      return
-    }
-    if (Array.isArray(seg)) {
-      for (const s of seg) walkSeg(s)
-      return
-    }
-    if (typeof seg !== 'object') return
-    if (seg.type === 'text') push(seg.text ?? seg.data?.text)
-    if (seg.type === 'json') push(seg.data)
-    if (seg.type === 'xml') push(seg.data)
-    if (seg.type === 'share' || seg.type === 'music' || seg.type === 'ark') {
-      push(seg)
-      push(seg.data)
-    }
-    // QQBot markdown / 链接按钮
-    if (seg.type === 'markdown') push(seg.content ?? seg.data)
-    if (seg.url) push(seg.url)
-    if (seg.data) {
-      push(seg.data)
-      if (typeof seg.data === 'object') {
-        push(seg.data.data)
-        push(seg.data.text)
-        push(seg.data.content)
-        push(seg.data.url)
-        push(seg.data.jumpUrl)
-        push(seg.data.jump_url)
-        push(seg.data.preview)
-      }
-    }
-  }
-
-  if (Array.isArray(e.message)) {
-    for (const seg of e.message) walkSeg(seg)
-  } else {
-    walkSeg(e.message)
-  }
-
-  // 部分协议把分享放在 e.msg 已是 JSON 字符串
-  return parts.join('\n')
-}
-
-function isQQMusicMessage(text) {
-  if (!text) return false
-  if (/y\.qq\.com|c6\.y\.qq\.com|i\.y\.qq\.com|qqmusic|QQ音乐/i.test(text)) return true
-  if (/100497308/.test(text)) return true
-  if (/com\.tencent\.(structmsg|music\.lua)/.test(text)) return true
-  if (/sdkshare_music|songmid=|playsong\.html/i.test(text)) return true
-  return false
-}
-
 export class qqmusicResolve extends (await loadPluginBase()) {
   constructor() {
     super({
@@ -186,7 +105,10 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       rule: [
         {
           // 尽量只匹配 QQ 音乐相关，避免全量 .* 抢其它命令
-          reg: '(y\\.qq\\.com|c6\\.y\\.qq\\.com|i\\.y\\.qq\\.com|qqmusic|QQ音乐|100497308|music\\.lua|structmsg|songmid|sdkshare_music)',
+          // 末尾的空消息分支专门接 Karin 的结构化 JSON/XML 卡片：
+          // Karin 不执行 Yunzai 的 accept 前置钩子，且这类消息的 e.msg 为空，
+          // 具体是不是 QQ 音乐分享由 resolve() 读取 e.elements 后再判断。
+          reg: '(y\\.qq\\.com|c6\\.y\\.qq\\.com|i\\.y\\.qq\\.com|qqmusic|QQ音乐|100497308|music\\.lua|structmsg|songmid|sdkshare_music)|^$',
           fnc: 'resolve',
           log: false,
         },

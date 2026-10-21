@@ -34,6 +34,112 @@ import { V2_FIELD, isV2Unlocked, platformEnabled, platformQualityPref, platformF
 /** 分组小工具（R 插件同款：SOFT_GROUP_BEGIN 之后到下一个 BEGIN 之间归本组） */
 const group = (label) => ({ label, component: 'SOFT_GROUP_BEGIN' })
 
+/** 仅用于保存、但不显示成独立配置项的历史字段 */
+const EXTRA_SAVED_KEYS = [
+  'songRequestMaxList',
+  'resolveLinks',
+  'resolveCards',
+  'lastLoginUin',
+  'lastLoginNick',
+  'lastLoginUserKey',
+  'lastLoginAt',
+  'lastHasRefresh',
+]
+
+/** 平台字段由注册表生成，展示、归一化和保存白名单共用同一份，避免新增字段时漏改。 */
+const PLATFORM_PERSISTED_FIELDS = ['enabled', 'maxList', 'fill', 'quality']
+const PLATFORM_UI_FIELDS = [...PLATFORM_PERSISTED_FIELDS, 'ck', 'ckClear']
+
+function platformFieldKeys(fields = PLATFORM_PERSISTED_FIELDS) {
+  return PLATFORMS.filter((p) => !p.own).flatMap((p) =>
+    fields.map((field) => `platforms.${p.id}.${field}`)
+  )
+}
+
+/**
+ * Karin 的组件 key 会进入 React Hook Form 路径。
+ * 配置字段里的点号（platforms.x.y）必须编码，否则 Form 会把它拆成嵌套对象，
+ * Karin 的 getComponentResult 无法还原。
+ */
+export function schemaUiKey(schema, index) {
+  if (!schema?.field) return `qqmusic-ui-${index}`
+  const encoded = encodeURIComponent(String(schema.field)).replace(/\./g, '%2E')
+  return `qqmusic-field-${encoded}`
+}
+
+function hasOwn(object, key) {
+  return Object.prototype.hasOwnProperty.call(object, key)
+}
+
+/** 同时兼容扁平点号键与 YAML 里的嵌套对象 */
+export function configPathValue(data, field) {
+  if (!data || !field) return undefined
+  if (hasOwn(data, field)) return data[field]
+  let node = data
+  for (const part of String(field).split('.')) {
+    if (!node || typeof node !== 'object' || !hasOwn(node, part)) return undefined
+    node = node[part]
+  }
+  return node
+}
+
+/**
+ * 把 Karin WebUI 实际提交的数据还原成配置字段。
+ *
+ * Karin 1.18 的 accordion 保存结果是分组的数组，例如：
+ *   { "qqmusic-settings": [{ "qqmusic-field-apiBase": "..." }, ...] }
+ * 它既不是 YAML 本身，也不是扁平对象。这里递归展开数组/嵌套对象，
+ * 并把 UI 安全 key 映射回 `platforms.netease.enabled` 这类真实字段。
+ */
+export function normalizeWebConfigData(data) {
+  const schemas = buildSchemas()
+  const aliasToField = new Map()
+  for (const [index, schema] of schemas.entries()) {
+    if (schema.field) aliasToField.set(schemaUiKey(schema, index), schema.field)
+  }
+  const allowed = new Set([
+    ...aliasToField.values(),
+    ...EXTRA_SAVED_KEYS,
+    ...platformFieldKeys(PLATFORM_UI_FIELDS),
+  ])
+  const out = {}
+  const put = (field, value) => {
+    if (!allowed.has(field) || value === undefined) return
+    out[field] = value
+  }
+  const visit = (value, path = []) => {
+    if (value === undefined) return
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item, path)
+      return
+    }
+    if (value && typeof value === 'object') {
+      for (const [rawKey, item] of Object.entries(value)) {
+        const key = rawKey.startsWith('qqmusic.') ? rawKey.slice('qqmusic.'.length) : rawKey
+        if (aliasToField.has(key)) {
+          put(aliasToField.get(key), item)
+          continue
+        }
+        if (allowed.has(key)) {
+          put(key, item)
+          continue
+        }
+        const nextPath = [...path, key]
+        const fullPath = nextPath.join('.')
+        if (allowed.has(fullPath)) put(fullPath, item)
+        else visit(item, nextPath)
+      }
+      return
+    }
+    if (path.length) {
+      const fullPath = path.join('.')
+      if (allowed.has(fullPath)) put(fullPath, value)
+    }
+  }
+  visit(data)
+  return out
+}
+
 /**
  * 平台页签里"凭据怎么配"那几行说明（扫码 / 粘贴 / 匿名，全按注册表生成）
  *
@@ -168,6 +274,16 @@ export function buildSchemas() {
     bottomHelpMessage:
       '开启后所有人点歌都按主人账号（主人的 ck）取播放链，不看请求者自己有没有登录过（群友在自己机器人上登录过也不影响）。主人账号自动取最近扫码登录的账号，无需手填；登录状态/收藏/刷新仍按请求者本人',
     component: 'Switch',
+  },
+  {
+    field: 'publicAccount',
+    label: '主人账号（可选）',
+    bottomHelpMessage:
+      '留空 = 自动取最近一次扫码登录的账号；多账号需要固定某一位时再填 QQ 音乐 uin',
+    component: 'Input',
+    componentProps: {
+      placeholder: '留空 = 自动',
+    },
   },
   // ── 功能开关（同属"基础设置"）──
   {
@@ -621,6 +737,7 @@ export function getConfigData() {
     extraSources: c.extraSources !== false,
     defaultPickSong: c.defaultPickSong === true,
     forceMasterAccount: c.forceMasterAccount === true,
+    publicAccount: String(c.publicAccount ?? '').trim(),
     togetherEnable: c.togetherEnable === true,
     togetherAuto: c.togetherAuto === true,
     uiTheme: String(c.uiTheme || 'classic'),
@@ -680,6 +797,7 @@ export async function setConfigData(data, { Result } = {}) {
   try {
     const cur = Config.getConfig('qqmusic')
     const next = { ...cur }
+    const incoming = normalizeWebConfigData(data || {})
 
     /**
      * 按点号路径写入（`platforms.netease.enabled` 这种嵌套字段）
@@ -703,11 +821,7 @@ export async function setConfigData(data, { Result } = {}) {
       if (value === undefined) delete node[leaf]
       else node[leaf] = value
     }
-    const pickValue = (k) => {
-      if (data[k] !== undefined) return data[k]
-      if (data[`qqmusic.${k}`] !== undefined) return data[`qqmusic.${k}`]
-      return undefined
-    }
+    const pickValue = (k) => incoming[k]
 
     // 白名单直接由 schema 推导 —— 以前是手写数组，加了新开关忘了同步这里，
     // Karin WebUI 保存时会被静默丢弃（表现：开关一打开就弹回原状）
@@ -715,14 +829,6 @@ export async function setConfigData(data, { Result } = {}) {
     // 平台凭据输入框同理（**绝不落盘**）：它是"上传动作"，值由 API 保管 ——
     // 落进插件配置就等于把 cookie 明文写进 yaml（还会跟着配置备份到处跑）
     const UI_ONLY_FIELD_RE = /^platforms\.[^.]+\.(ck|ckClear)$/
-    const EXTRA_KEYS = [
-      // 未暴露在界面上但需要保留可写的历史字段
-      'songRequestMaxList',
-      'resolveLinks',
-      'resolveCards',
-      'lastLoginUin',
-      'lastLoginNick',
-    ]
     // schema 现在由函数生成（2.0 未解锁时不含平台分组）：**两种形态都要收集键**，
     // 否则"关掉 ？？？ 之后保存"会把平台段整个丢掉
     const keys = [
@@ -730,13 +836,8 @@ export async function setConfigData(data, { Result } = {}) {
         ...buildSchemas()
           .map((s) => s.field)
           .filter((f) => f && !UI_ONLY_FIELDS.has(f) && !UI_ONLY_FIELD_RE.test(f)),
-        ...PLATFORMS.filter((p) => !p.own).flatMap((p) => [
-          `platforms.${p.id}.enabled`,
-          `platforms.${p.id}.maxList`,
-          `platforms.${p.id}.fill`,
-          `platforms.${p.id}.quality`,
-        ]),
-        ...EXTRA_KEYS,
+        ...platformFieldKeys(),
+        ...EXTRA_SAVED_KEYS,
       ]),
     ]
 
@@ -825,10 +926,9 @@ export async function setConfigData(data, { Result } = {}) {
     if (next.apiBase) next.apiBase = normalizeApiBase(next.apiBase)
 
     const wantPull =
-      data.pullLoginMeta === true ||
-      data['qqmusic.pullLoginMeta'] === true ||
-      data.pullLoginMeta === 1 ||
-      data.pullLoginMeta === '1'
+      incoming.pullLoginMeta === true ||
+      incoming.pullLoginMeta === 1 ||
+      incoming.pullLoginMeta === '1'
 
     let pullMsg = ''
     if (wantPull) {

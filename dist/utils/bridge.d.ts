@@ -10,7 +10,7 @@ export declare function botsListAsync(): Promise<any[]>;
  */
 export declare function pickChannelForGroup(groupId: any, preferUin?: string): Promise<{
     bot: any;
-    contact: any;
+    contact: import("node-karin").GroupContact;
     selfId: string;
 }>;
 /**
@@ -21,7 +21,7 @@ export declare function groupEventOf({ groupId, preferUin, userId }?: {
     userId?: string;
 }): Promise<{
     selfId: string;
-    contact: any;
+    contact: import("node-karin").GroupContact;
     bot: any;
     userId: string;
     groupId: string;

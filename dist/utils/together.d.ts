@@ -5,8 +5,8 @@ export declare function togetherGate(e: any, cfg?: {}): {
     ok: boolean;
     reason: string;
 } | {
-    ok: boolean;
     reason?: undefined;
+    ok: boolean;
 };
 /**
  * 跑一轮一起听操作：插件驱动「API 算包 → 我发包 → 回报」的乒乓

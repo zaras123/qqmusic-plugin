@@ -10,7 +10,7 @@
  * @returns {{
  *   id: string,
  *   name: string,
- *   kind: 'karin' | 'icqq' | 'onebot' | 'qqbot' | 'unknown',
+ *   kind: 'icqq' | 'onebot' | 'qqbot' | 'unknown',
  *   selfId: string|number|undefined,
  *   supportsNativeMusic: boolean,
  *   supportsRecord: boolean,

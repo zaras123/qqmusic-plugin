@@ -89,6 +89,49 @@ export declare function buildGuideCardData(e: any, { currentSource, full }?: {
     }[];
 };
 /**
+ * 账号写操作专用卡片。
+ *
+ * 复用 2.0 guide 模板（四套主题都已具备），只把第一段从"多平台音源"切换成
+ * "账号操作"：模板靠 `kind === 'manage'` 跳过平台彩条与统计栏。
+ *
+ * 为什么不新增一个 card 名：`qqmusic-guide` 的 data 形状本来就是
+ * `sections[] / items[]`，账号操作正好是同一类内容；复用可以少维护 4 份模板。
+ */
+export declare function buildManageCardData(e?: any): {
+    version: string;
+    logo: string;
+    statPlatformsTotal: string;
+    platformsText: string;
+    currentSource: string;
+    /**
+     * 是否展开全部条目
+     *   false（默认）：每段最多 8 条 —— 51 条全铺开卡片会长到 3400px，
+     *                  QQ 里会被压成一条看不清；压缩后约 1800px，手机上还能读。
+     *   true（`#qqm帮助 全部`）：完整清单，给需要"查手册"的人。
+     */
+    full: boolean;
+    statCommands: string;
+    statQuality: any;
+    statPlatforms: string;
+    statMode: string;
+    apiHint: string;
+    isMaster: boolean;
+    kind: string;
+    title: string;
+    subtitle: string;
+    sources: any[];
+    sections: {
+        title: string;
+        tag: string;
+        items: {
+            name: string;
+            desc: string;
+            example: string;
+        }[];
+    }[];
+    tip: string;
+};
+/**
  * 2.0 帮助的纯文本兜底（渲染失败时用）
  *
  * ⚠️ 只在解锁后才会被调用 —— 未解锁走的是老的那段文本，别把两段混起来。

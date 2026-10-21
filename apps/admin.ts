@@ -12,7 +12,7 @@ import { getCfg, replyCardOrText } from '../utils/common.js'
 import { logWarn } from '../utils/log.js'
 import { maskApiBase } from '../utils/privacy.js'
 // displayVersion：解锁？？？后一切"当前版本"文案显示 2.0 专属版；未解锁与 2.0 之前一致
-import { updatePlugin, getUpdateLog, displayVersion } from '../utils/update.js'
+import { updatePlugin, getUpdateLog, displayVersion, getUpdateMode } from '../utils/update.js'
 import { listThemeIds, describeThemes, resolveTheme, TIME_LABEL } from '../utils/theme.js'
 import { describeBackground } from '../utils/background.js'
 import { isV2Unlocked } from '../utils/v2.js'
@@ -165,9 +165,9 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
         '#qqm一起听 探测      只读探测一起听参数（首次启用必须先跑）',
         '#qqm 音质 flac',
         '#qqm 测试',
-        `#qqm更新          拉取最新代码（当前 ${displayVersion()}）`,
-        '#qqm强制更新      丢弃本地改动并同步远程',
-        '#qqm更新日志      最近提交',
+        `#qqm更新          更新插件（当前 ${displayVersion()}，支持 git / npm）`,
+        '#qqm强制更新      git 丢弃本地改动；npm 更新到 latest',
+        '#qqm更新日志      查看提交日志或 npm 版本状态',
       ].join('\n')
     )
     return true
@@ -433,8 +433,11 @@ export class qqmusicAdmin extends (await loadPluginBase()) {
   }
 
   async forceUpdate(e) {
+    const npmMode = getUpdateMode() === 'npm'
     await e.reply(
-      `开始强制更新 qqmusic-plugin（${displayVersion()}）…\n将丢弃插件目录内未提交的本地修改（保留 config/config 用户配置）`
+      npmMode
+        ? `开始强制更新 qqmusic-plugin（${displayVersion()}）…\n当前是 npm 安装：会检查并更新到 npm latest，不涉及 Git 本地改动`
+        : `开始强制更新 qqmusic-plugin（${displayVersion()}）…\n将丢弃插件目录内未提交的本地修改（保留 @karinjs/<插件名> 运行期配置与数据）`
     )
     const ret = await updatePlugin({ force: true })
     await e.reply(ret.message || (ret.ok ? '强制更新完成' : '强制更新失败'))

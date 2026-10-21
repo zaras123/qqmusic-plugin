@@ -114,18 +114,18 @@ export declare function deliverSong(e: any, song: any, play: any, options?: {}):
     ok: boolean;
     reason: string;
     adapter: string;
-    error?: undefined;
     downloaded?: undefined;
     path?: undefined;
     size?: undefined;
+    error?: undefined;
 } | {
     reason?: undefined;
     ok: boolean;
     downloaded: boolean;
     adapter: string;
-    error?: undefined;
     path?: undefined;
     size?: undefined;
+    error?: undefined;
 } | {
     ok: boolean;
     reason: string;
@@ -136,10 +136,10 @@ export declare function deliverSong(e: any, song: any, play: any, options?: {}):
     size?: undefined;
 } | {
     reason?: undefined;
-    error?: undefined;
     ok: boolean;
     downloaded: boolean;
     path: string;
     size: number;
     adapter: string;
+    error?: undefined;
 }>;

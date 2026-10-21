@@ -398,6 +398,70 @@ export declare function newSongs(type?: number, { num, userKey }?: {
 export declare function songInfoBatch(ids?: any[], { userKey }?: {
     userKey?: string;
 }): Promise<any>;
+/** 歌单：新建（POST /songlist/create） */
+export declare function songlistCreate(name: any, userKey?: string): Promise<any>;
+/** 歌单：删除（POST /songlist/delete，dirId 必填） */
+export declare function songlistDelete(dirId: any, userKey?: string): Promise<any>;
+/**
+ * 歌单：加歌 / 删歌（POST /songlist/addSongs | /delSongs）
+ * @param {Array<string>|string} songs `songId:songType` 数组或已经拼好的串
+ */
+export declare function songlistAddSongs(dirId: any, songs: any, { tid, userKey }?: {
+    tid?: number;
+    userKey?: string;
+}): Promise<any>;
+export declare function songlistDelSongs(dirId: any, songs: any, { tid, userKey }?: {
+    tid?: number;
+    userKey?: string;
+}): Promise<any>;
+/** 「我喜欢」收藏 / 取消（POST /songlist/like | /unlike，API 内部固定 dirId=201） */
+export declare function songlistLike(songs: any, userKey?: string): Promise<any>;
+export declare function songlistUnlike(songs: any, userKey?: string): Promise<any>;
+/** 外部歌单收藏 / 取消收藏（POST /user/favSonglistWrite | /unfavSonglistWrite） */
+export declare function userFavSonglistWrite(playlistIds: any, userKey?: string): Promise<any>;
+export declare function userUnfavSonglistWrite(playlistIds: any, userKey?: string): Promise<any>;
+/** 专辑收藏 / 取消收藏（POST /user/favAlbumWrite | /unfavAlbumWrite） */
+export declare function userFavAlbumWrite(albumIds: any, userKey?: string): Promise<any>;
+export declare function userUnfavAlbumWrite(albumIds: any, userKey?: string): Promise<any>;
+/**
+ * 不喜欢：添加 / 取消 / 清空（POST /user/addDislike | /cancelDislike | /cancelAllDislike）
+ * @param {1|2|3} type 1=歌曲 2=歌手 3=风格
+ */
+export declare function userAddDislike(type: any, values: any, userKey?: string): Promise<any>;
+export declare function userCancelDislike(type: any, values: any, userKey?: string): Promise<any>;
+export declare function userCancelAllDislike(userKey?: string): Promise<any>;
+/** 评论：发布 / 删除（POST /comment/add | /comment/delete） */
+export declare function commentAdd(id: any, content: any, { biztype, replyCmId, bizSubType, userKey }?: {
+    bizSubType?: string;
+    biztype?: number;
+    replyCmId?: string;
+    userKey?: string;
+}): Promise<any>;
+export declare function commentDelete(cmId: any, userKey?: string): Promise<any>;
+/** 音响力（好友听歌榜）：点赞 / 取消点赞 / 隐私（POST /soundpower/like | /privacy） */
+export declare function soundpowerLike(uin: any, { cancel, userKey }?: {
+    cancel?: boolean;
+    userKey?: string;
+}): Promise<any>;
+export declare function soundpowerPrivacy(status: any, userKey?: string): Promise<any>;
+/** 私信：发送（POST /privatemessage/send，starSend=1 走明星超级私信） */
+export declare function privateMsgSend(userId: any, msgType: any, text: any, { sessionId, starSend, userKey }?: {
+    sessionId?: string;
+    starSend?: number;
+    userKey?: string;
+}): Promise<any>;
+export declare function privateMsgDeleteSession(sessionId: any, userKey?: string): Promise<any>;
+export declare function privateMsgDeleteMessage(sessionId: any, msgId: any, userKey?: string): Promise<any>;
+export declare function privateMsgClearSession(sessionId: any, userKey?: string): Promise<any>;
+export declare function privateMsgSetConfig(configType: any, configValue: any, userKey?: string): Promise<any>;
+export declare function privateMsgMarkAllRead(encryptUin: any, { cmdFlag, userKey }?: {
+    cmdFlag?: number;
+    userKey?: string;
+}): Promise<any>;
+export declare function privateMsgCardAction(targetUserId: any, msgType: any, msgId: any, { value, userKey }?: {
+    userKey?: string;
+    value?: number;
+}): Promise<any>;
 declare const _default: {
     searchSongs: typeof searchSongs;
     searchPlatformSongs: typeof searchPlatformSongs;
