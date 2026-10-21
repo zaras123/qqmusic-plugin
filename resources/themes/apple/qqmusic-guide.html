@@ -81,6 +81,7 @@
         </div>
       </div>
 
+      {{if data.kind !== 'manage'}}
       <div class="stat-row">
         <div class="stat">
           <div class="stat-v t-num">{{data.statPlatforms || 0}}</div>
@@ -99,9 +100,10 @@
           <div class="stat-k">运行模式</div>
         </div>
       </div>
+      {{/if}}
 
       {{each data.sections section index}}
-        {{if index === 0}}
+        {{if index === 0 && data.kind !== 'manage'}}
         <div class="group">
           <div class="group-title">
             <span class="t-caption">{{section.title}}</span>

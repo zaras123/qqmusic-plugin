@@ -63,7 +63,7 @@ resources/themes/
 
 | 卡片 | 什么时候发 | `data` 上有什么 |
 |---|---|---|
-| `qqmusic-guide` | `#qqm帮助`（2.0 打开时） | `version`/`logo`/`title`/`subtitle`、统计（`statPlatforms`/`statPlatformsTotal`/`statCommands`/`statQuality`/`statMode`）、`sources[]`、`sections[]`、`tip` |
+| `qqmusic-guide` | `#qqm帮助`（2.0 打开时）/ `#qqm写操作` | `kind`（manage 时隐藏平台栏与统计栏）、`version`/`logo`/`title`/`subtitle`、统计（`statPlatforms`/`statPlatformsTotal`/`statCommands`/`statQuality`/`statMode`）、`sources[]`、`sections[]`、`tip` |
 | `qqmusic-platform` | `#qqm<平台>状态`（如 `#qqm网易状态`） | `title`/`subtitle`/`logo`、`row`（单行，见下）、`commands[]`（`name`/`example`/`desc`）、`tips[]` |
 | `qqmusic-platforms` | `#qqm平台状态` | `title`/`subtitle`、`total`/`readyCount`/`canQrCount`、`rows[]`、`tips[]` |
 

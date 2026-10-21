@@ -1226,6 +1226,168 @@ export async function songInfoBatch(ids = [], { userKey = '' } = {}) {
     .filter(Boolean)
 }
 
+// ──────────── 账号写操作（qqmusic-api-enhanced 2026-10 新增 24 个写接口） ────────────
+//
+// 纪律：
+//   · 每个写接口都**带 confirm=1**（API 侧 needConfirm 的硬门槛，少一个直接被打回）
+//   · 全部按**请求者本人**取账号槽位（asUser: true）—— 写操作绝不能被「一律走主人账号」
+//     顶成主人的账号，否则群友一顿操作全写进主人的账号。
+//   · 返回值统一透传 API 的 data，失败交给 request() 抛 err（含 errMsg / code）。
+//   · 歌单/歌曲参数用 API 认的 `songId:songType` 串，多个用英文逗号。
+
+/** 写操作统一走这里：强制 confirm=1 + asUser + post */
+function write(body, userKey = '') {
+  return request(body.path, { ...body.params, confirm: 1 }, 'post', userKey, { asUser: true })
+}
+
+/** `songId:songType` 数组/串 → API 认的逗号串 */
+function joinSongs(songs) {
+  const list = Array.isArray(songs) ? songs : String(songs ?? '').split(',')
+  return list.map((s) => String(s).trim()).filter(Boolean).join(',')
+}
+
+function joinIds(ids) {
+  const list = Array.isArray(ids) ? ids : String(ids ?? '').split(',')
+  return list.map((s) => String(s).trim()).filter(Boolean).join(',')
+}
+
+/** 歌单：新建（POST /songlist/create） */
+export async function songlistCreate(name, userKey = '') {
+  return write({ path: '/songlist/create', params: { name } }, userKey)
+}
+
+/** 歌单：删除（POST /songlist/delete，dirId 必填） */
+export async function songlistDelete(dirId, userKey = '') {
+  return write({ path: '/songlist/delete', params: { dirId } }, userKey)
+}
+
+/** 歌单：加歌 / 删歌（POST /songlist/addSongs | /delSongs） */
+export async function songlistAddSongs(dirId, songs, { tid = 0, userKey = '' } = {}) {
+  return write(
+    { path: '/songlist/addSongs', params: { dirId, songs: joinSongs(songs), tid } },
+    userKey
+  )
+}
+
+export async function songlistDelSongs(dirId, songs, { tid = 0, userKey = '' } = {}) {
+  return write(
+    { path: '/songlist/delSongs', params: { dirId, songs: joinSongs(songs), tid } },
+    userKey
+  )
+}
+
+/** 「我喜欢」收藏 / 取消（POST /songlist/like | /unlike，API 内部固定 dirId=201） */
+export async function songlistLike(songs, userKey = '') {
+  return write({ path: '/songlist/like', params: { songs: joinSongs(songs) } }, userKey)
+}
+
+export async function songlistUnlike(songs, userKey = '') {
+  return write({ path: '/songlist/unlike', params: { songs: joinSongs(songs) } }, userKey)
+}
+
+/** 外部歌单收藏 / 取消收藏（POST /user/favSonglistWrite | /unfavSonglistWrite） */
+export async function userFavSonglistWrite(playlistIds, userKey = '') {
+  return write({ path: '/user/favSonglistWrite', params: { playlistId: joinIds(playlistIds) } }, userKey)
+}
+
+export async function userUnfavSonglistWrite(playlistIds, userKey = '') {
+  return write({ path: '/user/unfavSonglistWrite', params: { playlistId: joinIds(playlistIds) } }, userKey)
+}
+
+/** 专辑收藏 / 取消收藏（POST /user/favAlbumWrite | /unfavAlbumWrite） */
+export async function userFavAlbumWrite(albumIds, userKey = '') {
+  return write({ path: '/user/favAlbumWrite', params: { albumId: joinIds(albumIds) } }, userKey)
+}
+
+export async function userUnfavAlbumWrite(albumIds, userKey = '') {
+  return write({ path: '/user/unfavAlbumWrite', params: { albumId: joinIds(albumIds) } }, userKey)
+}
+
+/** 不喜欢：添加 / 取消 / 清空（POST /user/addDislike | /cancelDislike | /cancelAllDislike） */
+export async function userAddDislike(type, values, userKey = '') {
+  return write({ path: '/user/addDislike', params: { type, values: joinIds(values) } }, userKey)
+}
+
+export async function userCancelDislike(type, values, userKey = '') {
+  return write({ path: '/user/cancelDislike', params: { type, values: joinIds(values) } }, userKey)
+}
+
+export async function userCancelAllDislike(userKey = '') {
+  return write({ path: '/user/cancelAllDislike', params: {} }, userKey)
+}
+
+/** 评论：发布 / 删除（POST /comment/add | /comment/delete） */
+export async function commentAdd(
+  id,
+  content,
+  { biztype = 1, replyCmId = '', bizSubType = '', userKey = '' } = {}
+) {
+  const params = { id, content, biztype }
+  if (replyCmId) params.replyCmId = replyCmId
+  if (bizSubType !== '' && bizSubType != null) params.bizSubType = bizSubType
+  return write({ path: '/comment/add', params }, userKey)
+}
+
+export async function commentDelete(cmId, userKey = '') {
+  return write({ path: '/comment/delete', params: { cmId } }, userKey)
+}
+
+/** 音响力（好友听歌榜）：点赞 / 取消点赞 / 隐私（POST /soundpower/like | /privacy） */
+export async function soundpowerLike(uin, { cancel = false, userKey = '' } = {}) {
+  const params = { uin }
+  if (cancel) params.cancel = 1
+  return write({ path: '/soundpower/like', params }, userKey)
+}
+
+export async function soundpowerPrivacy(status, userKey = '') {
+  return write({ path: '/soundpower/privacy', params: { status } }, userKey)
+}
+
+/** 私信：发送（POST /privatemessage/send，starSend=1 走明星超级私信） */
+export async function privateMsgSend(
+  userId,
+  msgType,
+  text,
+  { sessionId = '', starSend = 0, userKey = '' } = {}
+) {
+  const params = { userId, msgType, userInput: text }
+  if (sessionId) params.sessionId = sessionId
+  if (starSend) params.starSend = 1
+  return write({ path: '/privatemessage/send', params }, userKey)
+}
+
+export async function privateMsgDeleteSession(sessionId, userKey = '') {
+  return write({ path: '/privatemessage/deleteSession', params: { sessionId } }, userKey)
+}
+
+export async function privateMsgDeleteMessage(sessionId, msgId, userKey = '') {
+  return write({ path: '/privatemessage/deleteMessage', params: { sessionId, msgId } }, userKey)
+}
+
+export async function privateMsgClearSession(sessionId, userKey = '') {
+  return write({ path: '/privatemessage/clearSession', params: { sessionId } }, userKey)
+}
+
+export async function privateMsgSetConfig(configType, configValue, userKey = '') {
+  return write({ path: '/privatemessage/setConfig', params: { configType, configValue } }, userKey)
+}
+
+export async function privateMsgMarkAllRead(encryptUin, { cmdFlag = 1, userKey = '' } = {}) {
+  return write({ path: '/privatemessage/markAllRead', params: { encryptUin, cmdFlag } }, userKey)
+}
+
+export async function privateMsgCardAction(
+  targetUserId,
+  msgType,
+  msgId,
+  { value = 1, userKey = '' } = {}
+) {
+  return write(
+    { path: '/privatemessage/cardAction', params: { targetUserId, msgType, msgId, value } },
+    userKey
+  )
+}
+
 export default {
   searchSongs,
   searchPlatformSongs,

@@ -28,12 +28,14 @@
           <div class="ver">{{data.version}}</div>
         </div>
         <div class="t-sub hero-sub">{{data.subtitle || '多平台点歌 · 解析 · 卡片'}}</div>
+        {{if data.kind !== 'manage'}}
         <div class="stat-row">
           <div class="stat"><div class="stat-v t-num">{{data.statPlatformsTotal || data.statPlatforms}}</div><div class="stat-k">可用音源</div></div>
           <div class="stat"><div class="stat-v t-num">{{data.statCommands}}</div><div class="stat-k">指令</div></div>
           <div class="stat"><div class="stat-v">{{data.statQuality}}</div><div class="stat-k">最高音质</div></div>
           <div class="stat"><div class="stat-v">{{data.statMode}}</div><div class="stat-k">运行模式</div></div>
         </div>
+        {{/if}}
       </div>
 
       <!-- ① 音源：一行一个，带品牌色轨与最短命令 -->
@@ -71,7 +73,7 @@
 
       <!-- ② 其余命令：两列紧凑格（示例即最短写法；描述放 title 悬停看） -->
       {{each data.sections section index}}
-        {{if index > 0}}
+        {{if data.kind === 'manage' || index > 0}}
         <div class="group">
           <div class="group-title">
             <span class="t-caption">{{section.title}}</span>

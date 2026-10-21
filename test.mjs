@@ -79,6 +79,7 @@ const { qqmusicExtras } = await import('./apps/extras.js')
 const { qqmusicTicket } = await import('./apps/ticket.js')
 const { qqmusicStats } = await import('./apps/stats.js')
 const { qqmusicMedal } = await import('./apps/medal.js')
+const { qqmusicManage } = await import('./apps/manage.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
 
@@ -94,6 +95,7 @@ const modules = [
   { name: '试听/海报/订阅/定时', class: qqmusicExtras },
   { name: '听歌统计', class: qqmusicStats },
   { name: '勋章进度', class: qqmusicMedal },
+  { name: '账号操作', class: qqmusicManage },
 ]
 
 let allPassed = asyncGateOk
@@ -291,6 +293,33 @@ const cases = [
   ['#qqm强制更新', 'forceUpdate'],
   ['#qqm更新日志', 'updateLog'],
   ['#qqm账号', 'listAccounts'],
+  // 账号写操作（必须带确认词，由 utils/manage.js 解析）
+  ['#qqm歌单新建 测试歌单 确认', 'playlistWrite'],
+  ['#qqm歌单删除 123 确认', 'playlistWrite'],
+  ['#qqm歌单加歌 123 456:1 确认', 'playlistWrite'],
+  ['#qqm歌单删歌 123 456:1 确认', 'playlistWrite'],
+  ['#qqm喜欢歌曲 123:1 确认', 'playlistWrite'],
+  ['#qqm取消喜欢 123:1 确认', 'playlistWrite'],
+  ['#qqm收藏歌单 7011,7012 确认', 'playlistWrite'],
+  ['#qqm收藏歌单取消 7011 确认', 'playlistWrite'],
+  ['#qqm收藏专辑 9001,9002 确认', 'playlistWrite'],
+  ['#qqm收藏专辑取消 9001 确认', 'playlistWrite'],
+  ['#qqm不喜欢歌曲 123 确认', 'dislikeWrite'],
+  ['#qqm取消不喜欢歌手 888 确认', 'dislikeWrite'],
+  ['#qqm清空不喜欢 确认', 'dislikeWrite'],
+  ['#qqm发评论 歌曲 123 好听 确认', 'commentWrite'],
+  ['#qqm删评论 cm_123 确认', 'commentWrite'],
+  ['#qqm音响力点赞 10001 确认', 'soundpowerWrite'],
+  ['#qqm音响力取消点赞 10001 确认', 'soundpowerWrite'],
+  ['#qqm音响力隐私 1 确认', 'soundpowerWrite'],
+  ['#qqm私信发送 10001 1 你好 确认', 'privateWrite'],
+  ['#qqm私信删除会话 s_1 确认', 'privateWrite'],
+  ['#qqm私信删除消息 s_1 m_1 确认', 'privateWrite'],
+  ['#qqm私信清空会话 s_1 确认', 'privateWrite'],
+  ['#qqm私信设置 1 open 确认', 'privateWrite'],
+  ['#qqm私信全部已读 enc_1 确认', 'privateWrite'],
+  ['#qqm私信卡片操作 10001 1 m_1 确认', 'privateWrite'],
+  ['#qqm账号操作', 'usage'],
 ]
 
 /** 负例：这些不应被任何规则匹配（否则会误触发回复） */
@@ -483,6 +512,12 @@ const masterFnc = [
   'updateLog',
   'listAccounts',
   'togetherProbe', // 探测会回显群成员 uin 与房间内部 id，必须限主人
+  'playlistWrite',
+  'dislikeWrite',
+  'commentWrite',
+  'soundpowerWrite',
+  'privateWrite',
+  'usage', // #qqm账号操作：入口也仅主人
 ]
 for (const fnc of masterFnc) {
   const rules = allRules.filter((r) => r.fnc === fnc)
@@ -2056,6 +2091,23 @@ function v2Check(name, got, want) {
     v2Check('2.0 帮助：文本兜底含平台命令（最短写法）', /#qqm网易 关键词/.test(HC.formatGuideText({})), true)
     v2Check('2.0 帮助：非主人看不到主人段', guide.sections.every((s) => s.title !== '主人管理'), true)
     v2Check('2.0 帮助：主人能看到主人段', HC.buildGuideCardData({ isMaster: true }).sections.some((s) => s.title === '主人管理'), true)
+    v2Check('2.0 帮助：非主人看不到账号操作段', guide.sections.every((s) => s.title !== '账号操作'), true)
+    v2Check('2.0 帮助：主人能看到账号操作段', HC.buildGuideCardData({ isMaster: true }).sections.some((s) => s.title === '账号操作'), true)
+    const manageCard = HC.buildManageCardData({ isMaster: true })
+    v2Check('账号操作卡片：使用 guide 的 manage 模式', manageCard.kind === 'manage' && manageCard.title === '账号操作', true)
+    v2Check(
+      '账号操作卡片：含账号操作段与命令示例',
+      manageCard.sections.some((s) => s.title === '账号操作' && s.items.some((i) => /#qqm收藏专辑/.test(i.example || ''))),
+      true
+    )
+    v2Check('账号操作卡片：不渲染平台音源清单', manageCard.sources.length === 0, true)
+    v2Check(
+      '账号操作卡片：四套 guide 模板都支持 manage 模式',
+      ['classic', 'apple', 'nebula', 'multi'].every((t) =>
+        fs.readFileSync(path.join(pluginRoot, 'resources', 'themes', t, 'qqmusic-guide.html'), 'utf8').includes("data.kind")
+      ),
+      true
+    )
     const k1 = R.guideCacheKey(guide, 'classic')
     v2Check('帮助缓存：同输入稳定命中', k1 === R.guideCacheKey(HC.buildGuideCardData({}), 'classic'), true)
     v2Check('帮助缓存：换主题就换键（别发过期图）', k1 !== R.guideCacheKey(guide, 'apple'), true)

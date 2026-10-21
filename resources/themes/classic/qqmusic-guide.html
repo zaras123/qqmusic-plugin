@@ -124,17 +124,19 @@
           </div>
           <div class="ver">{{data.version}}</div>
         </div>
+        {{if data.kind !== 'manage'}}
         <div class="stats">
           <div class="stat"><b>{{data.statPlatforms || 0}}</b><span>音源平台</span></div>
           <div class="stat"><b>{{data.statCommands}}</b><span>指令</span></div>
           <div class="stat"><b>{{data.statQuality}}</b><span>最高音质</span></div>
           <div class="stat"><b>{{data.statMode}}</b><span>运行模式</span></div>
         </div>
+        {{/if}}
       </div>
 
       <div class="body">
         {{each data.sections section index}}
-          {{if index === 0}}
+          {{if index === 0 && data.kind !== 'manage'}}
             <!-- 第一段是"多平台音源"：这里渲染成彩色平台条，比条目行更好扫 -->
             <div class="sec">
               <div class="sec-head">
