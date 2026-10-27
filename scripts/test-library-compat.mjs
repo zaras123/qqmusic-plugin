@@ -30,7 +30,7 @@ const interceptor = axios.interceptors.request.use(config => {
   if(new URL(config.url).hostname !== '127.0.0.1'){remoteDownloads++;throw new Error('Test prohibits remote HTTP requests')}
   return config
 })
-let server, lib, checks = 0, upstream = 0, cfg = {}, base = ''
+let server, lib, checks = 0, upstream = 0, details = 0, cfg = {}, base = ''
 const digest = b => crypto.createHash('sha256').update(b).digest('hex')
 const check = (name, value) => { assert.ok(value, name); checks++; console.log('PASS ' + name) }
 const load = file => import(pathToFileURL(path.join(runtime, file)).href)
@@ -59,7 +59,13 @@ try {
     const express = requireApi('express')
     app = express()
     const cache = new (requireApi('./util/cache'))()
-    const request = async () => { upstream++; throw new Error('unexpected upstream request') }
+    const request = async input => {
+      if(input.data?.songinfo?.param?.song_mid==='003fixtureQQ01') {
+        details++
+        return {songinfo:{data:{track_info:{mid:'003fixtureQQ01',id:123456,name:'晴天',singer:[{name:'周杰伦'}],interval:8,file:{media_mid:'mediaQQFixture'}}}}}
+      }
+      upstream++; throw new Error('unexpected upstream request')
+    }
     app.get('/search', (req,res,next) => req.query.key === 'filter-fixture' ? res.json({ result:100, data:{ list:[localSong, { ...localSong, local:false, songmid:'bi_online' }, {songmid:'kw_online',source:'kuwo',external:true}, {songmid:'qq_online',source:'qq'}] } }) : next())
     for (const [prefix,handlers] of [['/search',requireApi('./module/search')],['/song',requireApi('./module/song')],['/library',requireApi('./module/library')]]) {
       for (const [suffix,fn] of Object.entries(handlers)) if (typeof fn === 'function' && suffix.startsWith('/')) {
@@ -110,13 +116,33 @@ try {
   const delivered=await send.deliverSong(e,song,play)
   check('语音发送回调执行',delivered.ok&&messages.flat().some(m=>m&&m.type==='record'))
   check('群文件使用歌手歌名及实际M4A，字节不变',uploads.length===1&&uploads[0].name.includes('周杰伦')&&uploads[0].name.includes('暗号')&&uploads[0].name.endsWith('.m4a')&&uploads[0].hash===digest(audio))
-  check('B站本地曲目不会发成QQ原生音乐卡',!messages.flat().some(m=>m&&m.type==='music'))
+  check('B站本地曲目不会发成QQ原生音乐卡',!messages.flat().some(m=>m&&m.type==='music'&&m.data.type==='qq'))
   cfg.sendVocal=false
   const retried=await send.deliverSong(e,song,{...play,url:base+'/fixture-expired'})
   check('过期链接自动刷新后仍成功下载',retried.ok&&uploads.length===2&&uploads[1].hash===digest(audio))
   check('下载重试保留请求者账号槽位',refreshKeys.length===1&&refreshKeys[0]==='listener')
   check('本地失败不改写域名、不尝试QQ CDN',remoteDownloads===0)
   check('本地命中整条链路未调用官方或第三方上游',upstream===0)
+  const qqSong={...song,songmid:'QQ_CARD_QINGTIAN',songid:123456,source:'qq',external:false,local:false,songName:'晴天',singerName:'周杰伦'}
+  const before=messages.length
+  await send.deliverSong(e,qqSong,play)
+  const localCards=messages.slice(before).flat().filter(m=>m&&m.type==='music')
+  check('QQ卡片命中本地后仅发带本地直链的自定义卡',localCards.length===1&&localCards[0].data.type==='custom'&&localCards[0].data.audio===play.url)
+  const nativeBefore=messages.length
+  await send.deliverSong(e,qqSong,{...play,local:false,external:false,source:'qq',playChannel:'client'})
+  check('本地未命中仍保持官方原生卡',messages.slice(nativeBefore).flat().some(m=>m&&m.type==='music'&&m.data.type==='qq'))
+  if(lib){
+    lib.putItem({songmid:'ext_qingtian_fixture',source:'nekomusic',title:'晴天',artist:'周杰伦',duration:8,quality:'192k',ext:'.m4a'},audio)
+    const {qqmusicResolve}=await load('apps/resolve.js')
+    const parsed=api.parseQQMusicCard(JSON.stringify({app:'com.tencent.structmsg',meta:{music:{title:'晴天',desc:'周杰伦',jumpUrl:'https://y.qq.com/n/ryqq/songDetail/003fixtureQQ01'}}}))
+    const resolved=await new qqmusicResolve().cardToSong(parsed,'listener')
+    const resolvedPlay=await api.songUrlBest(resolved.songmid,{mediaId:resolved.media_mid,quality:'flac',userKey:'listener'})
+    check('真实QQ分享卡解析后匹配第三方入库晴天',resolved.songName==='晴天'&&resolved.singerName==='周杰伦'&&resolvedPlay.local&&resolvedPlay.source==='nekomusic'&&resolvedPlay.quality==='192k')
+    const start=messages.length,uploadStart=uploads.length
+    await send.deliverSong(e,resolved,resolvedPlay)
+    check('卡片解析到发送全链路使用本地音频',messages.slice(start).flat().some(m=>m?.data?.type==='custom'&&m.data.audio===resolvedPlay.url)&&uploads[uploadStart]?.hash===digest(audio))
+    check('全链路仅查询公开详情，零官方及第三方音频请求',details===2&&upstream===0&&remoteDownloads===0)
+  }
   console.log('RESULT: '+checks+' passed ('+(karin?'karin':'yunzai')+', '+(lib?'real API':'fixture API')+')')
 } finally {
   axios.interceptors.request.eject(interceptor)

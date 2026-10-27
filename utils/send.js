@@ -1033,8 +1033,10 @@ export async function deliverSong(e, song, play, options = {}) {
   const skipCustom = options.skipCustomCard === true
 
   // QQBot 原生/自定义 music 卡基本不可用，强制跳过避免刷错误日志
-  const allowNative = !skipNative && !song.external && (!song.source || song.source === 'qq') && cfg.sendNativeCard && adapter.supportsNativeMusic
-  const allowCustom = !skipCustom && cfg.sendCustomCard && adapter.supportsNativeMusic
+  // 原生 type:qq 按官方歌曲 ID 播放，不能承载本地文件；以实际取流结果决定卡片类型。
+  const localPlayback = play?.local === true || play?.playChannel === 'library'
+  const allowNative = !skipNative && !localPlayback && !play?.external && !song.external && (!song.source || song.source === 'qq') && cfg.sendNativeCard && adapter.supportsNativeMusic
+  const allowCustom = !skipCustom && (cfg.sendCustomCard || (localPlayback && !skipNative && cfg.sendNativeCard)) && adapter.supportsNativeMusic
 
   if (!skipText && cfg.sendTextInfo !== false) {
     const lines = [
