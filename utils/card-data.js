@@ -66,8 +66,8 @@ export function buildListCardData(keyword, songs, options = {}) {
     sourceCounts: (() => {
       const byId = new Map()
       for (const s of songs) {
-        const id = s.source || 'qq'
-        const cur = byId.get(id) || { id, label: id === 'qq' ? 'QQ' : SOURCE_LABEL[id] || id, color: id === 'qq' ? '#31c27c' : platformColor(id), n: 0 }
+        const id = s.local ? 'library' : s.source || 'qq'
+        const cur = byId.get(id) || { id, label: id === 'library' ? '本地曲库' : id === 'qq' ? 'QQ' : SOURCE_LABEL[id] || id, color: id === 'qq' ? '#31c27c' : platformColor(id), n: 0 }
         cur.n += 1
         byId.set(id, cur)
       }
@@ -99,7 +99,10 @@ export function buildListCardData(keyword, songs, options = {}) {
       payplay: Boolean(s.payplay),
       hasMv: Boolean(s.mvVid),
       // 外部平台补充曲：卡片上标来源与音质，避免误以为是自己账号的问题
-      sourceTag: s.source ? `${SOURCE_LABEL[s.source] || s.source} · ${s.quality || '128k'}` : '',
+      sourceTag: s.local ? `本地 · ${SOURCE_LABEL[s.source] || s.source || '曲库'} · ${s.quality || '音质未知'}` : s.source ? `${SOURCE_LABEL[s.source] || s.source} · ${s.quality || '128k'}` : '',
+      local: s.local === true,
+      version: s.version || '',
+      versionLabel: s.versionLabel || '',
       sourceIcon: sourceIconOf(s.source),
       external: Boolean(s.external),
       // 多平台主题用：来源 id / 品牌色 / 短名（QQ 曲目 source 为空 → 走默认绿）
@@ -107,7 +110,7 @@ export function buildListCardData(keyword, songs, options = {}) {
       sourceColor: s.source ? platformColor(s.source) : '#31c27c',
       sourceShort: s.source ? platformShort(s.source) : 'QQ',
       // 只带档位（不带平台名）——「多平台」主题的 chip 自己会显示平台名
-      sourceTagShort: s.source ? String(s.quality || '128k') : '',
+      sourceTagShort: s.local ? `本地 · ${s.quality || '音质未知'}` : s.source ? String(s.quality || '128k') : '',
     })),
     hasMv,
     commands,

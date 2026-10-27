@@ -18,6 +18,7 @@ import {
   isLocalPath,
 } from './adapter.js'
 import { QUALITY_LABEL } from './quality.js'
+import { audioFormatExtension } from './library-compat.js'
 import { logInfo, logWarn } from './log.js'
 import { getCfg } from './common.js'
 
@@ -484,7 +485,7 @@ const CONTAINER_EXT = {
   webm: '.webm',
 }
 
-export async function downloadAudio(url, saveDir, filename = 'song', timeout = 90000, qualityHint = '') {
+export async function downloadAudio(url, saveDir, filename = 'song', timeout = 90000, qualityHint = '', formatHint = '') {
   if (!url) throw new Error('空下载地址')
   fs.mkdirSync(saveDir, { recursive: true })
   // 磁盘文件名尽量 ASCII，避免 Windows/Highway 路径坑；展示名在 upload 时再处理
@@ -515,6 +516,9 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
   else if (u.includes('.ape') || u.includes('a000')) ext = '.ape'
   else if (u.includes('.ogg')) ext = '.ogg'
   else if (u.includes('m800') || u.includes('m500') || u.includes('.mp3')) ext = '.mp3'
+
+  const hintedExt = audioFormatExtension(formatHint)
+  if (hintedExt && q !== 'video') ext = hintedExt
 
   // ⚠️ 落盘路径挪到循环里算：扩展名要等**看过字节**之后才定得下来（见下面的魔数体检）
   const savePathOf = (e) => path.join(saveDir, `${safe}_${Date.now()}${e}`)
@@ -583,13 +587,18 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
 }
 
 /** 同一 vkey 在不同 QQ 音乐 CDN 域名间尝试 */
-function buildDownloadCandidates(url) {
+export function buildDownloadCandidates(url) {
   const list = []
   const push = (u) => {
     if (u && !list.includes(u)) list.push(u)
   }
   push(url)
   try {
+    const origin = new URL(url)
+    const host = origin.hostname.toLowerCase()
+    const qqCdn = ['aqqmusic.tc.qq.com', 'qqmusic.tc.qq.com', 'stream.qqmusic.qq.com', 'music.tc.qq.com'].includes(host) || host.endsWith('.stream.qqmusic.qq.com') || host.endsWith('.music.tc.qq.com')
+    // 本地曲库及其他平台的带签名链接只能请求原地址，不能移植到 QQ CDN。
+    if (!qqCdn) return list
     if (url.startsWith('http://')) push(url.replace(/^http:\/\//i, 'https://'))
     if (url.startsWith('https://')) push(url.replace(/^https:\/\//i, 'http://'))
 
@@ -1024,7 +1033,7 @@ export async function deliverSong(e, song, play, options = {}) {
   const skipCustom = options.skipCustomCard === true
 
   // QQBot 原生/自定义 music 卡基本不可用，强制跳过避免刷错误日志
-  const allowNative = !skipNative && cfg.sendNativeCard && adapter.supportsNativeMusic
+  const allowNative = !skipNative && !song.external && (!song.source || song.source === 'qq') && cfg.sendNativeCard && adapter.supportsNativeMusic
   const allowCustom = !skipCustom && cfg.sendCustomCard && adapter.supportsNativeMusic
 
   if (!skipText && cfg.sendTextInfo !== false) {
@@ -1110,7 +1119,8 @@ export async function deliverSong(e, song, play, options = {}) {
           // 磁盘临时名尽量短 ASCII；展示名另算
           'qqmusic',
           timeout,
-          play.quality || cfg.quality || ''
+          play.quality || cfg.quality || '',
+          play.ext || ''
         )
         break
       } catch (err) {
@@ -1129,6 +1139,7 @@ export async function deliverSong(e, song, play, options = {}) {
               quality: prefer,
               mediaId: song.media_mid || play.mediaId || song.songmid,
               fallback: true,
+              userKey: playUserKey,
             })
             if (fresh?.url && fresh.url !== tryUrls[0]) {
               play = { ...play, ...fresh }
