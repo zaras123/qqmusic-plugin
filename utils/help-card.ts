@@ -139,7 +139,7 @@ const SECTIONS = [
     tag: '自动',
     items: [
       { name: '分享卡片', desc: '群内 QQ 音乐分享自动识别', example: '（发送音乐卡片）' },
-      { name: '链接解析', desc: 'y.qq.com 链接自动取链播放', example: 'https://y.qq.com/…' },
+      { name: '链接解析', desc: 'QQ音乐、Spotify、Apple Music、B站链接自动匹配播放', example: '粘贴分享链接' },
     ],
   },
 ]
@@ -178,7 +178,7 @@ export function buildHelpCardData(e) {
     statMode: songOn && resolveOn ? '全开' : songOn ? '点歌' : resolveOn ? '解析' : '待机',
     apiHint: apiHintFor(),
     isMaster,
-    tip: '付费曲需主人扫码登录；指令统一 #qqm 前缀；#听序号 取自己最近一次列表（同群，人多的群不会串）；分享 QQ 音乐卡片/链接可自动解析。',
+    tip: '付费曲需主人扫码登录；指令统一 #qqm 前缀；#听序号 取自己最近一次列表（同群，人多的群不会串）；分享 QQ音乐、Spotify、Apple Music、B站链接可自动解析并优先匹配本地曲库。',
     sections,
   }
 }
@@ -390,7 +390,7 @@ export function formatGuideText(e) {
     isMaster ? '#qqm登录 / #qqm状态 / #qms / #qqm登出' : '#qqm状态 / #qms',
     ...(isMaster ? ['— 管理（主人）—', '#qqm设置 / #qqm 音质 flac / #qqm 测试'] : []),
     '— 解析 —',
-    '分享 QQ 音乐卡片或 y.qq.com 链接自动解析',
+    '分享 QQ音乐 / Spotify / Apple Music / B站链接自动解析（本地曲库优先）',
   ]
     .filter(Boolean)
     .join('\n')

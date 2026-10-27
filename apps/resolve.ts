@@ -24,6 +24,12 @@ import { deliverSong } from '../utils/send.js'
 import { QUALITY_LABEL } from '../utils/quality.js'
 import { setSession } from '../utils/session.js'
 import { getCfg, isPluginCommandMsg } from '../utils/common.js'
+import {
+  detectExternalRef,
+  isExternalMusicMessage,
+  platformLabelOf,
+  resolveExternalRef,
+} from '../utils/external-resolve.js'
 import { logError, logInfo, logWarn } from '../utils/log.js'
 import { collectMessageText, isQQMusicMessage } from '../utils/resolve-text.js'
 
@@ -108,7 +114,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
           // 末尾的空消息分支专门接 Karin 的结构化 JSON/XML 卡片：
           // Karin 不执行 Yunzai 的 accept 前置钩子，且这类消息的 e.msg 为空，
           // 具体是不是 QQ 音乐分享由 resolve() 读取 e.elements 后再判断。
-          reg: '(y\\.qq\\.com|c6\\.y\\.qq\\.com|i\\.y\\.qq\\.com|qqmusic|QQ音乐|100497308|music\\.lua|structmsg|songmid|sdkshare_music)|^$',
+          reg: '^(?!#?\\s*(?:qqm|qms|QQ状态)).*?(?:y\\.qq\\.com|c6\\.y\\.qq\\.com|i\\.y\\.qq\\.com|qqmusic|QQ音乐|100497308|music\\.lua|structmsg|songmid|sdkshare_music|open\\.spotify\\.com|spotify:(track|album|playlist):|music\\.apple\\.com|itunes\\.apple\\.com|bilibili\\.com|b23\\.tv|BV[1-9A-Za-z]{9,11}|av\\d{5,})|^$',
           fnc: 'resolve',
           log: false,
         },
@@ -129,7 +135,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
     if (!cfg.enable || cfg.enableResolve === false) return
 
     const text = collectMessageText(e)
-    if (!isQQMusicMessage(text)) return
+    if (!isQQMusicMessage(text) && !isExternalMusicMessage(text)) return
     if (isPluginCommandMsg(e.msg)) return
 
     try {
@@ -151,7 +157,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
     if (!cfg.enable || cfg.enableResolve === false) return false
 
     const text = collectMessageText(e)
-    if (!isQQMusicMessage(text)) return false
+    if (!isQQMusicMessage(text) && !isExternalMusicMessage(text)) return false
     if (isPluginCommandMsg(e.msg)) return false
 
     try {
@@ -166,6 +172,56 @@ export class qqmusicResolve extends (await loadPluginBase()) {
     const userKey = String(e.user_id || '')
     let song = null
     let fromCard = false
+    let external = null
+
+    if (!song && cfg.resolveLinks !== false && cfg.resolveExternal !== false) {
+      const ref = detectExternalRef(text)
+      if (ref) {
+        const label = platformLabelOf(ref.platform)
+        try {
+          logInfo(`识别${label}链接: ${ref.kind}`)
+          const result = await resolveExternalRef(ref, { userKey })
+          if (!result.songs.length) {
+            const reason = result.note ? `：${result.note}` : ''
+            await e.reply(`${label}链接未匹配到可用音源${reason}`)
+            return true
+          }
+          if (ref.kind !== 'track') {
+            const kindLabel =
+              ref.kind === 'playlist'
+                ? '歌单'
+                : ref.kind === 'album'
+                  ? '专辑'
+                  : ref.kind === 'video'
+                    ? '视频'
+                    : '链接'
+            const title =
+              result.title ||
+              result.songs[0]?.albumName ||
+              result.songs[0]?.songName ||
+              `${label}${kindLabel}`
+            const scope = e.group_id || e.user_id
+            await setSession(scope, {
+              type: ref.kind,
+              data: result.songs,
+              user_id: e.user_id,
+              title,
+            })
+            const limited = result.truncated ? `，本次解析前${result.songs.length}首` : ''
+            await e.reply(
+              `识别到${label}${kindLabel}「${title}」，已匹配${result.matched}/${result.total}首${limited}。发送 #qqm听序号 播放`
+            )
+            return true
+          }
+          song = result.songs[0]
+          external = ref
+        } catch (err) {
+          const message = String(err?.message || '外部链接解析失败').slice(0, 240)
+          await e.reply(`${label}链接解析失败：${message}`)
+          return true
+        }
+      }
+    }
 
     if (cfg.resolveCards !== false) {
       const card = parseQQMusicCard(text)
@@ -310,10 +366,12 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       const pay = play.raw?.pay || play.pay
       if (errText) {
         failHint = `⚠ ${errText}`
-      } else if (pay && Number(pay.pay_play) === 1) {
+      } else if (!external && pay && Number(pay.pay_play) === 1) {
         failHint = '⚠ 该曲需会员播放，请 #qqm登录'
       } else {
-        failHint = '⚠ 未获取到播放链（请 #qqm登录 重新扫码；或 #qqm刷新 后重试）'
+        failHint = external
+          ? '⚠ 已匹配歌曲，但当前没有可用的本地或在线音源'
+          : '⚠ 未获取到播放链（请 #qqm登录 重新扫码；或 #qqm刷新 后重试）'
       }
     }
 
@@ -324,7 +382,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       const cardData = buildDetailCardData(song, {
         qualityLabel: qLabel,
         payplay: Boolean(song.payplay),
-        source: fromCard ? '卡片' : '链接',
+        source: external ? `${platformLabelOf(external.platform)}链接` : fromCard ? '卡片' : '链接',
         hasUrl: Boolean(play.url),
         degradeNote: play.degradeNote || '',
         error: play.error || '',
@@ -339,7 +397,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
         const { formatDetailText } = await import('../utils/card-data.js')
         await e.reply(
           [
-            `${prefix}QQ音乐 · 解析完成`,
+            `${prefix}${external ? platformLabelOf(external.platform) : 'QQ音乐'} · 解析完成`,
             formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
             play.degradeNote ? `音质说明：${play.degradeNote}` : '',
             failHint,
@@ -351,7 +409,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       const { formatDetailText } = await import('../utils/card-data.js')
       await e.reply(
         [
-          `${prefix}QQ音乐 · 解析完成`,
+          `${prefix}${external ? platformLabelOf(external.platform) : 'QQ音乐'} · 解析完成`,
           formatDetailText(song, { qualityLabel: qLabel, hasUrl: Boolean(play.url) }),
           play.degradeNote ? `音质说明：${play.degradeNote}` : '',
           failHint,

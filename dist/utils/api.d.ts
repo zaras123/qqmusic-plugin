@@ -155,6 +155,10 @@ export { SOURCE_META, SOURCE_LABEL } from './platforms.js';
 export declare function sourceIconOf(source: any): string;
 /** 统一歌曲对象归一化：兼容 /data 包裹、/track_info 包裹、扁平结构 */
 export declare function normalizeSearchItem(item: any, idx?: number): {
+    local: boolean;
+    libraryId: string;
+    version: string;
+    versionLabel: string;
     index: number;
     songmid: any;
     songid: any;
@@ -196,15 +200,23 @@ export declare function songUrl(songmid: any, { type, quality, fallback, mediaId
     achieved: string;
     raw: any;
 } | {
+    local: boolean;
+    libraryId: string;
+    matchedSongmid: string;
+    matchedBy: string;
+    version: string;
+    versionLabel: string;
+    ext: string;
+    source: string;
+    sourceLabel: string;
+    qualityLabel: string;
+    external: boolean;
     url: string;
     file: any;
     domain: any;
     purl: any;
     quality: any;
     tried: any;
-    qualityLabel: any;
-    source: any;
-    external: boolean;
     mediaId: any;
     pay: any;
     refreshed: any;
@@ -300,6 +312,10 @@ export declare function songlistDetail(disstid: any, userKey?: string): Promise<
     disstid: any;
     creator: any;
     songlist: {
+        local: boolean;
+        libraryId: string;
+        version: string;
+        versionLabel: string;
         index: number;
         songmid: any;
         songid: any;
@@ -333,6 +349,10 @@ export declare function parseQQMusicExtendedIds(text?: string): {
     media_mid: string;
 };
 export declare function recommendFeed(userKey?: string): Promise<{
+    local: boolean;
+    libraryId: string;
+    version: string;
+    versionLabel: string;
     index: number;
     songmid: any;
     songid: any;

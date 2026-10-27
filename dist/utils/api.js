@@ -2,6 +2,7 @@
  * qqmusic-api-enhanced 客户端
  */
 import axios from 'axios';
+import { searchLibraryFields, keepSearchSource, playLibraryFields } from './library-compat.js';
 import Config from '../components/Config.js';
 import { QUALITY_LABEL, QUALITY_LADDER, summarizeFileSizes, } from './quality.js';
 import { logInfo, logWarn } from './log.js';
@@ -328,7 +329,7 @@ export async function searchSongs(keyword, { pageNo = 1, pageSize = 10, userKey 
      */
     if (fill && Array.isArray(fillSources)) {
         const keep = new Set(fillSources.map((x) => String(x).toLowerCase()));
-        return list.filter((s) => !s.source || keep.has(String(s.source).toLowerCase()));
+        return list.filter((s) => keepSearchSource(s, keep));
     }
     return list;
 }
@@ -440,6 +441,7 @@ export function normalizeSearchItem(item, idx = 0) {
         // 档位由 API 按平台给出（B站 192k 比网易云/酷我 128k 好），缺失时按 128k 兜底
         quality: raw.quality || '',
         external: Boolean(raw.external),
+        ...searchLibraryFields(raw),
         media_mid: raw.media_mid || raw.strMediaMid || raw.songmid || '',
         songName: raw.songname ||
             raw.songName ||
@@ -469,19 +471,21 @@ function mapSongUrlBody(body, type, realMedia) {
     else if (body?.data?.url)
         url = body.data.url;
     if (url) {
-        const d = body?.data || {};
+        const d = body?.data && typeof body.data === 'object' ? body.data : {};
+        const library = playLibraryFields(body, d);
         return {
             url,
             file: body.file || d.file,
             domain: body.domain || d.domain,
             purl: body.purl || d.purl,
             // API 的 QQ 阶梯把 quality 放在响应顶层；外部平台补充曲放在 data 里 —— 两处都认
-            quality: d.quality || body.quality || type,
+            quality: d.quality || body.quality || (library.local ? 'unknown' : type),
             tried: d.tried || body.tried || undefined, // API 侧音质阶梯的逐档记录
             // 外部平台补充曲带回来的标记：来源与档位要能显示出来（别谎报 FLAC）
             qualityLabel: d.qualityLabel || '',
             source: d.source || '',
             external: Boolean(d.external),
+            ...library,
             mediaId: body.mediaId || d.mediaId || realMedia,
             pay: body.pay || d.pay,
             refreshed: body.refreshed,
@@ -723,7 +727,7 @@ export async function songUrlBest(songmid, { quality = 'flac', mediaId, fallback
             adaptedFrom: preferred,
             tried,
             mvVid: r.mvVid || mvVid,
-            degradeNote: isExt ? '' : buildDegradeNote(preferred, r.quality, tried),
+            degradeNote: isExt || r.local ? '' : buildDegradeNote(preferred, r.quality, tried),
         };
     }
     const payload = lastErr?.payload || lastResult?.raw || lastResult || {};

@@ -70,12 +70,14 @@ export declare function sendVocal(e: any, fileOrUrl: any, httpFallback: any): Pr
  * @returns {'flac'|'ogg'|'mp3'|'mp4'|'wav'|'ape'|'webm'|''} 空串 = 认不出
  */
 export declare function sniffAudioContainer(buf: any): any;
-export declare function downloadAudio(url: any, saveDir: any, filename?: string, timeout?: number, qualityHint?: string): Promise<{
+export declare function downloadAudio(url: any, saveDir: any, filename?: string, timeout?: number, qualityHint?: string, formatHint?: string): Promise<{
     filePath: string;
     size: number;
     ext: string;
     url: any;
 }>;
+/** 同一 vkey 在不同 QQ 音乐 CDN 域名间尝试 */
+export declare function buildDownloadCandidates(url: any): any[];
 export declare function getTempDir(): string;
 export declare function formatSize(bytes: any): string;
 /**
@@ -114,18 +116,18 @@ export declare function deliverSong(e: any, song: any, play: any, options?: {}):
     ok: boolean;
     reason: string;
     adapter: string;
+    error?: undefined;
     downloaded?: undefined;
     path?: undefined;
     size?: undefined;
-    error?: undefined;
 } | {
     reason?: undefined;
     ok: boolean;
     downloaded: boolean;
     adapter: string;
+    error?: undefined;
     path?: undefined;
     size?: undefined;
-    error?: undefined;
 } | {
     ok: boolean;
     reason: string;
@@ -136,10 +138,10 @@ export declare function deliverSong(e: any, song: any, play: any, options?: {}):
     size?: undefined;
 } | {
     reason?: undefined;
+    error?: undefined;
     ok: boolean;
     downloaded: boolean;
     path: string;
     size: number;
     adapter: string;
-    error?: undefined;
 }>;

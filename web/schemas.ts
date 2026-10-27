@@ -300,7 +300,13 @@ export function buildSchemas() {
   {
     field: 'enableResolve',
     label: '开启卡片/链接解析',
-    bottomHelpMessage: '识别 QQ 音乐分享与 y.qq.com 链接',
+    bottomHelpMessage: '识别 QQ 音乐、Spotify、Apple Music、B站分享链接',
+    component: 'Switch',
+  },
+  {
+    field: 'resolveExternal',
+    label: '外部平台链接解析',
+    bottomHelpMessage: 'Spotify / Apple Music / B站：先查本地曲库，再尝试同曲匹配',
     component: 'Switch',
   },
   {

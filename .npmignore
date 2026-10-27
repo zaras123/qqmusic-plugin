@@ -20,3 +20,8 @@ data/
 
 # 本地 AI 助手配置：settings.local.json 里含本机 API Token，绝不进包
 .claude/
+
+# 本机代理/IDE 元数据，不属于插件发布内容
+.serena/
+.agents/
+.codex/
