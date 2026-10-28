@@ -37,10 +37,11 @@ export declare function sendCustomMusicCard(e: any, { url, audio, title, image, 
     title: any;
     url: any;
 }): Promise<boolean>;
-export declare function prepareVocalFile(filePath: any, { directExt, maxBytes, lowQuality }?: {
+export declare function prepareVocalFile(filePath: any, { directExt, maxBytes, lowQuality, expectedSeconds }?: {
     directExt?: Set<string>;
+    expectedSeconds?: number;
     maxBytes?: number;
-}): Promise<any>;
+}): Promise<string>;
 /**
  * 发送语音
  * - ICQQ：本地路径 / Buffer 均可
@@ -75,6 +76,7 @@ export declare function downloadAudio(url: any, saveDir: any, filename?: string,
     size: number;
     ext: string;
     url: any;
+    decrypted: string;
 }>;
 /** 同一 vkey 在不同 QQ 音乐 CDN 域名间尝试 */
 export declare function buildDownloadCandidates(url: any): any[];
@@ -116,18 +118,18 @@ export declare function deliverSong(e: any, song: any, play: any, options?: {}):
     ok: boolean;
     reason: string;
     adapter: string;
-    error?: undefined;
     downloaded?: undefined;
     path?: undefined;
     size?: undefined;
+    error?: undefined;
 } | {
     reason?: undefined;
     ok: boolean;
     downloaded: boolean;
     adapter: string;
-    error?: undefined;
     path?: undefined;
     size?: undefined;
+    error?: undefined;
 } | {
     ok: boolean;
     reason: string;
@@ -138,10 +140,10 @@ export declare function deliverSong(e: any, song: any, play: any, options?: {}):
     size?: undefined;
 } | {
     reason?: undefined;
-    error?: undefined;
     ok: boolean;
     downloaded: boolean;
     path: string;
     size: number;
     adapter: string;
+    error?: undefined;
 }>;
