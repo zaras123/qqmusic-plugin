@@ -27,7 +27,8 @@ export const LISTENING_HELP_SECTION = {
         { name: '核对平台统计', desc: '仅刷新已结束任务的增量，不重发旧批次', example: '#qqm刷歌刷新 QQ' },
         { name: '停止任务', desc: '可指定平台或任务ID；末尾带「确认」', example: '#qqm刷歌停止 QQ 确认' },
         { name: '平台时长', desc: 'QQ 显示今日秒数，酷狗显示累计秒数', example: '#qqm刷歌统计 酷狗' },
-        { name: '每日计划', desc: '默认 QQ歌手 / 每轮60分钟 / 每天00:05持续执行', example: '#qqm刷歌每天 周杰伦 确认' },
+        { name: 'QQ 每日 24 小时', desc: '当天持续补到24小时；每轮60分钟并轮换歌手歌曲', example: '#qqm刷歌每天 周杰伦 确认' },
+        { name: '酷狗每日 24 小时', desc: '按酷狗累计时长补到当天24小时目标', example: '#qqm刷歌每天 酷狗 确认' },
         { name: '固定轮数', desc: '只执行指定轮次；专辑和歌手每轮轮换下一首', example: '#qqm刷歌每天 专辑 叶惠美 20次 确认' },
         { name: '自定义时间', desc: '可选参数依次为每轮分钟、轮数、每天时间', example: '#qqm刷歌每天 周杰伦 30分 20次 08:30 确认' },
         { name: '继续计划', desc: '继续已保存的计划，无需重填歌手和时间', example: '#qqm刷歌继续 确认' },
@@ -49,7 +50,7 @@ export function parseListeningCommand(text = '') {
     // 短命令只补全默认参数，再交给同一套完整命令校验，不另起一套任务逻辑。
     const daily = /^每天\s+([\s\S]+?)\s+(确认|confirm)$/i.exec(tail);
     if (daily) {
-        let content = daily[1].trim(), time = '00:05', minutes = '60', rounds = '一直';
+        let content = daily[1].trim(), time = '00:05', minutes = '', rounds = '一直';
         const timeMatch = /\s+(\d{1,2}:\d{2})$/.exec(content);
         if (timeMatch) {
             time = timeMatch[1].padStart(5, '0');
@@ -60,20 +61,30 @@ export function parseListeningCommand(text = '') {
             rounds = roundsMatch[1];
             content = content.slice(0, roundsMatch.index).trim();
         }
-        const durationMatch = /\s+(\d+)(?:分钟|分)$/.exec(content);
+        const leadingDuration = /^(\d+)(分钟|分|小时|h)\s+/i.exec(content);
+        const durationMatch = leadingDuration || /\s+(\d+)(分钟|分|小时|h)$/i.exec(content);
         if (durationMatch) {
-            minutes = durationMatch[1];
-            content = content.slice(0, durationMatch.index).trim();
+            minutes = /小时|h/i.test(durationMatch[2]) ? String(Number(durationMatch[1]) * 60) : durationMatch[1];
+            content = (leadingDuration ? content.slice(durationMatch[0].length) : content.slice(0, durationMatch.index)).trim();
         }
-        if (/\s+-?[\d.]+(?:分钟|分|次)$/.test(content))
+        if (/\s+-?[\d.]+(?:分钟|分|小时|h|次)$/i.test(content))
             return bad('时长和轮数必须为正整数，可选参数顺序为：30分 20次 08:30');
+        const platformOnly = /^(QQ|酷狗|kg)$/i.exec(content);
+        if (platformOnly) {
+            const platform = platformOf(platformOnly[1]);
+            if (platform !== 'kugou')
+                return bad('QQ 每日计划需要歌手、专辑或歌曲名，例如 #qqm刷歌每天 周杰伦 确认');
+            minutes ||= '1440';
+            return parseListeningCommand('#qqm刷歌计划 酷狗 歌曲 累计时长 ' + minutes + ' ' + rounds + ' ' + time + ' 确认');
+        }
         const targetMatch = /^(?:(QQ|酷狗|kg)\s+)?(?:(歌曲|专辑|歌手)\s+)?([\s\S]+)$/i.exec(content);
         if (!targetMatch)
-            return bad('请填写歌手、专辑或歌曲名，例如 #qqm刷歌每天 周杰伦 确认');
+            return bad('请填写歌手、专辑或歌曲名；酷狗可直接发送 #qqm刷歌每天 酷狗 确认');
+        minutes ||= '60';
         return parseListeningCommand('#qqm刷歌计划 ' + (targetMatch[1] || 'QQ') + ' ' + (targetMatch[2] || '歌手') + ' ' + targetMatch[3] + ' ' + minutes + ' ' + rounds + ' ' + time + ' 确认');
     }
     if (/^每天/.test(tail))
-        return bad('简写：#qqm刷歌每天 周杰伦 确认；默认 QQ / 歌手 / 每轮60分钟 / 每天00:05持续；可选加「30分 20次 08:30」');
+        return bad('简写：#qqm刷歌每天 周杰伦 确认，或 #qqm刷歌每天 酷狗 确认；每日目标固定为24小时');
     if (tail === '计划')
         return { action: 'plan-list' };
     const shortControl = /^(暂停|继续|删除|立即)(?:\s+([\s\S]+?))?\s+(?:确认|confirm)$/i.exec(tail);
