@@ -19,6 +19,7 @@ import {
 } from './adapter.js'
 import { QUALITY_LABEL } from './quality.js'
 import { audioFormatExtension } from './library-compat.js'
+import { validateAndPrepareVocal } from './vocal-audio.js'
 import { logInfo, logWarn } from './log.js'
 import { getCfg } from './common.js'
 
@@ -271,63 +272,18 @@ const VOCAL_DIRECT_EXT = new Set(['mp3', 'silk', 'wav', 'amr', 'm4a', 'ogg', 'fl
 
 export async function prepareVocalFile(
   filePath,
-  { directExt = VOCAL_DIRECT_EXT, maxBytes = VOCAL_MAX_BYTES, lowQuality } = {}
+  { directExt = VOCAL_DIRECT_EXT, maxBytes = VOCAL_MAX_BYTES, lowQuality, expectedSeconds = 0 } = {}
 ) {
-  if (!filePath || typeof filePath !== 'string' || !fs.existsSync(filePath)) {
-    return filePath
+  const result = await validateAndPrepareVocal(filePath, {
+    directExt, maxBytes, expectedSeconds,
+    lowQuality: lowQuality ?? (getCfg().disableHighQualityVocal === true),
+  })
+  if (result.converted) {
+    logInfo(`语音压缩并校验: ${path.basename(filePath)} → ${path.basename(result.filePath)} (${result.bitrate})；源 ${result.sourceSeconds.toFixed(2)} 秒 → 输出 ${result.outputSeconds.toFixed(2)} 秒`)
+  } else if (!result.nativeSilk) {
+    logInfo(`语音完整性校验: ${path.basename(filePath)}；源 ${result.sourceSeconds.toFixed(2)} 秒 / 实际解码 ${result.outputSeconds.toFixed(2)} 秒`)
   }
-  // 禁用高清语音（disableHighQualityVocal）：PC QQ 播放不了 44.1k 立体声语音，
-  // 改编码成 mono 16k 低码率（PC 可正常播放）。未显式传参时读配置。
-  const isLow = lowQuality ?? (getCfg().disableHighQualityVocal === true)
-  const abs = path.resolve(filePath)
-  const size = fs.statSync(abs).size
-  const ext = path.extname(abs).slice(1).toLowerCase()
-  // 低音质模式强制重编码（即使源是小 mp3，也要转成 PC 兼容格式）
-  if (!isLow && directExt.has(ext) && size <= maxBytes) return abs
-
-  const out = path.join(
-    path.dirname(abs),
-    `${path.basename(abs, path.extname(abs))}_${isLow ? 'vocal_low' : 'vocal'}.mp3`
-  )
-  if (fs.existsSync(out) && fs.statSync(out).size > 256) return out
-
-  const bitrate = size > 16 * 1024 * 1024 ? '64k' : size > 8 * 1024 * 1024 ? '96k' : '128k'
-  const args = isLow
-    ? ['-y', '-i', abs, '-vn', '-acodec', 'libmp3lame', '-ar', '16000', '-ac', '1', '-b:a', '32k', out]
-    : ['-y', '-i', abs, '-vn', '-acodec', 'libmp3lame', '-ar', '44100', '-ac', '2', '-b:a', bitrate, out]
-  try {
-    await execFileAsync('ffmpeg', args, {
-      windowsHide: true,
-      timeout: 180000,
-      maxBuffer: 8 * 1024 * 1024,
-    })
-    if (fs.existsSync(out) && fs.statSync(out).size > 256) {
-      logInfo(`语音压缩: ${path.basename(abs)} → ${path.basename(out)} (${isLow ? 'mono16k低音质' : bitrate})`)
-      return out
-    }
-  } catch (err) {
-    if (/ENOENT|not found|spawn\s+\S+\s+ENOENT/i.test(err?.message || '')) {
-      logWarn(`未检测到 ffmpeg，无法压缩语音。高音质（FLAC 等）文件可能无法作为语音发送，请安装 ffmpeg 或调低音质`)
-    } else {
-      /**
-       * 把 ffmpeg **自己说的话**带出来。
-       *
-       * 以前只打 `err.message`，而 execFile 的 message 永远是
-       * `Command failed: ffmpeg -y -i …` —— 真正的成因（识别不了格式 / 缺编码器 /
-       * 超时被杀）全在 `err.stderr` 里。于是每次都得靠猜：
-       * 2026-09-30 用户反馈"ffmpeg 识别不了母带格式"就是这么推出来的
-       * （推对了，但本可以一眼看到）。stderr 只留最后两行，避免刷屏。
-       */
-      const detail = String(err?.stderr || '')
-        .trim()
-        .split('\n')
-        .filter((l) => l.trim())
-        .slice(-2)
-        .join(' | ')
-      logWarn(`语音压缩失败，回退原文件: ${err.message}${detail ? `（ffmpeg: ${detail}）` : ''}`)
-    }
-  }
-  return abs
+  return result.filePath
 }
 
 /**
@@ -577,7 +533,8 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
       }
       const filePath = savePathOf(realExt)
       fs.writeFileSync(filePath, buf)
-      return { filePath, size: buf.length, ext: realExt, url: tryUrl }
+      return { filePath, size: buf.length, ext: realExt, url: tryUrl,
+        decrypted: String(res.headers?.['x-qqm-decrypted'] || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 32) }
     } catch (err) {
       lastErr = err
       logWarn(`下载异常: ${err.message}`)
@@ -1178,6 +1135,7 @@ export async function deliverSong(e, song, play, options = {}) {
       { asciiOnly: false, includeQuality: false }
     )
     logInfo(`已下载 ${path.basename(localPath)} → 展示名 ${displayName} ${formatSize(size)} [${adapter.kind}]`)
+    logInfo(`音源诊断: channel=${play.playChannel || (localPlayback ? 'library' : 'official')}；encrypted=${play.encrypted === true}；via=${/\/song\/(file|relay)(\?|$)/.test(dl.url || '') ? 'API' : 'direct'}；decrypted=${dl.decrypted || 'none'}；container=${dl.ext}`)
   } catch (err) {
     logWarn(`下载失败: ${err.message}`)
     await e.reply(
@@ -1190,9 +1148,7 @@ export async function deliverSong(e, song, play, options = {}) {
      * 仍是一坨密文 —— 发出去只会是一条**播不响的语音**（还会让人以为"发了但没声"）。
      * 宁可什么都不发：上面那句回复已经说清失败原因了。
      */
-    if (cfg.sendVocal && !play.encrypted) {
-      await sendVocal(e, play.url)
-    }
+    // 下载失败时无法验证完整性，不再让协议端发送未知音频。
     return { ok: false, reason: 'download_fail', error: err.message, adapter: adapter.kind }
   }
 
@@ -1202,6 +1158,7 @@ export async function deliverSong(e, song, play, options = {}) {
   // 语音 / OneBot 群文件都需要「紧凑 mp3」：FLAC 直接发语音会被协议端拒；OneBot 群文件也不接受 .flac。
   // ICQQ 群文件保留原始高音质文件（走 fs.upload / sendFile），无需压缩。
   let vocalPath = ''
+  let vocalError = null
   const needCompress =
     localPath && (cfg.sendVocal || (cfg.uploadFile && adapter.kind === 'onebot'))
   if (needCompress) {
@@ -1210,14 +1167,17 @@ export async function deliverSong(e, song, play, options = {}) {
         directExt: adapter.kind === 'qqbot' ? QQBOT_DIRECT_AUDIO_EXT : VOCAL_DIRECT_EXT,
         // 低音质只用于语音（禁用高清语音时 PC 可播）；仅作 OneBot 群文件兜底时仍保高音质
         lowQuality: cfg.sendVocal && cfg.disableHighQualityVocal === true,
+        expectedSeconds: Number(song.interval) || Number(song.durationSeconds) || 0,
       })
-    } catch {
-      vocalPath = localPath
+    } catch (error) {
+      vocalError = error
+      logWarn(`停止发送异常语音: ${error.message}`)
+      await e.reply(`音频校验失败，已停止发送语音：${error.message}`)
     }
     if (vocalPath && vocalPath !== localPath) cleanupPaths.add(vocalPath)
   }
 
-  if (cfg.sendVocal && localPath) {
+  if (cfg.sendVocal && localPath && !vocalError) {
     const vocalSend = vocalPath || localPath
     let ok = false
     try {
@@ -1235,7 +1195,7 @@ export async function deliverSong(e, song, play, options = {}) {
     }
   }
 
-  if (cfg.uploadFile) {
+  if (cfg.uploadFile && (!vocalError || vocalError.code === 'VOCAL_TOOL_MISSING')) {
     // 群：上传群文件；私聊：发好友文件 / segment.file
     const hasCompressed = Boolean(vocalPath && vocalPath !== localPath && fs.existsSync(vocalPath))
     const compressedName = displayName
@@ -1303,6 +1263,10 @@ export async function deliverSong(e, song, play, options = {}) {
         } catch {}
       }, delay)
     }
+  }
+
+  if (vocalError) {
+    return { ok: false, reason: 'vocal_prepare_fail', error: vocalError.message, adapter: adapter.kind }
   }
 
   // 一起听：歌已经发出去了，再同步进群里的一起听（细节见 syncTogetherAfterSend）
