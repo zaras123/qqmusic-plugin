@@ -5,6 +5,7 @@ import Config from '../components/Config.js'
 import { QUALITY_LABEL } from './quality.js'
 import { publicAccountOf, resolvePublicAccount, isAutoPublicAccount } from './account.js'
 import { request, listAccounts, SOURCE_LABEL, sourceIconOf } from './api.js'
+import { channelTagOf } from './library-compat.js'
 // 「多平台」主题要按来源上色：色值/短名从注册表取（单一事实来源）
 import {
   platformColor,
@@ -66,8 +67,11 @@ export function buildListCardData(keyword, songs, options = {}) {
     sourceCounts: (() => {
       const byId = new Map()
       for (const s of songs) {
-        const id = s.local ? 'library' : s.source || 'qq'
-        const cur = byId.get(id) || { id, label: id === 'library' ? '本地曲库' : id === 'qq' ? 'QQ' : SOURCE_LABEL[id] || id, color: id === 'qq' ? '#31c27c' : platformColor(id), n: 0 }
+        const kind = s.channelKind || (s.local ? 'local' : s.source && s.source !== 'qq' ? 'fill' : 'official')
+        const id = kind === 'local' ? `local:${s.source || 'library'}` : kind === 'fill' ? s.source || 'fill' : 'qq'
+        const sourceName = SOURCE_LABEL[s.source] || s.sourceLabel || s.source || ''
+        const label = kind === 'local' ? `本地${sourceName ? ` · ${sourceName}` : ''}` : kind === 'fill' ? `填充 · ${sourceName || '三方'}` : 'QQ官方'
+        const cur = byId.get(id) || { id, label, color: kind === 'official' ? '#31c27c' : kind === 'local' ? '#6b7280' : platformColor(s.source), n: 0 }
         cur.n += 1
         byId.set(id, cur)
       }
@@ -99,7 +103,9 @@ export function buildListCardData(keyword, songs, options = {}) {
       payplay: Boolean(s.payplay),
       hasMv: Boolean(s.mvVid),
       // 外部平台补充曲：卡片上标来源与音质，避免误以为是自己账号的问题
-      sourceTag: s.local ? `本地 · ${SOURCE_LABEL[s.source] || s.source || '曲库'} · ${s.quality || '音质未知'}` : s.source ? `${SOURCE_LABEL[s.source] || s.source} · ${s.quality || '128k'}` : '',
+      sourceTag: channelTagOf(s),
+      channelKind: s.channelKind || '',
+      channelLabel: s.channelLabel || '',
       local: s.local === true,
       version: s.version || '',
       versionLabel: s.versionLabel || '',
@@ -108,9 +114,9 @@ export function buildListCardData(keyword, songs, options = {}) {
       // 多平台主题用：来源 id / 品牌色 / 短名（QQ 曲目 source 为空 → 走默认绿）
       sourceId: s.source || '',
       sourceColor: s.source ? platformColor(s.source) : '#31c27c',
-      sourceShort: s.source ? platformShort(s.source) : 'QQ',
+      sourceShort: s.channelKind === 'local' ? '本地' : (s.channelKind === 'fill' || (!s.channelKind && s.source && s.source !== 'qq')) ? (s.sourceLabel || platformShort(s.source)) : 'QQ官方',
       // 只带档位（不带平台名）——「多平台」主题的 chip 自己会显示平台名
-      sourceTagShort: s.local ? `本地 · ${s.quality || '音质未知'}` : s.source ? String(s.quality || '128k') : '',
+      sourceTagShort: s.quality || (s.channelKind === 'official' ? '官方' : ''),
     })),
     hasMv,
     commands,
@@ -842,6 +848,7 @@ export function formatDetailText(song, { qualityLabel = '', hasUrl = false } = {
   const isVip = Boolean(song.payplay)
   const lines = [
     `♪ ${song.songName || '未知'} - ${song.singerName || '未知'}${isVip ? ' [会员/付费]' : ''}`,
+    `渠道：${channelTagOf(song)}`,
   ]
   if (song.albumName) lines.push(`专辑：${song.albumName}`)
   if (song.duration) lines.push(`时长：${song.duration}`)

@@ -625,6 +625,11 @@ function toSegmentImage(buf) {
   return { type: 'image', file }
 }
 
+/** Platform task status card shared by QQ, Kugou and the daily plan scheduler. */
+export async function renderListeningCard(e, data) {
+  return renderCard(e, data, 'qqmusic-listening')
+}
+
 export async function renderStatusCard(e, data) {
   return renderCard(e, data, 'qqmusic-status')
 }

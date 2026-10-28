@@ -50,7 +50,7 @@
                 {{song.singerName}}{{if song.albumName}} · {{song.albumName}}{{/if}}
               </div>
             </div>
-            <span class="src-chip" style="--src:{{song.sourceColor}}">{{if song.external}}{{song.sourceShort}} · {{song.sourceTagShort}}{{else}}QQ{{/if}}</span>
+            <span class="src-chip" style="--src:{{song.sourceColor}}">{{if song.sourceTag}}{{song.sourceShort}}{{if song.sourceTagShort}} · {{song.sourceTagShort}}{{/if}}{{else}}QQ{{/if}}</span>
             {{if song.duration}}<span class="row-value">{{song.duration}}</span>{{/if}}
           </div>
           {{/each}}

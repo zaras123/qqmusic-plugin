@@ -502,6 +502,19 @@ const samples = {
     note: '',
     footer: '只读展示，领取请在官方客户端操作',
   },
+  'qqmusic-listening': {
+    title: '平台时长任务',
+    subtitle: 'QQ音乐 · 提交中',
+    status: '提交中',
+    song: '晴天',
+    artist: '周杰伦',
+    platform: 'qq',
+    requested: '24小时',
+    submitted: '3小时30分',
+    confirmed: '3小时20分',
+    planText: 'QQ音乐 · 正在执行\n歌手：周杰伦\n每轮：1小时\n每天：00:05 起补到24小时\n轮次：持续',
+    tip: '仅使用发送者自己的登录账号。已接收量与平台统计增量分开显示。',
+  },
 }
 
 export { SRC, SONGS, PLATFORM_ROWS, GUIDE_PLATS, samples, logoUrl, withSource, countSources }

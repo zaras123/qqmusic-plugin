@@ -14,6 +14,7 @@ import { enabledPlatforms } from './v2.js'
 // 凭据通道（能扫码 / 只能粘贴）的事实来自注册表 —— 帮助卡里不许再手抄一份平台名单
 import { platformCanQrLogin, platformCanCookie, platformQrOf, platformCookieOf, platformAuthTag } from './platforms.js'
 import { QUALITY_LABEL } from './quality.js'
+import { LISTENING_HELP_SECTION, LISTENING_TIP } from './listening.js'
 
 /** 全部帮助条目；master: true = 仅主人渲染（与 rule 的 permission: 'master' 对应） */
 const SECTIONS = [
@@ -36,6 +37,7 @@ const SECTIONS = [
     tag: '全员',
     items: [
       { name: '搜索点歌', desc: '按关键词搜索并展示列表', example: '#qqm点歌 七里香' },
+      { name: '渠道标识', desc: '列表同时保留本地库、QQ音乐官方和已启用的填充渠道', example: '#qqm点歌 晴天' },
       { name: '选择曲目', desc: '播放当前列表第 N 首', example: '#qqm听1' },
       { name: '直接播放', desc: '搜索并立即播放第一条', example: '#qqm播放 晴天' },
       { name: '查看歌词', desc: '按歌名/mid 取歌词；点歌后 #qqm歌词1 取列表第 1 首歌词', example: '#qqm歌词 七里香' },
@@ -80,6 +82,7 @@ const SECTIONS = [
       { name: '登出解绑', desc: '清除登录态（主人）', example: '#qqm登出', master: true },
     ],
   },
+  LISTENING_HELP_SECTION,
   {
     title: '账号操作',
     tag: '主人',
@@ -391,4 +394,11 @@ export function formatGuideText(e) {
   ]
     .filter(Boolean)
     .join('\n')
+}
+
+/** Shared help template, filtered to this task's commands. */
+export function buildListeningHelpCardData(e) {
+  const base = buildHelpCardData(e)
+  const sections = base.sections.filter(section => section.title === LISTENING_HELP_SECTION.title)
+  return { ...base, sections, statCommands: String(sections.reduce((n, section) => n + section.items.length, 0)), tip: LISTENING_TIP }
 }
