@@ -110,6 +110,9 @@
     /* ── 页脚 ── */
     .foot { padding: 10px 20px 16px; font-size: 11px; color: var(--muted); line-height: 1.6; }
     .foot .api { margin-top: 3px; opacity: 0.85; }
+    /* 命令另起一行，分类名称不会被右侧命令挤掉。 */
+    .item { display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 4px 9px; }
+    .ex { grid-column: 2; justify-self: start; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
   </style>
 </head>
 <body>

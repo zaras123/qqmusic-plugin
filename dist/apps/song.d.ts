@@ -112,6 +112,7 @@ export declare class qqmusicSong extends qqmusicSong_base {
     }): Promise<boolean>;
     getLyric(e: any): Promise<boolean>;
     hotSearch(e: any): Promise<boolean>;
+    categoryHelp(e: any): Promise<boolean>;
     help(e: any): Promise<boolean>;
 }
 export {};

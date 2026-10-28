@@ -1,7 +1,35 @@
+export declare const RE_CATEGORY_HELP: RegExp;
+export declare function formatHelpCardText(data: any): string;
+export declare function buildCategoryHelpCardData(e: any, key: any): {
+    title: string;
+    detail: boolean;
+    subtitle: string;
+    sections: {
+        title: string;
+        tag: string;
+        items: {
+            name: any;
+            desc: any;
+            example: string;
+        }[];
+    }[];
+    statCommands: string;
+    tip: string;
+    version: string;
+    logo: string;
+    statQuality: any;
+    statMode: string;
+    apiHint: string;
+    isMaster: boolean;
+};
 /**
  * @param {object} [e] 消息事件；e.isMaster 为真时渲染主人相关条目
  */
-export declare function buildHelpCardData(e: any): {
+export declare function buildHelpCardData(e: any, { full }?: {
+    full?: boolean;
+}): {
+    title: string;
+    subtitle: string;
     version: string;
     logo: string;
     statCommands: string;
@@ -10,23 +38,15 @@ export declare function buildHelpCardData(e: any): {
     apiHint: string;
     isMaster: boolean;
     tip: string;
-    sections: ({
+    sections: {
         title: string;
         tag: string;
         items: {
-            name: string;
-            desc: string;
+            name: any;
+            desc: any;
             example: string;
         }[];
-    } | {
-        title: string;
-        tag: string;
-        items: {
-            name: string;
-            desc: string;
-            example: string;
-        }[];
-    })[];
+    }[];
 };
 /**
  * 2.0 帮助卡数据（**只在解锁时用**，见 apps/song.js 的 help）
@@ -34,7 +54,7 @@ export declare function buildHelpCardData(e: any): {
  * 与老卡的差别：
  *   · 第一段是**动态的多平台清单**（当前开着哪几家、各自的命令与免登录档位）
  *   · 头部统计换成"平台数 / 最高音质 / 运行模式"，让一眼看出 2.0 在跑
- *   · 其余段落直接复用老卡的分组（不重复维护两份文案）
+ *   · 默认只放主要功能和分类入口；full=true 保留完整分组清单
  */
 export declare function buildGuideCardData(e: any, { currentSource, full }?: {
     currentSource?: string;
@@ -66,8 +86,7 @@ export declare function buildGuideCardData(e: any, { currentSource, full }?: {
     currentSource: string;
     /**
      * 是否展开全部条目
-     *   false（默认）：每段最多 8 条 —— 51 条全铺开卡片会长到 3400px，
-     *                  QQ 里会被压成一条看不清；压缩后约 1800px，手机上还能读。
+     *   false（默认）：主要功能 + 分类帮助目录，每组不超过 6 个入口。
      *   true（`#qqm帮助 全部`）：完整清单，给需要"查手册"的人。
      */
     full: boolean;
@@ -82,8 +101,8 @@ export declare function buildGuideCardData(e: any, { currentSource, full }?: {
         title: string;
         tag: string;
         items: {
-            name: string;
-            desc: string;
+            name: any;
+            desc: any;
             example: string;
         }[];
     }[];
@@ -105,8 +124,7 @@ export declare function buildManageCardData(e?: any): {
     currentSource: string;
     /**
      * 是否展开全部条目
-     *   false（默认）：每段最多 8 条 —— 51 条全铺开卡片会长到 3400px，
-     *                  QQ 里会被压成一条看不清；压缩后约 1800px，手机上还能读。
+     *   false（默认）：主要功能 + 分类帮助目录，每组不超过 6 个入口。
      *   true（`#qqm帮助 全部`）：完整清单，给需要"查手册"的人。
      */
     full: boolean;
@@ -120,31 +138,6 @@ export declare function buildManageCardData(e?: any): {
     title: string;
     subtitle: string;
     sources: any[];
-    sections: {
-        title: string;
-        tag: string;
-        items: {
-            name: string;
-            desc: string;
-            example: string;
-        }[];
-    }[];
-    tip: string;
-};
-/**
- * 2.0 帮助的纯文本兜底（渲染失败时用）
- *
- * ⚠️ 只在解锁后才会被调用 —— 未解锁走的是老的那段文本，别把两段混起来。
- */
-export declare function formatGuideText(e: any): string;
-/** Shared help template, filtered to this task's commands. */
-export declare function buildListeningHelpCardData(e: any): {
-    version: string;
-    logo: string;
-    statQuality: any;
-    statMode: string;
-    apiHint: string;
-    isMaster: boolean;
     sections: ({
         title: string;
         tag: string;
@@ -162,6 +155,34 @@ export declare function buildListeningHelpCardData(e: any): {
             example: string;
         }[];
     })[];
+    tip: string;
+};
+/**
+ * 2.0 帮助的纯文本兜底（渲染失败时用）
+ *
+ * ⚠️ 只在解锁后才会被调用 —— 未解锁走的是老的那段文本，别把两段混起来。
+ */
+export declare function formatGuideText(e: any): string;
+/** Shared help template, filtered to this task's commands. */
+export declare function buildListeningHelpCardData(e: any): {
+    title: string;
+    detail: boolean;
+    subtitle: string;
+    sections: {
+        title: string;
+        tag: string;
+        items: {
+            name: any;
+            desc: any;
+            example: string;
+        }[];
+    }[];
     statCommands: string;
     tip: string;
+    version: string;
+    logo: string;
+    statQuality: any;
+    statMode: string;
+    apiHint: string;
+    isMaster: boolean;
 };

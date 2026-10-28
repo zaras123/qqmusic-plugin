@@ -33,7 +33,7 @@ export class qqmusicListening extends (await loadPluginBase()) {
             return this.showHelp(e);
         try {
             const result = await this.client().execute(command, {
-                userKey: String(e.userId ?? e.user_id ?? '').trim(),
+                userKey: String(e.userId ?? e.user_id ?? '').trim(), isMaster: e.isMaster === true,
                 messageId: String(e.messageId ?? e.message_id ?? ''), selfId: String(e.selfId ?? e.self_id ?? e.bot?.uin ?? ''),
             });
             if (result && typeof result === 'object' && result.card) {

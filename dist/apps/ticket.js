@@ -31,7 +31,11 @@ export class qqmusicTicket extends (await loadPluginBase()) {
             return true;
         }
         if (cmd.action === 'help') {
-            await e.reply(TICKET_HELP + (e.isMaster ? '\n#qqm演出同步 北京（仅主人；一次一个城市）' : ''));
+            const { buildCategoryHelpCardData } = await import('../utils/help-card.js');
+            const { renderHelpCard } = await import('../utils/render.js');
+            const data = buildCategoryHelpCardData(e, '演出');
+            await replyCardOrText(e, { render: renderHelpCard, data,
+                onFallback: () => e.reply(TICKET_HELP + (e.isMaster ? '\n#qqm演出同步 北京（仅主人；一次一个城市）' : '')), tag: '演出帮助' });
             return true;
         }
         const scope = ticketScope(e), uid = String(e.user_id || '');

@@ -43,6 +43,8 @@ git clone --branch karin https://github.com/zaras123/qqmusic-plugin.git karin-pl
 - [本地曲库与渠道显示](https://github.com/zaras123/qqmusic-plugin/blob/karin/docs/local-library.md)
 - [平台时长任务](https://github.com/zaras123/qqmusic-api-enhanced/blob/main/docs/listening-api.md)
 
+[帮助分类与简短计划命令](docs/help-navigation.md)
+
 ## 常用命令
 
 ```text

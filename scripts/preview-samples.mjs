@@ -380,6 +380,7 @@ const samples = {
     footer: 'QQMusic Plugin · 状态卡片',
   },
   'qqmusic-help': {
+    title: 'QQ音乐帮助', subtitle: '常用功能 · 分类帮助', detail: false,
     // 版本徽标是 help 卡的**大标题**（apple 那张卡的设计）。
     // 真值来自 utils/update.js 的 displayVersion() —— 2026-09-24 起**发版后一律显示真实包版本**
     // （不再按闸门冻结成 1.x），所以这里跟着 package.json 的号手动跟。
