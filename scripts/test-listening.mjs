@@ -253,6 +253,11 @@ test('main help is a bounded directory and every advertised category has a nonem
 })
 
 test('short daily command has the same validated payload as the full spelling', () => {
+  assert.deepEqual(M.parseListeningCommand('#qqm刷歌每天 酷狗 确认'), M.parseListeningCommand('#qqm刷歌计划 酷狗 歌曲 累计时长 1440 一直 00:05 确认'))
+  assert.deepEqual(M.parseListeningCommand('#qqm刷歌每天 酷狗 08:30 确认'), M.parseListeningCommand('#qqm刷歌计划 酷狗 歌曲 累计时长 1440 一直 08:30 确认'))
+  assert.equal(M.parseListeningCommand('#qqm刷歌每天 24小时 周杰伦 确认').roundSeconds, 86400)
+  assert.equal(M.parseListeningCommand('#qqm刷歌每天 周杰伦 12小时 确认').roundSeconds, 43200)
+  assert.equal(M.parseListeningCommand('#qqm刷歌每天 QQ 确认').action, 'invalid')
   assert.deepEqual(M.parseListeningCommand('#qqm刷歌每天 周杰伦 确认'),
     M.parseListeningCommand('#qqm刷歌计划 QQ 歌手 周杰伦 60 一直 00:05 确认'))
   assert.deepEqual(M.parseListeningCommand('#qqm刷歌每天 专辑 叶惠美 30分 20次 8:30 确认'),
@@ -262,6 +267,16 @@ test('short daily command has the same validated payload as the full spelling', 
     '#qqm刷歌每天 周杰伦 3651次 确认', '#qqm刷歌每天 周杰伦 24:01 确认', '#qqm刷歌每天 周杰伦 1.5分 确认', '#qqm刷歌每天 周杰伦 -3次 确认', '#qqm刷歌暂停']) {
     assert.equal(M.parseListeningCommand(text).action, 'invalid', text)
   }
+})
+
+test('Kugou daily command persists a 24-hour plan without a fake song lookup', async () => {
+  reset()
+  const text = await run('#qqm刷歌每天 酷狗 确认')
+  const body = requests.find(r => r.path === '/listening/plan/add').body
+  assert.equal(body.platform, 'kugou'); assert.equal(body.targetType, 'song'); assert.equal(body.target, '累计时长')
+  assert.equal(body.roundSeconds, 86400); assert.equal(body.repeat, 'continuous'); assert.equal(body.scheduleTime, '00:05')
+  assert.ok(!requests.some(r => r.path === '/search'))
+  assert.match(text, /酷狗/)
 })
 
 test('short daily creation reaches the real client and persists default schedule in the API', async () => {
