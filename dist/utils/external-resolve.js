@@ -158,6 +158,8 @@ export function externalCandidateToSong(candidate = {}, metadata = {}, ref = {})
         '';
     const duration = durationSeconds(match.interval || match.duration || meta.interval || meta.duration);
     const songmid = String(match.songmid || '');
+    const local = match.local === true || match.playChannel === 'library';
+    const channelKind = match.channelKind || (local ? 'local' : match.source && match.source !== 'qq' ? 'fill' : 'official');
     return {
         songmid,
         songid: match.songid || songmid,
@@ -172,7 +174,9 @@ export function externalCandidateToSong(candidate = {}, metadata = {}, ref = {})
         sourceLabel: match.sourceLabel || '',
         quality: match.quality || '',
         qualityLabel: match.qualityLabel || '',
-        local: match.local === true || match.playChannel === 'library',
+        local,
+        channelKind,
+        channelLabel: match.channelLabel || (channelKind === 'local' ? '本地音乐库' : channelKind === 'fill' ? '第三方填充渠道' : 'QQ音乐官方'),
         libraryId: match.libraryId || '',
         version: match.version || '',
         versionLabel: match.versionLabel || '',
@@ -208,7 +212,7 @@ function commonResult(ref, extra = {}) {
         ...extra,
     };
 }
-export async function resolveExternalRef(ref, { userKey = '', limit = EXTERNAL_LIMIT } = {}) {
+export async function resolveExternalRef(ref, { userKey = '', limit = EXTERNAL_LIMIT, local = true } = {}) {
     if (!ref?.platform || !ref?.url)
         throw new Error('外部音乐链接无效');
     const safeLimit = Math.min(100, Math.max(1, Math.trunc(Number(limit) || EXTERNAL_LIMIT)));
@@ -225,7 +229,7 @@ export async function resolveExternalRef(ref, { userKey = '', limit = EXTERNAL_L
     }
     if (ref.kind === 'track') {
         const route = ref.platform === 'spotify' ? '/resolve/spotify' : '/resolve/apple';
-        const body = await request(route, { url: ref.url, local: 1 }, 'get', userKey);
+        const body = await request(route, { url: ref.url, local: local ? 1 : 0 }, 'get', userKey);
         const data = body?.data || {};
         const metadata = ref.platform === 'spotify' ? data.spotify : data.apple;
         const song = data.matched ? externalCandidateToSong(data.match, metadata, ref) : null;
@@ -240,7 +244,7 @@ export async function resolveExternalRef(ref, { userKey = '', limit = EXTERNAL_L
     const route = ref.platform === 'spotify'
         ? `/resolve/spotify/${ref.kind}`
         : '/resolve/apple/album';
-    const body = await request(route, { url: ref.url, limit: safeLimit, match: 1, local: 1 }, 'get', userKey);
+    const body = await request(route, { url: ref.url, limit: safeLimit, match: 1, local: local ? 1 : 0 }, 'get', userKey);
     const data = body?.data || {};
     const rows = Array.isArray(data.tracks) ? data.tracks : [];
     const songs = rows

@@ -155,7 +155,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
                 const label = platformLabelOf(ref.platform);
                 try {
                     logInfo(`识别${label}链接: ${ref.kind}`);
-                    const result = await resolveExternalRef(ref, { userKey });
+                    const result = await resolveExternalRef(ref, { userKey, local: cfg.localLibrary !== false });
                     if (!result.songs.length) {
                         const reason = result.note ? `：${result.note}` : '';
                         await e.reply(`${label}链接未匹配到可用音源${reason}`);
@@ -321,6 +321,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
                     mediaId: song.media_mid || song.songmid,
                     fallback: cfg.qualityFallback !== false,
                     userKey,
+                    local: cfg.localLibrary !== false,
                 });
             }
             catch (err) {
@@ -357,7 +358,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
             const cardData = buildDetailCardData(song, {
                 qualityLabel: qLabel,
                 payplay: Boolean(song.payplay),
-                source: external ? `${platformLabelOf(external.platform)}链接` : fromCard ? '卡片' : '链接',
+                source: song.channelLabel || (external ? `${platformLabelOf(external.platform)}链接` : fromCard ? '卡片' : '链接'),
                 hasUrl: Boolean(play.url),
                 degradeNote: play.degradeNote || '',
                 error: play.error || '',

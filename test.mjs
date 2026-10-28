@@ -121,6 +121,7 @@ const { qqmusicExtras } = await import('./dist/apps/extras.js')
 const { qqmusicTicket } = await import('./dist/apps/ticket.js')
 const { qqmusicStats } = await import('./dist/apps/stats.js')
 const { qqmusicMedal } = await import('./dist/apps/medal.js')
+const { qqmusicListening } = await import('./dist/apps/listening.js')
 const { qqmusicManage } = await import('./dist/apps/manage.js')
 
 console.log('=== QQ音乐插件功能测试 ===\n')
@@ -137,6 +138,7 @@ const modules = [
   { name: '试听/海报/订阅/定时', class: qqmusicExtras },
   { name: '听歌统计', class: qqmusicStats },
   { name: '勋章进度', class: qqmusicMedal },
+  { name: '平台时长任务', class: qqmusicListening },
   { name: '账号操作', class: qqmusicManage },
 ]
 
@@ -168,6 +170,14 @@ console.log('\n=== 命令路由测试 ===\n')
 
 /** [命令, 期望命中的 fnc（null=不应被任何规则匹配）] */
 const cases = [
+  ['#qqm刷歌 QQ 10 晴天 确认', 'listening'],
+  ['#qqm刷歌 酷狗 10 确认', 'listening'],
+  ['#qqm刷歌计划 QQ 歌手 周杰伦 60 一直 00:05 确认', 'listening'],
+  ['#qqm刷歌计划 QQ 专辑 叶惠美 30 20次 01:30 确认', 'listening'],
+  ['#qqm刷歌计划列表', 'listening'],
+  ['#qqm刷歌状态', 'listening'],
+  ['#qqm刷歌帮助', 'listening'],
+  ['#qqm刷歌停止 QQ 确认', 'listening'],
   ['#qqm演唱会', 'ticket'],
   ['#qqm近期演唱会 城市=北京', 'ticket'],
   ['#qqm未来演出', 'ticket'],
@@ -1865,7 +1875,7 @@ function v2Check(name, got, want) {
       ]
       const list = CD.buildListCardData('晴天', mix)
       v2Check('列表卡：每首歌带来源色/短名（模板据此上色）', [list.songs[0].sourceColor, list.songs[1].sourceColor, list.songs[1].sourceShort].join('|'), '#31c27c|#c62f2f|网易')
-      v2Check('列表卡：按来源统计条数（头部彩色 chip）', list.sourceCounts.map((c) => `${c.label}${c.n}`).join(','), 'QQ1,网易云1,B站1')
+      v2Check('列表卡：按来源统计条数（头部彩色 chip）', list.sourceCounts.map((c) => `${c.label}${c.n}`).join(','), 'QQ官方1,填充 · 网易云1,填充 · B站1')
       v2Check('列表卡：有外源时标记 hasExternal（页脚会多一句说明）', list.hasExternal, true)
       const detail = CD.buildDetailCardData(mix[1], { qualityLabel: '网易云 128k', source: '网易云 128k', hasUrl: true })
       v2Check('详情卡：来源色/是否外源也带上', [detail.sourceColor, detail.sourceShort, detail.sourceIsExternal].join('|'), '#c62f2f|网易|true')

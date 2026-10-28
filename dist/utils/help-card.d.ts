@@ -137,3 +137,31 @@ export declare function buildManageCardData(e?: any): {
  * ⚠️ 只在解锁后才会被调用 —— 未解锁走的是老的那段文本，别把两段混起来。
  */
 export declare function formatGuideText(e: any): string;
+/** Shared help template, filtered to this task's commands. */
+export declare function buildListeningHelpCardData(e: any): {
+    version: string;
+    logo: string;
+    statQuality: any;
+    statMode: string;
+    apiHint: string;
+    isMaster: boolean;
+    sections: ({
+        title: string;
+        tag: string;
+        items: {
+            name: string;
+            desc: string;
+            example: string;
+        }[];
+    } | {
+        title: string;
+        tag: string;
+        items: {
+            name: string;
+            desc: string;
+            example: string;
+        }[];
+    })[];
+    statCommands: string;
+    tip: string;
+};

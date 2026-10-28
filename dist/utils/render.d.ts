@@ -55,6 +55,8 @@ export declare function screenshotDirect(htmlFile: any, { viewportWidth, pageBg,
 }): Promise<Buffer<any>>;
 /** 关掉共用的 Chrome（预览脚本这类「跑完就退」的场景用；机器人运行时不需要调） */
 export declare function closeDirectBrowser(): Promise<void>;
+/** Platform task status card shared by QQ, Kugou and the daily plan scheduler. */
+export declare function renderListeningCard(e: any, data: any): Promise<any>;
 export declare function renderStatusCard(e: any, data: any): Promise<any>;
 /**
  * 缓存键（导出给单测断言"配置变了键就变"）

@@ -331,6 +331,12 @@ export function buildSchemas() {
             component: 'Switch',
         },
         {
+            field: 'localLibrary',
+            label: '本地曲库优先',
+            bottomHelpMessage: '默认开启：点歌结果先列本地命中，同时保留 QQ 官方和第三方填充渠道。关闭后搜索、播放和链接解析都不再读取本地文件；在意本地音质或想强制走云端时可关闭',
+            component: 'Switch',
+        },
+        {
             field: 'defaultPickSong',
             label: '接管无前缀「#点歌」',
             bottomHelpMessage: '开启后：「#点歌 关键词」由本插件处理（不加 #qqm 前缀）。默认关闭，以免与其它点歌插件抢命令',

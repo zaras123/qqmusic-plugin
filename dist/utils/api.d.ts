@@ -33,8 +33,9 @@ export declare function isAppleScopedRequest(pathname?: string, params?: {}): bo
  * /song/file 直链（buildSongFileUrl）不经过 request()，调用方用它保证取链和下载用同一个账号。
  */
 export declare function pickPlayUserKey(userKey?: string, params?: {}): string;
-export declare function request(pathname: any, params?: {}, method?: string, userKey?: string, { timeout, asUser }?: {
+export declare function request(pathname: any, params?: {}, method?: string, userKey?: string, { timeout, asUser, maxRedirects }?: {
     asUser?: boolean;
+    maxRedirects?: any;
     timeout?: number;
 }): Promise<any>;
 /**
@@ -83,10 +84,11 @@ export declare function listAccounts(): Promise<any>;
  * 返回值里**没有凭据内容**，只有"配没配、从哪来、能不能扫码"。
  */
 export declare function platformsStatus(userKey?: string): Promise<any>;
-export declare function searchSongs(keyword: any, { pageNo, pageSize, userKey, fill, fillLimit, fillSources }?: {
+export declare function searchSongs(keyword: any, { pageNo, pageSize, userKey, fill, fillLimit, fillSources, local }?: {
     fill?: boolean;
     fillLimit?: number;
     fillSources?: any;
+    local?: boolean;
     pageNo?: number;
     pageSize?: number;
     userKey?: string;
@@ -102,7 +104,8 @@ export declare function searchSongs(keyword: any, { pageNo, pageSize, userKey, f
  *
  * @returns {Promise<{list:Array, source:string, label:string, unavailable:string, tried:string[], error:string}>}
  */
-export declare function searchPlatformSongs(keyword: any, platform: any, { pageSize, userKey }?: {
+export declare function searchPlatformSongs(keyword: any, platform: any, { pageSize, userKey, local }?: {
+    local?: boolean;
     pageSize?: number;
     userKey?: string;
 }): Promise<{
@@ -128,7 +131,8 @@ export declare function searchPlatformSongs(keyword: any, platform: any, { pageS
  *
  * @param {string[]} sources 平台 id 数组（顺序即注册表顺序；空数组 = 直接放弃）
  */
-export declare function searchMultiSongs(keyword: any, sources: any, { pageSize, userKey }?: {
+export declare function searchMultiSongs(keyword: any, sources: any, { pageSize, userKey, local }?: {
+    local?: boolean;
     pageSize?: number;
     userKey?: string;
 }): Promise<{
@@ -155,6 +159,9 @@ export { SOURCE_META, SOURCE_LABEL } from './platforms.js';
 export declare function sourceIconOf(source: any): string;
 /** 统一歌曲对象归一化：兼容 /data 包裹、/track_info 包裹、扁平结构 */
 export declare function normalizeSearchItem(item: any, idx?: number): {
+    channelKind: string;
+    channelLabel: string;
+    sourceLabel: string;
     local: boolean;
     libraryId: string;
     version: string;
@@ -179,9 +186,10 @@ export declare function normalizeSearchItem(item: any, idx?: number): {
 };
 export declare function songDetail(songmid: any, userKey?: string): Promise<any>;
 /** 单次指定音质 */
-export declare function songUrl(songmid: any, { type, quality, fallback, mediaId, channel, userKey }?: {
+export declare function songUrl(songmid: any, { type, quality, fallback, mediaId, channel, userKey, local }?: {
     channel?: string;
     fallback?: number;
+    local?: boolean;
     quality?: string;
     type?: string;
     userKey?: string;
@@ -200,6 +208,8 @@ export declare function songUrl(songmid: any, { type, quality, fallback, mediaId
     achieved: string;
     raw: any;
 } | {
+    channelKind: string;
+    channelLabel: string;
     local: boolean;
     libraryId: string;
     matchedSongmid: string;
@@ -233,8 +243,9 @@ export declare function refreshLogin(userKey?: string): Promise<any>;
  * 登录/会员都解决不了 —— 再追加会员提示是自相矛盾，会把用户往错方向带（实测踩过）。
  */
 export declare function buildPlayFailMessage(payload?: {}, pay?: any, tried?: any[], detailFallback?: string): string;
-export declare function songUrlBest(songmid: any, { quality, mediaId, fallback, probe, userKey }?: {
+export declare function songUrlBest(songmid: any, { quality, mediaId, fallback, probe, userKey, local }?: {
     fallback?: boolean;
+    local?: boolean;
     probe?: boolean;
     quality?: string;
     userKey?: string;
@@ -312,6 +323,9 @@ export declare function songlistDetail(disstid: any, userKey?: string): Promise<
     disstid: any;
     creator: any;
     songlist: {
+        channelKind: string;
+        channelLabel: string;
+        sourceLabel: string;
         local: boolean;
         libraryId: string;
         version: string;
@@ -349,6 +363,9 @@ export declare function parseQQMusicExtendedIds(text?: string): {
     media_mid: string;
 };
 export declare function recommendFeed(userKey?: string): Promise<{
+    channelKind: string;
+    channelLabel: string;
+    sourceLabel: string;
     local: boolean;
     libraryId: string;
     version: string;

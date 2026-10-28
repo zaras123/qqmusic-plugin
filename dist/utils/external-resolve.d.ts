@@ -24,6 +24,8 @@ export declare function externalCandidateToSong(candidate?: Record<string, any>,
     quality: any;
     qualityLabel: any;
     local: boolean;
+    channelKind: any;
+    channelLabel: any;
     libraryId: any;
     version: any;
     versionLabel: any;
@@ -39,9 +41,10 @@ export declare function externalCandidateToSong(candidate?: Record<string, any>,
         local: boolean;
     };
 };
-export declare function resolveExternalRef(ref: ExternalRef, { userKey, limit }?: {
+export declare function resolveExternalRef(ref: ExternalRef, { userKey, limit, local }?: {
     userKey?: string;
     limit?: number;
+    local?: boolean;
 }): Promise<{
     platform: ExternalPlatform;
     label: string;

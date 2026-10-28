@@ -32,6 +32,7 @@ export const CARDS = [
     'qqmusic-status',
     'qqmusic-settings',
     'qqmusic-medal',
+    'qqmusic-listening',
 ];
 /** id → { mtimeMs, manifest }；theme.json 改了自动失效 */
 const manifestCache = new Map();

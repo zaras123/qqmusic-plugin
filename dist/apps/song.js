@@ -10,7 +10,7 @@
 import { loadPluginBase } from '../utils/plugin-base.js';
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase();
-import { searchSongs, searchPlatformSongs, searchMultiSongs, songUrlBest, lyric, hotKeys, songInfoBatch, platformsStatus, SOURCE_LABEL, } from '../utils/api.js';
+import { searchSongs, searchPlatformSongs, searchMultiSongs, songUrlBest, lyric, hotKeys, songInfoBatch, platformsStatus, } from '../utils/api.js';
 import { pickSession, getUserSession, setSession } from '../utils/session.js';
 import { deliverSong, sendNativeMusicCard } from '../utils/send.js';
 import { QUALITY_LABEL } from '../utils/quality.js';
@@ -19,6 +19,7 @@ import { renderHelpCard, renderGuideCard, renderPlatformsCard, renderPlatformCar
 import { buildPlatformsCardData, formatPlatformsText, buildPlatformCardData, formatPlatformCardText } from '../utils/card-data.js';
 import { getCfg, replyCardOrText, replyListCardOrText } from '../utils/common.js';
 import { logError, logWarn } from '../utils/log.js';
+import { channelTagOf } from '../utils/library-compat.js';
 import { platformOf, platformShort, platformCanQrLogin } from '../utils/platforms.js';
 // ⚠️ 命令解析放 utils（见 utils/command.js 顶部注释）：apps 里多导出一个函数，
 //    加载器就会把"第一个函数导出"当成插件类，整个模块失效
@@ -53,14 +54,16 @@ const RE_HELP_FULL = /^#?(?:qq|QQ)m?\s*(?:帮助|help)\s*(?:全部|完整|all|fu
 function formatListText(list, { title = 'QQ音乐点歌结果' } = {}) {
     const lines = list.map((s, i) => {
         const pay = s.payplay ? ' [付费]' : '';
-        const src = s.source ? ` [${SOURCE_LABEL[s.source] || s.source}·${s.quality || '128k'}]` : '';
+        const src = ` [${channelTagOf(s)}]`;
         const mv = s.mvVid ? ' 🎬' : '';
         return `${i + 1}. ${s.songName} - ${s.singerName}${pay}${src}${mv}${s.duration ? ` (${s.duration})` : ''}`;
     });
-    const sources = [...new Set(list.map((s) => s.source).filter(Boolean))];
-    const srcNote = sources.length
-        ? `\n（${sources.map((x) => `[${SOURCE_LABEL[x] || x}]`).join(' / ')} 标记为其它平台的免费补充曲，档位见标签）`
-        : '';
+    const counts = list.reduce((acc, s) => {
+        const kind = s.channelKind || (s.local ? 'local' : s.source && s.source !== 'qq' ? 'fill' : 'official');
+        acc[kind] = (acc[kind] || 0) + 1;
+        return acc;
+    }, {});
+    const srcNote = `\n（本次来源：本地库 ${counts.local || 0} · QQ官方 ${counts.official || 0} · 填充 ${counts.fill || 0}；按序号点播）`;
     return (`♫ ${title}（#qqm听序号 或 #听序号；🎬=有MV，可 #qqmMV 播放 序号）${srcNote}\n${lines.join('\n')}`);
 }
 /**
@@ -153,6 +156,7 @@ async function resolvePlay(song, cfg, userKey = '') {
             mediaId: song.media_mid || song.songmid,
             fallback,
             userKey,
+            local: cfg.localLibrary !== false,
         });
         return {
             url: play.url || '',
@@ -328,6 +332,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
                 fill: cfg.extraSources !== false,
                 // 2.0：只补"参与了跨平台补歌"的那几家（未解锁时传 null = 不过滤，与 1.x 一致）
                 fillSources: isV2Unlocked(cfg) ? fillSourceIds(cfg) : null,
+                local: cfg.localLibrary !== false,
             });
             if (!list.length) {
                 // QQ 一条没有：别急着说"没有搜到"——其它平台的免费曲还能顶上列表
@@ -371,6 +376,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
             const res = await searchMultiSongs(keyword, ids, {
                 pageSize: Math.min(Number(cfg.maxList) || 10, 20),
                 userKey,
+                local: cfg.localLibrary !== false,
             });
             if (!res.list.length) {
                 await e.reply(res.error
@@ -434,6 +440,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
             const res = await searchPlatformSongs(keyword, p.id, {
                 pageSize: platformMaxList(cfg, p.id),
                 userKey,
+                local: cfg.localLibrary !== false,
             });
             if (!res.list.length) {
                 // 三种"空"要分开说，别都回一句"没搜到"（那会把 401/超时伪装成"歌不存在"）：
@@ -697,11 +704,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
             const cardData = buildDetailCardData(song, {
                 qualityLabel: play.qualityLabel || play.quality || '',
                 payplay: Boolean(song.payplay),
-                source: song.source
-                    ? `${SOURCE_LABEL[song.source] || song.source} ${song.quality || '128k'}`
-                    : fallback
-                        ? '群内最近歌单'
-                        : '点歌',
+                source: `${channelTagOf(song)}${fallback ? ' · 群内最近歌单' : ''}`,
                 hasUrl: Boolean(play.url),
                 mvVid,
                 degradeNote: play.degradeNote || '',
@@ -767,7 +770,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
             const cur = await currentSourceOf(e, cfg);
             if (cur)
                 return await this.playDirectOnPlatform(e, cur.p.id, keyword, { viaSource: true });
-            const list = await searchSongs(keyword, { pageSize: 1, userKey });
+            const list = await searchSongs(keyword, { pageSize: 1, userKey, local: cfg.localLibrary !== false });
             if (!list.length) {
                 await e.reply('没有搜到相关歌曲');
                 return true;
@@ -798,7 +801,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         try {
             if (viaSource)
                 await e.reply(`正在搜索（当前音源 ${p.label}）：${keyword}`);
-            const res = await searchPlatformSongs(keyword, p.id, { pageSize: 1, userKey });
+            const res = await searchPlatformSongs(keyword, p.id, { pageSize: 1, userKey, local: cfg.localLibrary !== false });
             if (!res.list.length) {
                 await e.reply(res.error
                     ? `${p.label} 搜索失败：${res.error}`
@@ -837,9 +840,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
             const cardData = buildDetailCardData(song, {
                 qualityLabel: play.qualityLabel || play.quality || '',
                 payplay: Boolean(song.payplay),
-                source: song.source
-                    ? `${SOURCE_LABEL[song.source] || song.source} ${song.quality || '128k'}`
-                    : '播放',
+                source: channelTagOf(song),
                 hasUrl: Boolean(play.url),
                 mvVid: play.mvVid || '',
                 degradeNote: play.degradeNote || '',
@@ -909,7 +910,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         // 带平台（或当前音源）：先在那家搜第一条，再拿它的 songmid 取词
         if (lyricPlat) {
             try {
-                const res = await searchPlatformSongs(key, lyricPlat.id, { pageSize: 1, userKey: String(e.user_id || '') });
+                const res = await searchPlatformSongs(key, lyricPlat.id, { pageSize: 1, userKey: String(e.user_id || ''), local: cfg.localLibrary !== false });
                 if (!res.list.length) {
                     await e.reply(res.error
                         ? `${lyricPlat.label} 搜索失败：${res.error}`
@@ -972,7 +973,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         else if (!/^[0-9A-Za-z]{10,}$/.test(key) || /[一-龥]/.test(key)) {
             // 关键词搜索分支也需捕获 API 异常，避免静默无响应
             try {
-                const list = await searchSongs(key, { pageSize: 1, userKey: String(e.user_id || '') });
+                const list = await searchSongs(key, { pageSize: 1, userKey: String(e.user_id || ''), local: cfg.localLibrary !== false });
                 if (!list.length) {
                     await e.reply('未找到歌曲');
                     return true;
@@ -1108,7 +1109,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
                 ? '#qqm登录  /  #qqm登录微信  /  #qqm状态  /  #qms  /  #qqm登出'
                 : '#qqm状态  /  #qms',
             ...(e.isMaster
-                ? ['— 管理（主人）—', '#qqm设置  /  #qqm 音质 flac  /  #qqm 测试']
+                ? ['— 管理（主人）—', '#qqm设置  /  #qqm 音质 flac  /  #qqm 测试', '— 平台时长任务（主人）—', '#qqm刷歌帮助（启动 / 状态 / 停止 / 核对统计）']
                 : []),
             '— 解析 —',
             '分享 QQ 音乐卡片或 y.qq.com 链接自动解析',

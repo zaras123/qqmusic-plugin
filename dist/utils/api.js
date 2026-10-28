@@ -83,7 +83,7 @@ function isForceMasterAccount() {
  */
 export function isPerUserScopePath(pathname) {
     const p = String(pathname || '');
-    if (p.startsWith('/login/') || p === '/user/refresh' || p === '/user/liked')
+    if (p.startsWith('/listening/') || p.startsWith('/login/') || p === '/user/refresh' || p === '/user/liked')
         return true;
     for (const plat of PLATFORMS) {
         const ck = platformCookieOf(plat.id);
@@ -146,11 +146,12 @@ function emptyUrlResult(type, mediaId, extra = {}) {
         ...extra,
     };
 }
-export async function request(pathname, params = {}, method = 'get', userKey = '', { timeout = 20000, asUser = false } = {}) {
+export async function request(pathname, params = {}, method = 'get', userKey = '', { timeout = 20000, asUser = false, maxRedirects = undefined } = {}) {
     const base = getBase();
     const url = `${base}${pathname.startsWith('/') ? pathname : `/${pathname}`}`;
     const publicAccount = getPublicAccount();
     const forceMaster = isForceMasterAccount();
+    const localLibrary = Config.getConfig('qqmusic')?.localLibrary !== false;
     if (forceMaster && !publicAccount && !forceNoAccountWarned) {
         forceNoAccountWarned = true;
         logWarn('[qqmusic-plugin] 开了「一律走主人账号」但机器人还没有扫码登录记录，开关不生效（先 #qqm登录）');
@@ -164,6 +165,11 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
     // 这类查询不能被「一律走主人账号」顶掉，否则群友看到的是主人的进度。
     const perUserScoped = asUser === true || isPerUserScopePath(pathname) || isAppleScopedRequest(pathname, params);
     const effectiveUserKey = publicAccount && forceMaster && !perUserScoped ? publicAccount : userKey;
+    // Guoba / WebUI 的「本地曲库优先」必须覆盖所有会查本地库的入口，
+    // 包括外部链接解析和取播放链；显式传 local 的调用也不能绕过这个总开关。
+    if (!localLibrary && (pathname === '/search' || pathname === '/song/url' || pathname.startsWith('/resolve/'))) {
+        params = { ...params, local: 0 };
+    }
     // 多账号：带 userKey（机器人侧调用者标识，通常是 QQ 号）
     // 仅作为 query/body 参数传递；header 版见下方 sanitizeForHeader
     if (effectiveUserKey) {
@@ -175,7 +181,7 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
     if (safeUserKey)
         headers['x-qqmusic-user'] = safeUserKey;
     // 主人账号：带上就好，是否真的回落由 API 判断（请求者自己登录了就一直用他自己的）
-    if (publicAccount) {
+    if (publicAccount && !String(pathname).startsWith('/listening/')) {
         params = { ...params, publicUserKey: publicAccount };
         headers['x-qqmusic-public-user'] = publicAccount;
     }
@@ -190,6 +196,7 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
             params: method === 'get' ? params : undefined,
             data: method === 'post' ? params : undefined,
             timeout,
+            maxRedirects,
             headers: Object.keys(headers).length ? headers : undefined,
             validateStatus: () => true,
         });
@@ -309,10 +316,10 @@ export async function platformsStatus(userKey = '') {
     const body = await request('/platforms', {}, 'get', userKey);
     return body?.data || { list: [], counts: {} };
 }
-export async function searchSongs(keyword, { pageNo = 1, pageSize = 10, userKey = '', fill = false, fillLimit = 5, fillSources = null } = {}) {
+export async function searchSongs(keyword, { pageNo = 1, pageSize = 10, userKey = '', fill = false, fillLimit = 5, fillSources = null, local = true } = {}) {
     // fill：让 API 在 QQ 结果尾部追加其它平台的免费可播曲（拿不到链的不会返回）。
     // 默认关 —— 只有点歌列表需要它；直接播放/歌词/链接解析只取首条，带了只是白等一轮
-    const params = { key: keyword, t: 0, pageNo, pageSize };
+    const params = { key: keyword, t: 0, pageNo, pageSize, local: local ? 1 : 0 };
     if (fill) {
         params.fill = 1;
         params.fillLimit = fillLimit;
@@ -344,7 +351,7 @@ export async function searchSongs(keyword, { pageNo = 1, pageSize = 10, userKey 
  *
  * @returns {Promise<{list:Array, source:string, label:string, unavailable:string, tried:string[], error:string}>}
  */
-export async function searchPlatformSongs(keyword, platform, { pageSize = 8, userKey = '' } = {}) {
+export async function searchPlatformSongs(keyword, platform, { pageSize = 8, userKey = '', local = true } = {}) {
     // 平台名 → 真实 id（支持中文别名，如 "网易云"/"B站"）
     const id = platformIdOf(platform) || String(platform || '').trim().toLowerCase();
     const out = { list: [], source: id, label: platformLabel(id), unavailable: '', tried: [], error: '' };
@@ -352,7 +359,7 @@ export async function searchPlatformSongs(keyword, platform, { pageSize = 8, use
         return { ...out, error: '平台名不能为空' };
     let body;
     try {
-        body = await request('/search', { key: keyword, t: 0, source: id, limit: pageSize }, 'get', userKey);
+        body = await request('/search', { key: keyword, t: 0, source: id, limit: pageSize, local: local ? 1 : 0 }, 'get', userKey);
     }
     catch (e) {
         // 上游 5xx/超时：把服务端给的可读原因带出去（别只说"失败了"）
@@ -377,14 +384,14 @@ export async function searchPlatformSongs(keyword, platform, { pageSize = 8, use
  *
  * @param {string[]} sources 平台 id 数组（顺序即注册表顺序；空数组 = 直接放弃）
  */
-export async function searchMultiSongs(keyword, sources, { pageSize = 10, userKey = '' } = {}) {
+export async function searchMultiSongs(keyword, sources, { pageSize = 10, userKey = '', local = true } = {}) {
     const ids = [...new Set((Array.isArray(sources) ? sources : []).map((s) => platformIdOf(s) || String(s || '').trim().toLowerCase()).filter(Boolean))];
     const out = { list: [], sources: ids, unavailable: '', tried: [], error: '' };
     if (!ids.length)
         return { ...out, error: '没有可用的平台' };
     let body;
     try {
-        body = await request('/search', { key: keyword, t: 0, sources: ids.join(','), limit: pageSize }, 'get', userKey);
+        body = await request('/search', { key: keyword, t: 0, sources: ids.join(','), limit: pageSize, local: local ? 1 : 0 }, 'get', userKey);
     }
     catch (e) {
         const msg = e?.payload?.errMsg || e?.response?.data?.errMsg || e.message || '请求失败';
@@ -510,10 +517,10 @@ function mapSongUrlBody(body, type, realMedia) {
     });
 }
 /** 单次指定音质 */
-export async function songUrl(songmid, { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '' } = {}) {
+export async function songUrl(songmid, { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '', local = true } = {}) {
     const realMedia = mediaId || songmid;
     // quality + fallback 交给 API 侧的音质阶梯（一次请求内部逐级下探）
-    const params = { id: songmid, mediaId: realMedia, channel };
+    const params = { id: songmid, mediaId: realMedia, channel, local: local ? 1 : 0 };
     if (quality)
         params.quality = quality;
     else
@@ -640,7 +647,7 @@ export function buildPlayFailMessage(payload = {}, pay = null, tried = [], detai
         ? `${detail}${payHint}${hint}`
         : `所有音质均无可用链接（可 #qqm登录 重新扫码）${payHint}${hint}`;
 }
-export async function songUrlBest(songmid, { quality = 'flac', mediaId, fallback = true, probe = true, userKey = '' } = {}) {
+export async function songUrlBest(songmid, { quality = 'flac', mediaId, fallback = true, probe = true, userKey = '', local = true } = {}) {
     const preferred = String(quality || 'flac').toLowerCase();
     let realMedia = mediaId || songmid;
     let mvVid = '';
@@ -677,6 +684,7 @@ export async function songUrlBest(songmid, { quality = 'flac', mediaId, fallback
                 fallback: fallback !== false ? 1 : 0,
                 mediaId: realMedia,
                 userKey,
+                local,
             });
         }
         catch (e) {
