@@ -34,7 +34,7 @@ test('Karin WebUI exposes local library switch and default stays enabled', () =>
   assert.equal(cfg.localLibrary, true)
   assert.match(schema, /field: 'localLibrary'/)
   assert.match(readme, /raw\.githubusercontent\.com\/zaras123\/qqmusic-plugin\/karin\/resources\/img\/logo\.png/)
-  assert.ok(fs.existsSync(path.join(root, 'docs/local-library.md')))
+  assert.match(readme, /本地曲库优先/)
 })
 
 test('localLibrary=false is sent to search, playback and link resolution', async () => {
