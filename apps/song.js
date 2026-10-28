@@ -27,7 +27,7 @@ import {
 import { pickSession, getUserSession, setSession } from '../utils/session.js'
 import { deliverSong, sendNativeMusicCard } from '../utils/send.js'
 import { QUALITY_LABEL } from '../utils/quality.js'
-import { buildHelpCardData, buildGuideCardData, formatGuideText } from '../utils/help-card.js'
+import { buildHelpCardData, buildGuideCardData, formatGuideText, RE_CATEGORY_HELP, buildCategoryHelpCardData, formatHelpCardText } from '../utils/help-card.js'
 import { renderHelpCard, renderGuideCard, renderPlatformsCard, renderPlatformCard } from '../utils/render.js'
 import { buildPlatformsCardData, formatPlatformsText, buildPlatformCardData, formatPlatformCardText } from '../utils/card-data.js'
 import { getCfg, replyCardOrText, replyListCardOrText } from '../utils/common.js'
@@ -258,6 +258,10 @@ export class qqmusicSong extends (await loadPluginBase()) {
           // 帮助：`#qqm帮助`（精简版：每段最多 8 条）/ `#qqm帮助 全部`（完整清单）
           reg: '^#?(qq|QQ)m\\s*帮助(\\s*(全部|完整|all|full))?$|^#?(qq|QQ)音乐帮助$|^#?(qq|QQ)m\\s*help(\\s*(all|full|全部))?$|^#qm帮助(全部)?$',
           fnc: 'help',
+        },
+        {
+          reg: RE_CATEGORY_HELP.source,
+          fnc: 'categoryHelp',
         },
       ],
     })
@@ -1121,11 +1125,21 @@ export class qqmusicSong extends (await loadPluginBase()) {
     return true
   }
 
+  async categoryHelp(e) {
+    const match = RE_CATEGORY_HELP.exec(String(e.msg || e.rawMessage || '').trim())
+    if (!match) return false
+    if (!this.cfg().enable) return false
+    const data = buildCategoryHelpCardData(e, match[1])
+    if (!data?.sections.length) { await e.reply('该分类帮助仅限主人查看'); return true }
+    await replyCardOrText(e, { render: renderHelpCard, data, onFallback: () => e.reply(formatHelpCardText(data)), tag: data.title })
+    return true
+  }
+
   async help(e) {
     const cfg = this.cfg()
 
     // 2.0：解锁后换成新版帮助 UI（多平台 + 分组更紧凑的一屏）
-    // 未解锁时**完全不进这个分支** —— 老帮助卡与老文本一个字都不变
+    // 两种帮助模式共用主功能与分类入口，身份过滤也保持一致
     if (isV2Unlocked(cfg)) {
       try {
         const curSrc = await currentSourceOf(e, cfg)
@@ -1151,7 +1165,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
     }
 
     try {
-      const data = buildHelpCardData(e)
+      const data = buildHelpCardData(e, { full: RE_HELP_FULL.test(String(e.msg || '').trim()) })
       const img = await renderHelpCard(e, data)
       if (img) {
         await e.reply(img)
@@ -1161,28 +1175,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
       logWarn(`帮助图渲染失败: ${err.message}`)
     }
 
-    // 降级纯文本（与卡片一致：主人相关条目仅主人可见）
-    await e.reply(
-      [
-        '【QQ音乐插件帮助】',
-        '— 演出票务 —',
-        '#qqm演唱会 / #qqm近期演唱会 / #qqm往期演唱会 / #qqm演出帮助',
-        '— 点歌（均需 #qqm 前缀）—',
-        '#qqm点歌 七里香  →  #qqm听1（会话内也可 #听1）',
-        '#qqm播放 晴天',
-        '#qqm歌词 关键词 / 序号  /  #qqm热搜',
-        '— 状态 —',
-        e.isMaster
-          ? '#qqm登录  /  #qqm登录微信  /  #qqm状态  /  #qms  /  #qqm登出'
-          : '#qqm状态  /  #qms',
-        ...(e.isMaster
-          ? ['— 管理（主人）—', '#qqm设置  /  #qqm 音质 flac  /  #qqm 测试', '— 平台时长任务（主人）—', '#qqm刷歌帮助（启动 / 状态 / 停止 / 核对统计）']
-          : []),
-        '— 解析 —',
-        '分享 QQ 音乐卡片或 y.qq.com 链接自动解析',
-        `API: ${cfg.apiBase ? '已配置' : '未配置'}`,
-      ].join('\n')
-    )
+    await e.reply(formatHelpCardText(buildHelpCardData(e)))
     return true
   }
 }

@@ -160,20 +160,78 @@ function visibleSections(isMaster, base = SECTIONS) {
     .filter((s) => s.items.length > 0)
 }
 
+
+/** 主卡只列常用操作和分类入口；完整文案由各分类卡复用。 */
+const HELP_CATEGORIES = [
+  { key: '点歌', name: '点歌播放', desc: '选歌、歌词、试听与海报', titles: ['点歌播放'] },
+  { key: '发现', name: '发现音乐', desc: '榜单、推荐、歌手与歌单', titles: ['发现音乐'] },
+  { key: '平台', name: '平台音源', desc: '各平台点歌与音源切换', titles: ['多平台音源'] },
+  { key: '登录', name: '登录与状态', desc: '扫码、私聊凭据与账号状态', titles: ['账号状态', '平台凭据'] },
+  { key: '解析', name: '链接解析', desc: '音乐卡片与跨平台链接', titles: ['智能解析'] },
+  { key: '订阅', name: '订阅与定时', desc: '歌手新歌订阅、定时点歌', titles: ['订阅与定时'] },
+  { key: '演出', name: '演出票务', desc: '演唱会查询、筛选与详情', titles: ['演出票务'] },
+  { key: '统计', name: '听歌统计', desc: '本地听歌榜与平台勋章进度', titles: ['点歌播放'] },
+  { key: '一起听', name: '群里一起听', desc: '添加曲目与查看房间状态', titles: ['点歌播放'] },
+  { key: '刷歌', name: '刷歌与每日计划', desc: '单次任务、每日计划与状态', titles: [LISTENING_HELP_SECTION.title], master: true },
+  { key: '账号', name: '账号操作', desc: '歌单、收藏与评论管理', titles: ['账号操作'], master: true },
+  { key: '管理', name: '插件管理', desc: '音质、功能开关、界面与更新', titles: ['主人管理'], master: true },
+]
+
+// 已有专用处理器：刷歌、账号、演出；这里仅注册其余分类，避免同一条命令重复回复。
+export const RE_CATEGORY_HELP = /^#?(?:[qQ]{2}[mM]|[qQ]{2}音乐)\s*(点歌|发现|平台|登录|解析|订阅|统计|一起听|管理)帮助$/i
+
+function primarySections(isMaster) {
+  const main = { title: '常用功能', tag: '快速开始', items: [
+    { name: '搜索点歌', desc: '搜索后按序号选歌', example: '#qqm点歌 晴天' },
+    { name: '选择曲目', desc: '播放自己最近一次列表第 1 首', example: '#qqm听1' },
+    { name: '直接播放', desc: '搜索并播放第一条', example: '#qqm播放 七里香' },
+    { name: '查看歌词', desc: '歌名或点歌列表序号', example: '#qqm歌词 晴天' },
+    { name: '音乐解析', desc: '分享卡片、QQ / Spotify / Apple / B站链接', example: '直接发送音乐分享链接' },
+    { name: '账号状态', desc: '查看登录、会员与音质', example: '#qqm状态' },
+  ] }
+  const entry = c => ({ name: c.name, desc: c.desc, example: '#qqm' + c.key + '帮助' })
+  return [main,
+    { title: '音乐与平台帮助', tag: '分类卡片', items: HELP_CATEGORIES.slice(0, 5).map(entry) },
+    { title: '更多功能帮助', tag: '按需查看', items: HELP_CATEGORIES.slice(5, 9).map(entry) },
+    ...(isMaster ? [{ title: '主人功能帮助', tag: '仅主人', items: HELP_CATEGORIES.slice(9).map(entry) }] : []),
+  ]
+}
+
+export function formatHelpCardText(data) {
+  return ['【' + (data.title || 'QQ音乐插件帮助') + '】', ...data.sections.flatMap(s =>
+    ['— ' + s.title + ' —', ...s.items.map(i => i.name + '：' + i.example + '\n' + i.desc)]), data.tip].filter(Boolean).join('\n\n')
+}
+
+export function buildCategoryHelpCardData(e, key) {
+  const category = HELP_CATEGORIES.find(c => c.key === key)
+  if (!category) return null
+  const base = buildHelpCardData(e)
+  const all = ['平台', '登录'].includes(key) ? buildGuideCardData(e, { full: true }).sections : visibleSections(e?.isMaster === true)
+  let sections = category.master && !e?.isMaster ? [] : all.filter(s => category.titles.includes(s.title))
+  if (key === '统计') sections = sections.map(s => ({ ...s, title: '统计与进度', items: s.items.filter(i => /统计|听歌榜|勋章/.test(i.name)) }))
+  if (key === '一起听') sections = sections.map(s => ({ ...s, title: '一起听', items: s.items.filter(i => /一起听/.test(i.name)) }))
+  return { ...base, title: key === '刷歌' ? '刷歌帮助' : category.name + '帮助', detail: true, subtitle: category.desc, sections,
+    statCommands: String(sections.reduce((n, s) => n + s.items.length, 0)),
+    tip: key === '刷歌' ? LISTENING_TIP : '返回主菜单：#qqm帮助；这里只显示当前身份可用的命令。',
+  }
+}
+
 /**
  * @param {object} [e] 消息事件；e.isMaster 为真时渲染主人相关条目
  */
-export function buildHelpCardData(e) {
+export function buildHelpCardData(e, { full = false } = {}) {
   const cfg = Config.getConfig('qqmusic') || {}
   const quality = (cfg.quality || 'flac').toUpperCase()
   const songOn = cfg.enableSongRequest !== false
   const resolveOn = cfg.enableResolve !== false
   const isMaster = e?.isMaster === true
-  const sections = visibleSections(isMaster)
+  const sections = full ? visibleSections(isMaster) : primarySections(isMaster)
 
   const cmdCount = sections.reduce((n, s) => n + s.items.length, 0)
 
   return {
+    title: 'QQ音乐帮助',
+    subtitle: '常用功能 · 分类帮助',
     version: displayVersion(cfg),
     logo: logoUrl,
     statCommands: `${cmdCount}+`,
@@ -181,7 +239,7 @@ export function buildHelpCardData(e) {
     statMode: songOn && resolveOn ? '全开' : songOn ? '点歌' : resolveOn ? '解析' : '待机',
     apiHint: apiHintFor(),
     isMaster,
-    tip: '付费曲需主人扫码登录；指令统一 #qqm 前缀；#听序号 取自己最近一次列表（同群，人多的群不会串）；分享 QQ音乐、Spotify、Apple Music、B站链接可自动解析并优先匹配本地曲库。',
+    tip: '列表保留本地库、官方与填充渠道。更多用法发送对应的 #qqm分类帮助；主人可在锅巴 / WebUI 关闭本地曲库。',
     sections,
   }
 }
@@ -192,7 +250,7 @@ export function buildHelpCardData(e) {
  * 与老卡的差别：
  *   · 第一段是**动态的多平台清单**（当前开着哪几家、各自的命令与免登录档位）
  *   · 头部统计换成"平台数 / 最高音质 / 运行模式"，让一眼看出 2.0 在跑
- *   · 其余段落直接复用老卡的分组（不重复维护两份文案）
+ *   · 默认只放主要功能和分类入口；full=true 保留完整分组清单
  */
 export function buildGuideCardData(e, { currentSource = '', full = false } = {}) {
   const cfg = Config.getConfig('qqmusic') || {}
@@ -298,15 +356,14 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
   // 过完滤再丢掉空段 —— 成员看不到扫码那条时，"平台凭据"整段可能只剩粘贴一条（或彻底为空）
   const sections = [
     ...visibleSections(isMaster, [multiPlatform]),
-    ...visibleSections(isMaster, [credentialSection]).filter((s) => s.items.length),
-    ...visibleSections(isMaster),
+    ...(full ? [...visibleSections(isMaster, [credentialSection]), ...visibleSections(isMaster)] : primarySections(isMaster)),
   ]
   const cmdCount = sections.reduce((n, s) => n + s.items.length, 0)
 
   return {
     version: displayVersion(cfg),
     logo: logoUrl,
-    title: '2.0 帮助',
+    title: 'QQ音乐帮助',
     subtitle: plats.length ? `${plats.length} 家音源 · 点歌 / 解析 / 卡片` : '点歌 / 解析 / 卡片',
     /**
      * 音源清单（「多平台」主题的帮助卡"一行一个平台"用它）
@@ -329,8 +386,7 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
     currentSource,
     /**
      * 是否展开全部条目
-     *   false（默认）：每段最多 8 条 —— 51 条全铺开卡片会长到 3400px，
-     *                  QQ 里会被压成一条看不清；压缩后约 1800px，手机上还能读。
+     *   false（默认）：主要功能 + 分类帮助目录，每组不超过 6 个入口。
      *   true（`#qqm帮助 全部`）：完整清单，给需要"查手册"的人。
      */
     full: full === true,
@@ -353,7 +409,7 @@ export function buildGuideCardData(e, { currentSource = '', full = false } = {})
  */
 export function buildManageCardData(e = null) {
   const base = buildGuideCardData(e, { full: true })
-  const accountSection = base.sections.find((s) => s.title === '账号操作')
+  const accountSection = visibleSections(e?.isMaster === true).find((s) => s.title === '账号操作')
   return {
     ...base,
     kind: 'manage',
@@ -371,34 +427,10 @@ export function buildManageCardData(e = null) {
  * ⚠️ 只在解锁后才会被调用 —— 未解锁走的是老的那段文本，别把两段混起来。
  */
 export function formatGuideText(e) {
-  const cfg = Config.getConfig('qqmusic') || {}
-  const plats = enabledPlatforms(cfg)
-  const isMaster = e?.isMaster === true
-  return [
-    '【QQ音乐插件 2.0 帮助】',
-    '— 演出票务 —',
-    '#qqm演唱会 / #qqm近期演唱会 / #qqm往期演唱会 / #qqm演出帮助',
-    '— 点歌 —',
-    '#qqm点歌 七里香        （QQ 曲库；列表尾部自动补其它平台的免费曲）',
-    // 与卡片一致：教**最短写法**（动词可省），不再演示冗长的全称版
-    ...plats.map((p) => `#qqm${p.short || p.label} 关键词`.padEnd(20) + `（只在 ${p.label} 搜，免登录 ${p.quality}）`),
-    '#qqm听1 / #qqm播放 关键词 / #qqm歌词 关键词 / #qqm热搜 / #qqm平台',
-    plats.length
-      ? `不想每次都带平台：给自己设一个 #qqm源 ${plats[0].short || plats[0].label}（#qqm源 默认 切回 QQ${isMaster ? '；主人设的是全群默认' : ''}）`
-      : '',
-    '— 状态 —',
-    isMaster ? '#qqm登录 / #qqm状态 / #qms / #qqm登出' : '#qqm状态 / #qms',
-    ...(isMaster ? ['— 管理（主人）—', '#qqm设置 / #qqm 音质 flac / #qqm 测试'] : []),
-    '— 解析 —',
-    '分享 QQ音乐 / Spotify / Apple Music / B站链接自动解析（本地曲库优先）',
-  ]
-    .filter(Boolean)
-    .join('\n')
+  return formatHelpCardText(buildGuideCardData(e))
 }
 
 /** Shared help template, filtered to this task's commands. */
 export function buildListeningHelpCardData(e) {
-  const base = buildHelpCardData(e)
-  const sections = base.sections.filter(section => section.title === LISTENING_HELP_SECTION.title)
-  return { ...base, sections, statCommands: String(sections.reduce((n, section) => n + section.items.length, 0)), tip: LISTENING_TIP }
+  return buildCategoryHelpCardData(e, '刷歌')
 }

@@ -14,7 +14,7 @@ const { default: Config } = await load('components/Config.js')
 const originalConfig = Config.getConfig
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'qqm-plugin-listening-'))
 process.env.QQMUSIC_STATS_FILE = path.join(temp, 'stats.json')
-let base, requests = [], records = [], planRecords = [], next = 1, redirect = false, badProfile = false, searchGate, boundOwner = '', kgOwn = true
+let base, requests = [], records = [], planRecords = [], next = 1, redirect = false, badProfile = false, searchGate, boundOwner = '', kgOwn = true, tokenMeta = {}
 const owner = { userKey: 'fixture-user', messageId: 'fixture-message', selfId: 'fixture-bot' }
 const makeJob = (extra = {}) => ({ id: 'fixture-job-' + next++, platform: 'qq', status: 'queued', requestedSeconds: 600,
   submittedSeconds: 0, confirmedDelta: 0, inFlightSeconds: 0, metric: '', ...extra })
@@ -23,7 +23,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://fixture'), body = raw ? JSON.parse(raw) : {}, query = Object.fromEntries(url.searchParams)
   requests.push({ path: url.pathname, method: req.method, body, query, headers: req.headers })
   const send = data => { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ result: 100, data })) }
-  if (url.pathname === '/login/status') { send({ userKey: boundOwner || query.userKey, bound: !!boundOwner, login: false }); return }
+  if (url.pathname === '/login/status') { send({ userKey: boundOwner || query.userKey, bound: !!boundOwner, login: false, ...tokenMeta }); return }
   if (redirect && url.pathname === '/listening/start') { res.writeHead(303, { Location: '/unexpected-redirect' }); res.end(); return }
   if (url.pathname === '/kugou/status') { send({ loggedIn: true, hasOwn: kgOwn, source: kgOwn ? 'user' : 'shared-file' }); return }
   if (url.pathname === '/search') {
@@ -42,7 +42,7 @@ const server = http.createServer(async (req, res) => {
       repeat:body.repeat,totalRounds:body.totalRounds,scheduleTime:body.scheduleTime,status:'idle',statusLabel:'等待计划',currentJob:'',lastError:'',roundsCompleted:0,roundDisplay:'0/'+(body.repeat==='continuous'?'持续':body.totalRounds) }
     planRecords.unshift(plan); send(plan); return
   }
-  if (url.pathname === '/listening/plan/action') { send({ changed:true }); return }
+  if (url.pathname === '/listening/plan/action') { send(planRecords.find(p => p.id === body.id) || { changed:true }); return }
   if (url.pathname === '/listening/job' || url.pathname === '/listening/stop') {
     const id = body.id || query.id, job = records.find(j => j.id === id)
     if (!job) { res.statusCode = 404; res.end('{}'); return }
@@ -58,7 +58,7 @@ Config.getConfig = () => ({ apiBase: base, apiToken: 'synthetic-plugin-token', p
 const M = await load('utils/listening.js'), API = await load('utils/api.js'), H = await load('utils/help-card.js')
 const client = M.createListeningClient()
 const run = text => client.execute(M.parseListeningCommand(text), owner)
-const reset = () => { requests = []; records = []; planRecords = []; redirect = false; badProfile = false; searchGate = undefined; boundOwner = ''; kgOwn = true }
+const reset = () => { requests = []; records = []; planRecords = []; redirect = false; badProfile = false; searchGate = undefined; boundOwner = ''; kgOwn = true; tokenMeta = {} }
 after(async () => { Config.getConfig = originalConfig; await new Promise(resolve => server.close(resolve)); fs.rmSync(temp, { recursive: true, force: true }) })
 
 test('all help examples parse and do not overlap local stats or song selection', () => {
@@ -166,8 +166,8 @@ test('a guest token bound to another user cannot create, inspect, stop or profil
 })
 test('both help modes expose task commands only to masters, dedicated help shares the section', () => {
   for (const build of [H.buildHelpCardData, H.buildGuideCardData]) {
-    assert.ok(build({ isMaster: true }).sections.some(s => s.title === M.LISTENING_HELP_SECTION.title))
-    assert.ok(!build({ isMaster: false }).sections.some(s => s.title === M.LISTENING_HELP_SECTION.title))
+    assert.ok(build({ isMaster: true }).sections.flatMap(s => s.items).some(i => i.example === '#qqm刷歌帮助'))
+    assert.ok(!build({ isMaster: false }).sections.flatMap(s => s.items).some(i => i.example === '#qqm刷歌帮助'))
   }
   const data = H.buildListeningHelpCardData({ isMaster: true })
   assert.equal(data.sections.length, 1); assert.ok(data.sections[0].items.length >= 12); assert.equal(data.statCommands, String(data.sections[0].items.length))
@@ -223,4 +223,106 @@ test('master API credentials cannot cause Kugou tasks to borrow the service shar
   await assert.rejects(() => run('#qqm刷歌统计 酷狗'), { listeningCode: 'login-required' })
   assert.ok(requests.every(r => ['/login/status', '/kugou/status'].includes(r.path)))
   assert.equal(records.length, 0)
+})
+
+test('main help is a bounded directory and every advertised category has a nonempty detail card', () => {
+  for (const build of [H.buildHelpCardData, H.buildGuideCardData]) {
+    for (const isMaster of [true, false]) {
+      const data = build({ isMaster }), entries = data.sections.filter(s => /帮助$/.test(s.title))
+      assert.ok(entries.length >= 2)
+      assert.ok(data.sections.every(s => s.title === '多平台音源' || s.items.length <= 6))
+      for (const entry of entries.flatMap(s => s.items)) {
+        const key = /^#qqm(.+)帮助$/.exec(entry.example)?.[1]
+        assert.ok(key, entry.example)
+        const detail = H.buildCategoryHelpCardData({ isMaster }, key)
+        assert.ok(detail?.sections.length, entry.example)
+        assert.ok(H.formatHelpCardText(detail).includes(detail.title))
+      }
+      const text = H.formatHelpCardText(data)
+      assert.ok(text.includes('#qqm点歌帮助'))
+      assert.equal(text.includes('#qqm刷歌帮助'), isMaster)
+      assert.equal(text.includes('#qqm账号帮助'), isMaster)
+      assert.equal(text.includes('#qqm管理帮助'), isMaster)
+    }
+  }
+  assert.equal(H.buildCategoryHelpCardData({}, '不存在'), null)
+  assert.equal(H.buildCategoryHelpCardData({}, '管理').sections.length, 0)
+  assert.equal(H.buildManageCardData({}).sections.length, 0)
+  assert.ok(H.buildManageCardData({ isMaster: true }).sections[0].items.length >= 10)
+  assert.equal(H.buildListeningHelpCardData({ isMaster: true }).title, '刷歌帮助')
+})
+
+test('short daily command has the same validated payload as the full spelling', () => {
+  assert.deepEqual(M.parseListeningCommand('#qqm刷歌每天 周杰伦 确认'),
+    M.parseListeningCommand('#qqm刷歌计划 QQ 歌手 周杰伦 60 一直 00:05 确认'))
+  assert.deepEqual(M.parseListeningCommand('#qqm刷歌每天 专辑 叶惠美 30分 20次 8:30 确认'),
+    M.parseListeningCommand('#qqm刷歌计划 QQ 专辑 叶惠美 30 20次 08:30 确认'))
+  assert.equal(M.parseListeningCommand('#qqm刷歌每天 歌曲 The Scientist 确认').target, 'The Scientist')
+  for (const text of ['#qqm刷歌每天 周杰伦', '#qqm刷歌每天 周杰伦 0分 确认', '#qqm刷歌每天 周杰伦 0次 确认',
+    '#qqm刷歌每天 周杰伦 3651次 确认', '#qqm刷歌每天 周杰伦 24:01 确认', '#qqm刷歌每天 周杰伦 1.5分 确认', '#qqm刷歌每天 周杰伦 -3次 确认', '#qqm刷歌暂停']) {
+    assert.equal(M.parseListeningCommand(text).action, 'invalid', text)
+  }
+})
+
+test('short daily creation reaches the real client and persists default schedule in the API', async () => {
+  reset()
+  const text = await run('#qqm刷歌每天 周杰伦 确认')
+  const body = requests.find(r => r.path === '/listening/plan/add').body
+  assert.equal(body.platform, 'qq'); assert.equal(body.targetType, 'singer'); assert.equal(body.target, '周杰伦')
+  assert.equal(body.roundSeconds, 3600); assert.equal(body.repeat, 'continuous'); assert.equal(body.scheduleTime, '00:05')
+  assert.match(text, /计划：listen_fixture1234/)
+})
+
+test('short controls resolve only owned plans and refuse ambiguous or missing targets before writing', async () => {
+  reset()
+  await assert.rejects(() => run('#qqm刷歌暂停 确认'), { listeningCode: 'no-plan' })
+  assert.ok(!requests.some(r => r.path === '/listening/plan/action'))
+  await run('#qqm刷歌每天 周杰伦 确认')
+  const first = planRecords[0]
+  for (const verb of ['暂停', '继续', '立即', '删除']) {
+    requests = []
+    await run('#qqm刷歌' + verb + ' 确认')
+    assert.equal(requests.find(r => r.path === '/listening/plan/action').body.id, first.id)
+  }
+  planRecords.push({ ...first, id: 'listen_second', target: '林俊杰' })
+  requests = []
+  await assert.rejects(() => run('#qqm刷歌暂停 确认'), { listeningCode: 'plan-ambiguous' })
+  assert.ok(!requests.some(r => r.path === '/listening/plan/action'))
+  await run('#qqm刷歌暂停 林俊杰 确认')
+  assert.equal(requests.at(-1).body.id, 'listen_second')
+  requests = []
+  await assert.rejects(() => run('#qqm刷歌计划暂停 foreign_id 确认'), { listeningCode: 'no-plan' })
+  assert.ok(!requests.some(r => r.path === '/listening/plan/action'))
+  planRecords.push({ ...first, id: 'listen_third' })
+  await assert.rejects(() => run('#qqm刷歌暂停 周杰伦 确认'), { listeningCode: 'plan-ambiguous' })
+  await run('#qqm刷歌暂停 ' + first.id + ' 确认')
+  assert.equal(requests.at(-1).body.id, first.id)
+})
+
+test('master commands use an independently bound token slot consistently instead of comparing it to chat ID', async () => {
+  reset(); boundOwner = 'independent-slot'
+  tokenMeta = { tokenKind: 'guest', tokenId: boundOwner, bound: true, tokenShared: false }
+  const context = { ...owner, isMaster: true }
+  const text = await client.execute(M.parseListeningCommand('#qqm刷歌每天 周杰伦 确认'), context)
+  assert.match(text, /独立 API Token 绑定/)
+  assert.equal(requests.find(r => r.path === '/listening/plan/add').body.userKey, boundOwner)
+  assert.ok(requests.filter(r => r.path !== '/login/status').every(r => (r.body.userKey || r.query.userKey) === boundOwner))
+  requests = []
+  await client.execute(M.parseListeningCommand('#qqm刷歌暂停 确认'), context)
+  assert.equal(requests.at(-1).path, '/listening/plan/action'); assert.equal(requests.at(-1).body.userKey, boundOwner)
+  requests = []
+  await client.execute(M.parseListeningCommand('#qqm刷歌 QQ 1 晴天 确认'), context)
+  assert.equal(requests.find(r => r.path === '/search').query.userKey, boundOwner)
+  assert.equal(requests.find(r => r.path === '/listening/start').body.userKey, boundOwner)
+})
+
+test('bound slot adoption never permits ordinary senders, shared tokens or ambiguous legacy metadata', async () => {
+  reset(); boundOwner = 'independent-slot'
+  tokenMeta = { tokenKind: 'guest', tokenId: boundOwner, bound: true, tokenShared: false }
+  await assert.rejects(() => run('#qqm刷歌统计 QQ'), { listeningCode: 'bound-account-mismatch' })
+  tokenMeta.tokenShared = true
+  await assert.rejects(() => client.execute(M.parseListeningCommand('#qqm刷歌统计 QQ'), { ...owner, isMaster: true }), { listeningCode: 'shared-token-readonly' })
+  tokenMeta = { tokenKind: 'master', bound: false }
+  await assert.rejects(() => client.execute(M.parseListeningCommand('#qqm刷歌统计 QQ'), { ...owner, isMaster: true }), { listeningCode: 'bound-account-mismatch' })
+  assert.ok(requests.every(r => r.path === '/login/status'))
 })

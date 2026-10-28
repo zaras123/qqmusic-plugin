@@ -135,6 +135,20 @@ const cases = [
   ['#qqm刷歌计划列表', 'listening'],
   ['#qqm刷歌状态', 'listening'],
   ['#qqm刷歌帮助', 'listening'],
+  ['#qqm刷歌每天 周杰伦 确认', 'listening'],
+  ['#qqm刷歌暂停 确认', 'listening'],
+  ['#qqm点歌帮助', 'categoryHelp'],
+  ['#qqm发现帮助', 'categoryHelp'],
+  ['#qqm平台帮助', 'categoryHelp'],
+  ['#qqm登录帮助', 'categoryHelp'],
+  ['#qqm解析帮助', 'categoryHelp'],
+  ['#qqm订阅帮助', 'categoryHelp'],
+  ['#qqm统计帮助', 'categoryHelp'],
+  ['#qqm一起听帮助', 'categoryHelp'],
+  ['#qqm管理帮助', 'categoryHelp'],
+  ['#QQM点歌帮助', 'categoryHelp'],
+  ['#qq音乐订阅帮助', 'categoryHelp'],
+  ['#qqm账号帮助', 'usage'],
   ['#qqm刷歌停止 QQ 确认', 'listening'],
   ['#qqm演唱会', 'ticket'],
   ['#qqm近期演唱会 城市=北京', 'ticket'],
@@ -1605,7 +1619,7 @@ function v2Check(name, got, want) {
         // 长说明那一段要整行铺开、且允许换行（半列 269px 一句 50 字的话只露十几个字）
         v2Check(
           '帮助卡：平台凭据段既标了 wide，模板也真的给整行 + 换行',
-          HC.buildGuideCardData({ isMaster: true }).sections.find((s) => s.title === '平台凭据')?.wide === true &&
+          HC.buildGuideCardData({ isMaster: true }, { full: true }).sections.find((s) => s.title === '平台凭据')?.wide === true &&
             /group-body--wide/.test(guideHtml) &&
             /\{\{if !section\.wide\}\} truncate\{\{\/if\}\}/.test(guideHtml),
           true
@@ -1859,20 +1873,20 @@ function v2Check(name, got, want) {
 
       // ⑧ 帮助卡：两条通道都列出来；扫码那条是主人专属（rule 上就是 permission: master）
       // 条目要**跨段**找：凭据那两条在独立的「平台凭据」段里（见下一条断言）
-      const itemsOf = (g) => g.sections.flatMap((s) => s.items).map((i) => `${i.name}|${i.example}`).join(' ; ')
-      const masterItems = itemsOf(HC.buildGuideCardData({ isMaster: true }))
-      const memberItems = itemsOf(HC.buildGuideCardData({}))
+      const itemsOf = (g) => g.sections.flatMap((s) => s.items).map((i) => `${i.name}|${i.example}|${i.desc || String()}`).join(' ; ')
+      const masterItems = itemsOf(HC.buildCategoryHelpCardData({ isMaster: true }, '登录'))
+      const memberItems = itemsOf(HC.buildCategoryHelpCardData({}, '登录'))
       v2Check('帮助卡：主人看到扫码条目（示例给最短写法）', /扫码登录（主人）\|#qqm网易登录/.test(masterItems), true)
       v2Check('帮助卡：粘贴凭据也列出来（注明私聊 + 支持哪几家）', /粘贴 cookie（私聊）\|#qqm网易ck <cookie>/.test(masterItems) && /酷我/.test(masterItems), true)
       v2Check('帮助卡：成员看不到扫码条目（master 命令）', /扫码登录/.test(memberItems), false)
       v2Check('帮助卡：条目里不残留内部标记 master', /master/.test(masterItems), false)
       // ⚠️ 凭据那两条**不能**待在第 0 段的 items 里 —— 第 0 段在四套主题里都被渲染成"平台彩条"，
       //    它自己的 items 一个都不会被画出来（配凭据这一步会在帮助卡上彻底隐身）
-      const guideMaster = HC.buildGuideCardData({ isMaster: true })
+      const guideMaster = HC.buildGuideCardData({ isMaster: true }, { full: true })
       v2Check('帮助卡：凭据独立成段且不在第 0 段（否则四个主题都看不见）',
         [guideMaster.sections[0].title, guideMaster.sections[1].title, guideMaster.sections[0].items.some((i) => /扫码登录/.test(i.name))].join('|'),
         '多平台音源|平台凭据|false')
-      const guideMember = HC.buildGuideCardData({})
+      const guideMember = HC.buildGuideCardData({}, { full: true })
       v2Check('帮助卡：成员那份"平台凭据"段仍在（只剩粘贴那条），没被整段丢掉',
         [guideMember.sections.some((s) => s.title === '平台凭据'), guideMember.sections.flatMap((s) => s.items).some((i) => /粘贴 cookie/.test(i.name))].join('|'),
         'true|true')
@@ -2100,9 +2114,9 @@ function v2Check(name, got, want) {
     // 文本兜底跟着卡片改成了**最短写法**（`#qqm网易 关键词`），断言同步
     v2Check('2.0 帮助：文本兜底含平台命令（最短写法）', /#qqm网易 关键词/.test(HC.formatGuideText({})), true)
     v2Check('2.0 帮助：非主人看不到主人段', guide.sections.every((s) => s.title !== '主人管理'), true)
-    v2Check('2.0 帮助：主人能看到主人段', HC.buildGuideCardData({ isMaster: true }).sections.some((s) => s.title === '主人管理'), true)
+    v2Check('2.0 帮助：主人能看到主人段', HC.buildCategoryHelpCardData({ isMaster: true }, '管理').sections.some((s) => s.title === '主人管理'), true)
     v2Check('2.0 帮助：非主人看不到账号操作段', guide.sections.every((s) => s.title !== '账号操作'), true)
-    v2Check('2.0 帮助：主人能看到账号操作段', HC.buildGuideCardData({ isMaster: true }).sections.some((s) => s.title === '账号操作'), true)
+    v2Check('2.0 帮助：主人能看到账号操作段', HC.buildManageCardData({ isMaster: true }).sections.some((s) => s.title === '账号操作'), true)
     const manageCard = HC.buildManageCardData({ isMaster: true })
     v2Check('账号操作卡片：使用 guide 的 manage 模式', manageCard.kind === 'manage' && manageCard.title === '账号操作', true)
     v2Check(

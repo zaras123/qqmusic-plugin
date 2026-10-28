@@ -30,21 +30,24 @@
     .tip {
       padding: 16px var(--pad) 0;
     }
+    .card--detail .row { display: block; }
+    .card--detail .cmd-example { display: inline-block; margin-top: 7px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+    .card--detail .row-sub { white-space: normal; overflow: visible; text-overflow: clip; }
   </style>
 </head>
 <body>
   <div class="page">
-    <div class="card">
+    <div class="card{{if data.detail}} card--detail{{/if}}">
       <div class="hero">
         <div class="hero-main">
           <div class="brand-row">
             {{if data.logo}}<img class="brand-logo" src="{{data.logo}}" alt="logo" />{{/if}}
             <div style="min-width:0">
               <div class="hero-eyebrow">QQ Music Plugin</div>
-              <div class="t-hero">{{data.version || '帮助'}}</div>
+              <div class="t-hero">{{data.title || 'QQ音乐帮助'}}</div>
             </div>
           </div>
-          <div class="t-sub hero-sub">点歌 · 播放 · 解析 · 一起听</div>
+          <div class="t-sub hero-sub">{{data.subtitle || '常用功能 · 分类帮助'}}</div>
         </div>
       </div>
 

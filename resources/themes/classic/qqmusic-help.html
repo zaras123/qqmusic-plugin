@@ -319,18 +319,20 @@
       font-weight: 700;
       opacity: 0.9;
     }
+    .card--detail .cmd { grid-template-columns: minmax(0, 1fr); }
+    .card--detail .cmd-example { justify-self: start; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
   </style>
 </head>
 <body>
   <div class="page">
-    <div class="card">
+    <div class="card{{if data.detail}} card--detail{{/if}}">
       <div class="hero">
         <div class="hero-top">
           <img class="brand-mark" src="{{data.logo}}" alt="logo" />
           <div class="hero-text">
             <div class="eyebrow">QQ MUSIC PLUGIN</div>
-            <div class="title">使用帮助</div>
-            <div class="subtitle">点歌 · 解析 · 登录 · 管理 · 一图掌握</div>
+            <div class="title">{{data.title || '使用帮助'}}</div>
+            <div class="subtitle">{{data.subtitle || '常用功能 · 分类帮助'}}</div>
           </div>
           <div class="version-pill">{{data.version || 'v1.0'}}</div>
         </div>

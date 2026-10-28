@@ -17,7 +17,7 @@ const REASONS = { 'statistics-not-increasing': '连续查询未看到统计增�
   'acknowledgement-uncertain': '提交结果不确定，旧批次不会自动重试', 'daily-limit': '目标超出今日上限',
   'playback-key-unavailable': '未取得 QQ 官方播放凭证', 'upstream-error': '平台响应或网络异常',
   'upstream-http-error': '平台返回非成功 HTTP 状态', 'invalid-statistics': '平台没有返回有效统计' }
-export const LISTENING_TIP = '仅使用发送者自己的登录账号。已接收量与平台统计增量分开显示；后台不播放音频，真实账号入账仍未完成验收。'
+export const LISTENING_TIP = '使用本人登录槽或独立 Token 的绑定账号；共享 Token 不支持时长任务。已接收量与平台统计增量分开显示；后台不播放音频，真实账号入账仍未完成验收。'
 export const LISTENING_HELP_SECTION = {
   title: '平台时长任务', tag: '主人', master: true,
   items: [
@@ -28,10 +28,12 @@ export const LISTENING_HELP_SECTION = {
     { name: '核对平台统计', desc: '仅刷新已结束任务的增量，不重发旧批次', example: '#qqm刷歌刷新 QQ' },
     { name: '停止任务', desc: '可指定平台或任务ID；末尾带「确认」', example: '#qqm刷歌停止 QQ 确认' },
     { name: '平台时长', desc: 'QQ 显示今日秒数，酷狗显示累计秒数', example: '#qqm刷歌统计 酷狗' },
-    { name: '每日计划', desc: '每天补到24小时；可选歌曲、专辑或歌手，持续执行', example: '#qqm刷歌计划 QQ 歌手 周杰伦 60 一直 00:05 确认' },
-    { name: '固定轮数', desc: '只执行指定轮次；专辑和歌手每轮轮换下一首', example: '#qqm刷歌计划 QQ 专辑 叶惠美 60 20次 00:05 确认' },
+    { name: '每日计划', desc: '默认 QQ歌手 / 每轮60分钟 / 每天00:05持续执行', example: '#qqm刷歌每天 周杰伦 确认' },
+    { name: '固定轮数', desc: '只执行指定轮次；专辑和歌手每轮轮换下一首', example: '#qqm刷歌每天 专辑 叶惠美 20次 确认' },
+    { name: '自定义时间', desc: '可选参数依次为每轮分钟、轮数、每天时间', example: '#qqm刷歌每天 周杰伦 30分 20次 08:30 确认' },
+    { name: '继续计划', desc: '继续已保存的计划，无需重填歌手和时间', example: '#qqm刷歌继续 确认' },
     { name: '计划列表', desc: '查看轮次、状态与下次运行时间', example: '#qqm刷歌计划列表' },
-    { name: '暂停计划', desc: '可暂停、继续、立即执行或删除；末尾带确认', example: '#qqm刷歌计划暂停 listen_0123456789abcdef 确认' },
+    { name: '暂停计划', desc: '暂停 / 继续 / 立即 / 删除；多计划加目标名或ID', example: '#qqm刷歌暂停 确认' },
     { name: '任务帮助', desc: '查看任务用法及状态说明', example: '#qqm刷歌帮助' },
   ],
 }
@@ -44,6 +46,26 @@ export function parseListeningCommand(text = '') {
   if (!RE_LISTENING.test(raw)) return null
   let tail = raw.replace(PREFIX, '').trim()
   if (!tail || tail === '帮助') return { action: 'help' }
+  // 短命令只补全默认参数，再交给同一套完整命令校验，不另起一套任务逻辑。
+  const daily = /^每天\s+([\s\S]+?)\s+(确认|confirm)$/i.exec(tail)
+  if (daily) {
+    let content = daily[1].trim(), time = '00:05', minutes = '60', rounds = '一直'
+    const timeMatch = /\s+(\d{1,2}:\d{2})$/.exec(content)
+    if (timeMatch) { time = timeMatch[1].padStart(5, '0'); content = content.slice(0, timeMatch.index).trim() }
+    const roundsMatch = /\s+(\d+次|一直|每天)$/.exec(content)
+    if (roundsMatch) { rounds = roundsMatch[1]; content = content.slice(0, roundsMatch.index).trim() }
+    const durationMatch = /\s+(\d+)(?:分钟|分)$/.exec(content)
+    if (durationMatch) { minutes = durationMatch[1]; content = content.slice(0, durationMatch.index).trim() }
+    if (/\s+-?[\d.]+(?:分钟|分|次)$/.test(content)) return bad('时长和轮数必须为正整数，可选参数顺序为：30分 20次 08:30')
+    const targetMatch = /^(?:(QQ|酷狗|kg)\s+)?(?:(歌曲|专辑|歌手)\s+)?([\s\S]+)$/i.exec(content)
+    if (!targetMatch) return bad('请填写歌手、专辑或歌曲名，例如 #qqm刷歌每天 周杰伦 确认')
+    return parseListeningCommand('#qqm刷歌计划 ' + (targetMatch[1] || 'QQ') + ' ' + (targetMatch[2] || '歌手') + ' ' + targetMatch[3] + ' ' + minutes + ' ' + rounds + ' ' + time + ' 确认')
+  }
+  if (/^每天/.test(tail)) return bad('简写：#qqm刷歌每天 周杰伦 确认；默认 QQ / 歌手 / 每轮60分钟 / 每天00:05持续；可选加「30分 20次 08:30」')
+  if (tail === '计划') return { action: 'plan-list' }
+  const shortControl = /^(暂停|继续|删除|立即)(?:\s+([\s\S]+?))?\s+(?:确认|confirm)$/i.exec(tail)
+  if (shortControl) return { action: 'plan-action', operation: { 暂停:'pause',继续:'resume',立即:'run',删除:'remove' }[shortControl[1]], selector: (shortControl[2] || '').trim(), confirmed: true }
+  if (/^(暂停|继续|删除|立即)/.test(tail)) return bad('计划操作需在末尾加「确认」，例如 #qqm刷歌暂停 确认；多计划时加歌手名或计划ID')
   if (tail === '计划列表') return { action: 'plan-list' }
   const planAction = /^计划(暂停|继续|立即|删除)\s+(\S+)\s+(?:确认|confirm)$/i.exec(tail)
   if (planAction) return { action: 'plan-action', operation: { 暂停:'pause',继续:'resume',立即:'run',删除:'remove' }[planAction[1]], id: planAction[2], confirmed: true }
@@ -54,6 +76,7 @@ export function parseListeningCommand(text = '') {
     const roundSeconds = Number(plan[4]) * 60
     if (!Number.isSafeInteger(roundSeconds) || roundSeconds < 60 || roundSeconds > 86400) return bad('每轮时长应为 1～1440 分钟')
     if (platform === 'kugou' && targetType !== 'song') return bad('酷狗只有累计时长统计，目标类型请选择「歌曲」并填写累计时长')
+    if (plan[6] && (!Number.isSafeInteger(Number(plan[6])) || Number(plan[6]) < 1 || Number(plan[6]) > 3650)) return bad('执行轮数应为 1～3650 次')
     const time = plan[7] || '00:05'
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return bad('每日时间格式应为 00:00～23:59')
     return { action: 'plan-add', platform, targetType, target: plan[3].trim(), roundSeconds,
@@ -115,7 +138,9 @@ export function listeningError(error) {
   const code = error?.listeningCode || error?.payload?.code
   const messages = { 'no-task': '当前账号没有可查询的任务，请先 #qqm刷歌帮助', 'not-owned': '当前账号下没有这条任务',
     'missing-user': '无法取得发送者账号，未执行任务', 'client-busy': '正在处理你的启动请求，请先查看 #qqm刷歌状态',
-    'bound-account-mismatch': 'API Token 绑定的账号槽与发送者不同，未执行任务；请使用匹配本人账号的 Token 或由主人检查配置',
+    'bound-account-mismatch': 'API 返回的账号槽与请求不一致，且未确认独立 Token 绑定关系；请更新 API 后在锅巴 / WebUI 核对 Token',
+    'shared-token-readonly': '当前是共享账号 Token，不能执行时长任务；请在 Token 管理器新建独立 Token，使用它扫码登录自己的账号，再填入锅巴 / WebUI',
+    'token-scope-changed': 'Token 已停用、删除或更换绑定账号，计划已暂停，请检查 Token 管理器',
     'unsupported-api': 'API 尚未提供时长任务接口，请更新 API 后重试', 'invalid-response': 'API 返回的数据不完整，请更新 API 并核对任务状态',
     'song-not-found': '未找到匹配的 QQ 官方歌曲，请补充歌手名或直接填写 songmid',
     'login-required': '请先绑定发送者自己的 QQ音乐或酷狗账号，再启动任务',
@@ -124,14 +149,14 @@ export function listeningError(error) {
     'task-store-invalid': '任务记录异常，服务已保留原文件，请检查 API',
     'plan-store-invalid':'刷歌计划记录异常，服务未覆盖原文件', 'target-not-found':'没有找到计划目标，请补充完整歌名、专辑名或歌手名',
     'unsupported-target':'酷狗时长同步不支持专辑或歌手轮换', 'plan-limit':'刷歌计划数量已达上限', 'invalid-plan':'计划参数无效',
-    'master-required':'刷歌计划仅限主人管理', 'invalid-target':'请填写歌曲、专辑或歌手名', 'invalid-schedule':'每日执行时间格式错误',
+    'plan-ambiguous':'有多个匹配计划，请在命令中加歌手名或完整计划ID；#qqm刷歌计划 查看列表', 'no-plan':'没有找到对应计划；#qqm刷歌计划 查看列表', 'master-required':'定时计划需要管理 Token 或绑定自己账号的独立 Token；请更新 API 并在锅巴 / WebUI 检查 Token', 'invalid-target':'请填写歌曲、专辑或歌手名', 'invalid-schedule':'每日执行时间格式错误',
     'invalid-round':'每轮时长必须是整分钟', ...REASONS }
   return Object.prototype.hasOwnProperty.call(messages, code) ? messages[code] :
     (/HTTP 404/.test(error?.message || '') ? 'API 尚未提供时长任务接口，请更新 API 后重试' : '请求未完成，请检查 API 连接并先查看任务状态；不要反复启动同一任务。')
 }
 
 export function formatListeningPlan(plan) {
-  return `${plan.platform === 'qq' ? 'QQ音乐' : '酷狗'} · ${plan.statusLabel}\n${plan.targetType === 'album' ? '专辑' : plan.targetType === 'singer' ? '歌手' : '歌曲'}：${plan.target}\n每轮：${duration(plan.roundSeconds)}\n每天：${plan.scheduleTime} 起补到24小时\n轮次：${plan.roundDisplay || (plan.repeat === 'continuous' ? '持续' : '')}${plan.currentJob ? `\n当前任务：${plan.currentJob}` : ''}${plan.lastError ? `\n说明：${listeningError({ payload: { code: plan.lastError } })}` : ''}`
+  return `${plan.platform === 'qq' ? 'QQ音乐' : '酷狗'} · ${plan.statusLabel}\n计划：${plan.id}\n${plan.targetType === 'album' ? '专辑' : plan.targetType === 'singer' ? '歌手' : '歌曲'}：${plan.target}\n每轮：${duration(plan.roundSeconds)}\n每天：${plan.scheduleTime} 起补到24小时\n轮次：${plan.roundDisplay || (plan.repeat === 'continuous' ? '持续' : '')}${plan.currentJob ? `\n当前任务：${plan.currentJob}` : ''}${plan.lastError ? `\n说明：${listeningError({ payload: { code: plan.lastError } })}` : ''}`
 }
 
 export function buildListeningStatusCard(job, plans = []) {
@@ -162,11 +187,16 @@ export function createListeningClient({ call = request } = {}) {
     if (!Array.isArray(result)) throw fault('invalid-response')
     return result
   }
-  async function personalScope(userKey) {
-    // Read-only local metadata; never require QQ login for a Kugou-only task.
+  async function personalScope(userKey, { isMaster = false } = {}) {
+    // 账号槽是服务端分配的标识，不必等于聊天发送者 ID。
+    // 仅主人命令可采用服务端明确确认的独立 Token 绑定槽；主密钥不会自动换人。
     const scope = await invoke('/login/status', {}, 'get', userKey)
-    if (typeof scope?.userKey !== 'string') throw fault('invalid-response')
-    if (scope.userKey !== userKey) throw fault('bound-account-mismatch')
+    if (typeof scope?.userKey !== 'string' || !scope.userKey || scope.userKey.length > 128) throw fault('invalid-response')
+    const bound = scope.tokenKind === 'guest' && scope.bound === true
+    if (bound && (scope.tokenShared === true || scope.tokenId !== scope.userKey)) throw fault('shared-token-readonly')
+    if (scope.userKey === userKey) return userKey
+    if (isMaster === true && bound && scope.tokenShared !== true && scope.tokenId === scope.userKey) return scope.userKey
+    throw fault('bound-account-mismatch')
   }
   async function ownKugou(userKey) {
     const account = await invoke('/kugou/status', {}, 'get', userKey)
@@ -184,27 +214,33 @@ export function createListeningClient({ call = request } = {}) {
     if (!job) throw fault('no-task')
     return job
   }
-  async function execute(command, { userKey, messageId = '', selfId = '' } = {}) {
+  async function executeScoped(command, { userKey, messageId = '', selfId = '' } = {}) {
     if (!command) return ''
     if (command.action === 'help') return LISTENING_USAGE
     if (command.action === 'invalid') return command.message
     if (!userKey) throw fault('missing-user')
     if (command.action === 'plan-add') {
       if (command.confirmed !== true) throw fault('invalid-response')
-      await personalScope(userKey)
+
       if (command.platform === 'kugou') await ownKugou(userKey)
       const plan = await invoke('/listening/plan/add', { ...command, confirm: 1 }, 'post', userKey)
-      return `刷歌计划已创建\n${formatListeningPlan(plan)}\n计划：${plan.id}`
+      return `刷歌计划已创建\n${formatListeningPlan(plan)}`
     }
     if (command.action === 'plan-list') {
-      await personalScope(userKey)
+
       const list = await planList(userKey)
       return list.length ? list.map(formatListeningPlan).join('\n\n') : '当前账号还没有刷歌计划'
     }
     if (command.action === 'plan-action') {
       if (command.confirmed !== true) throw fault('invalid-response')
-      await personalScope(userKey)
-      const result = await invoke('/listening/plan/action', { id: command.id, action: command.operation, confirm: 1 }, 'post', userKey)
+
+      // 先读取本人计划再消歧；绝不把省略目标解释成批量修改。
+      const plans = await planList(userKey)
+      const matching = command.id ? plans.filter(p => p.id === command.id) : plans.filter(p =>
+        !command.selector || p.id === command.selector || p.target === command.selector)
+      if (!matching.length) throw fault('no-plan')
+      if (matching.length !== 1) throw fault('plan-ambiguous')
+      const result = await invoke('/listening/plan/action', { id: matching[0].id, action: command.operation, confirm: 1 }, 'post', userKey)
       return result?.removed ? '刷歌计划已删除' : formatListeningPlan(result)
     }
     if (command.action === 'start') {
@@ -212,7 +248,7 @@ export function createListeningClient({ call = request } = {}) {
       if (starting.has(userKey)) throw fault('client-busy')
       starting.add(userKey)
       try {
-        await personalScope(userKey)
+
         if (command.platform === 'kugou') await ownKugou(userKey)
         let id = '', chosen = ''
         if (command.platform === 'qq') {
@@ -234,7 +270,7 @@ export function createListeningClient({ call = request } = {}) {
         return chosen + formatListeningJob(job)
       } finally { starting.delete(userKey) }
     }
-    await personalScope(userKey)
+
     if (command.action === 'profile') {
       if (command.platform === 'kugou') await ownKugou(userKey)
       const profile = await invoke('/listening/profile', { platform: command.platform }, 'get', userKey)
@@ -259,6 +295,17 @@ export function createListeningClient({ call = request } = {}) {
     }
     if (command.action === 'refresh' && ACTIVE.has(job.status)) return '任务还在执行，请用 #qqm刷歌状态 查看；结束后再刷新统计'
     return formatListeningJob(await invoke('/listening/job', { id: job.id, ...(command.action === 'refresh' ? { refresh: 1 } : {}) }, 'get', userKey))
+  }
+  async function execute(command, context = {}) {
+    if (!command || ['help', 'invalid'].includes(command.action)) return executeScoped(command, context)
+    if (!context.userKey) throw fault('missing-user')
+    const accountKey = await personalScope(context.userKey, { isMaster: context.isMaster === true })
+    const result = await executeScoped(command, { ...context, userKey: accountKey })
+    if (accountKey === context.userKey) return result
+    const note = '执行账号：当前独立 API Token 绑定的账号槽（' + accountKey + '）'
+    if (typeof result === 'string') return note + '\n' + result
+    return { ...result, text: note + '\n' + (result.text || ''),
+      ...(result.card ? { card: { ...result.card, subtitle: result.card.subtitle + ' · Token绑定账号' } } : {}) }
   }
   return { execute, jobs, planList, personalScope }
 }
