@@ -184,13 +184,13 @@ export function buildSchemas() {
   {
     field: 'enableResolve',
     label: '开启卡片/链接解析',
-    bottomHelpMessage: '识别 QQ 音乐、Spotify、Apple Music、B站分享链接',
+    bottomHelpMessage: '识别 QQ 音乐、Spotify、Apple Music 分享链接；不接管 B站消息',
     component: 'Switch',
   },
   {
     field: 'resolveExternal',
     label: '外部平台链接解析',
-    bottomHelpMessage: 'Spotify / Apple Music / B站：先查本地曲库，再尝试同曲匹配',
+    bottomHelpMessage: 'Spotify / Apple Music：先查本地曲库，再尝试同曲匹配',
     component: 'Switch',
   },
   {
@@ -224,9 +224,9 @@ export function buildSchemas() {
   },
   {
     field: 'localLibrary',
-    label: '本地曲库优先',
+    label: '本地曲库',
     bottomHelpMessage:
-      '默认开启：点歌结果先列本地命中，同时保留 QQ 官方和第三方填充渠道。关闭后搜索、播放和链接解析都不再读取本地文件；在意本地音质或想强制走云端时可关闭',
+      '默认开启：点歌菜单同时展示本地与官方渠道，按所选条目播放，不自动切到本地；链接解析仍优先本地。关闭后搜索、播放和链接解析都不读取本地曲库',
     component: 'Switch',
   },
   {

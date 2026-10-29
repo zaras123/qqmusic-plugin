@@ -133,7 +133,8 @@ export function detectExternalRef(text = '') {
 }
 
 export function isExternalMusicMessage(text = '') {
-  return Boolean(detectExternalRef(text))
+  const ref = detectExternalRef(text)
+  return Boolean(ref && ref.platform !== 'bilibili')
 }
 
 export function platformLabelOf(platform = '') {

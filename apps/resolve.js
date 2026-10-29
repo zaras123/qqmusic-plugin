@@ -192,7 +192,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
       rule: [
         {
           // 尽量只匹配 QQ 音乐相关，避免全量 .* 抢其它命令
-          reg: '^(?!#?\\s*(?:qqm|qms|QQ状态)).*?(?:y\\.qq\\.com|c6\\.y\\.qq\\.com|i\\.y\\.qq\\.com|qqmusic|QQ音乐|100497308|music\\.lua|structmsg|songmid|sdkshare_music|open\\.spotify\\.com|spotify:(track|album|playlist):|music\\.apple\\.com|itunes\\.apple\\.com|bilibili\\.com|b23\\.tv|BV[1-9A-Za-z]{9,11}|av\\d{5,})',
+          reg: '^(?!#?\\s*(?:qqm|qms|QQ状态)).*?(?:y\\.qq\\.com|c6\\.y\\.qq\\.com|i\\.y\\.qq\\.com|qqmusic|QQ音乐|100497308|music\\.lua|structmsg|songmid|sdkshare_music|open\\.spotify\\.com|spotify:(track|album|playlist):|music\\.apple\\.com|itunes\\.apple\\.com)',
           fnc: 'resolve',
           log: false,
         },
@@ -247,6 +247,8 @@ export class qqmusicResolve extends (await loadPluginBase()) {
   }
 
   async handle(e, text, cfg) {
+    // B站卡片也可能带 structmsg；必须在 QQ 卡片解析前放行，避免占用其它插件。
+    if (detectExternalRef(text)?.platform === 'bilibili') return false
     const userKey = String(e.user_id || '')
     let song = null
     let fromCard = false
@@ -281,6 +283,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
             const scope = e.group_id || e.user_id
             await setSession(scope, {
               type: ref.kind,
+              preferLocal: true,
               data: result.songs,
               user_id: e.user_id,
               title,
@@ -350,7 +353,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
             }))
             if (songs.length) {
               const scope = e.group_id || e.user_id
-              await setSession(scope, { type: 'album', data: songs, user_id: e.user_id, title: '专辑' })
+              await setSession(scope, { type: 'album', preferLocal: true, data: songs, user_id: e.user_id, title: '专辑' })
               await e.reply(`识别到专辑链接，共${songs.length}首。发送 #qqm听序号 播放`)
               return true
             }
@@ -365,7 +368,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
             if (songs.length) {
               const scope = e.group_id || e.user_id
               const title = detail.dissname || detail.title || '歌单'
-              await setSession(scope, { type: 'playlist', data: songs, user_id: e.user_id, title })
+              await setSession(scope, { type: 'playlist', preferLocal: true, data: songs, user_id: e.user_id, title })
               await e.reply(`识别到歌单「${title}」，共${songs.length}首。发送 #qqm听序号 播放`)
               return true
             }
@@ -378,7 +381,7 @@ export class qqmusicResolve extends (await loadPluginBase()) {
             if (result.list?.length) {
               const scope = e.group_id || e.user_id
               const title = '歌手热门歌曲'
-              await setSession(scope, { type: 'singer', data: result.list, user_id: e.user_id, title })
+              await setSession(scope, { type: 'singer', preferLocal: true, data: result.list, user_id: e.user_id, title })
               await e.reply(`识别到歌手链接，热门歌曲${result.list.length}首。发送 #qqm听序号 播放`)
               return true
             }

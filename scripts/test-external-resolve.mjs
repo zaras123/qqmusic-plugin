@@ -203,10 +203,10 @@ try {
   const rule = resolver.rule[0]
   const reg = rule.reg instanceof RegExp ? rule.reg : new RegExp(String(rule.reg))
   check(
-    '插件消息路由会进入 Spotify、Apple 和B站链接',
+    '插件消息路由保留 Spotify、Apple，放行B站链接',
     reg.test(`https://open.spotify.com/track/${'T'.repeat(22)}`) &&
       reg.test('https://music.apple.com/cn/album/example/123') &&
-      reg.test('https://www.bilibili.com/video/BV1xx411c7mD')
+      !reg.test('https://www.bilibili.com/video/BV1xx411c7mD')
   )
 
   let seen = ''
