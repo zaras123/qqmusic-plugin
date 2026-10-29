@@ -144,6 +144,8 @@ export function parsePlatformStatusCmd(text = '') {
  * ⚠️ 形状上有意与「#qqm听N」（apps/song.js 里的 RE_LISTEN）错开：那条要求"听"字后面
  *    **直接跟数字**，这两条跟的是"歌 / 榜 / 排行"，两边不会互吃。
  */
+export const RE_LISTENING_STATUS = /^#?[qQ]{2}[mM]\s*(?:听歌状态|官方时长)$/
+
 export const RE_MY_STATS = /^#?(?:qq|QQ)m\s*听歌\s*(?:统计|我的)?$/
 export const RE_STATS_BOARD = /^#?(?:qq|QQ)m\s*听歌\s*(?:榜|排行)\s*(今日|今天|本周|总榜|总计|总)?$/
 
@@ -163,6 +165,7 @@ export default {
   RE_PICK_PLAIN,
   RE_LYRIC_CMD,
   RE_PLATFORM_STATUS,
+  RE_LISTENING_STATUS,
   RE_MY_STATS,
   RE_STATS_BOARD,
   RE_MEDAL,

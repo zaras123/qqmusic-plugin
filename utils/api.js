@@ -189,6 +189,12 @@ export async function request(
   const perUserScoped =
     asUser === true || isPerUserScopePath(pathname) || isAppleScopedRequest(pathname, params)
   const effectiveUserKey = publicAccount && forceMaster && !perUserScoped ? publicAccount : userKey
+  // 个人查询只能使用本人凭据；没有登录时也不能回退到主人账号。
+  if (perUserScoped) {
+    params = { ...params }
+    delete params.publicUserKey
+    delete params.public_user_key
+  }
 
   // Guoba / WebUI 的「本地曲库」总开关必须覆盖所有会查本地库的入口，
   // 包括外部链接解析和取播放链；显式传 local 的调用也不能绕过这个总开关。
@@ -206,7 +212,7 @@ export async function request(
   const safeUserKey = sanitizeForHeader(effectiveUserKey)
   if (safeUserKey) headers['x-qqmusic-user'] = safeUserKey
   // 主人账号：带上就好，是否真的回落由 API 判断（请求者自己登录了就一直用他自己的）
-  if (publicAccount && !String(pathname).startsWith('/listening/')) {
+  if (publicAccount && !perUserScoped && !String(pathname).startsWith('/listening/')) {
     params = { ...params, publicUserKey: publicAccount }
     headers['x-qqmusic-public-user'] = publicAccount
   }
