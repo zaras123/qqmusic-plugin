@@ -108,6 +108,14 @@ pnpm build
 
 离线回归：`npm run test:audio-recovery`（需要 FFmpeg，使用本机模拟服务，不发送 QQ 消息）。这些回归不代表已完成两台实际机器的新旧版本文件对照；已有坏文件需重新下载。
 
+## 仓库活跃度
+
+<p align="center">
+  <a href="https://github.com/zaras123/qqmusic-plugin/pulse">
+    <img src="https://repobeats.axiom.co/api/embed/8ffa0d49f1cc9f86300f9903b9a98c31cd6d694c.svg" width="720" alt="Repobeats 仓库活跃度与贡献者统计" title="Repobeats analytics image">
+  </a>
+</p>
+
 ## AI 辅助开发声明
 
 **本插件部分代码由 AI 辅助完成。** 可能存在尚未发现的逻辑缺陷、兼容性或安全问题，请在理解并审查代码后部署，不要将未经验证的代码直接用于生产或商业项目。发现问题欢迎通过 Issue 反馈或提交修复。
