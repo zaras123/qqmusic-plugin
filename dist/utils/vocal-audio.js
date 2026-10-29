@@ -96,7 +96,9 @@ export async function validateAndPrepareVocal(filePath, { directExt, maxBytes, l
             throw error;
         if (error.code === 'ENOENT')
             throw failure('未找到 ffmpeg，请安装完整 FFmpeg 后重试', error);
-        const detail = String(error.stderr || '').trim().split(/\r?\n/).filter(Boolean).slice(-2).join(' | ');
+        const lines = String(error.stderr || '').trim().split(/\r?\n/).filter(Boolean);
+        const causes = lines.filter(line => !/Terminating thread|Nothing was written|Task finished|Error opening output/i.test(line));
+        const detail = (causes.length ? causes : lines).slice(0, 3).join(' | ').slice(0, 900);
         throw failure('音频解码/转码失败' + (detail ? '：' + detail : '，请重新下载音源'));
     }
 }

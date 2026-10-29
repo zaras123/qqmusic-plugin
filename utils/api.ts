@@ -293,10 +293,12 @@ export async function pullLoginMeta(userKey = '') {
  * 加密曲目的「服务端下载并解密」地址（主逻辑在 API，插件只负责搬运明文）。
  * 抓包显示客户端下载 URL 上只有 vkey、没有 ekey，故两个都带上让 API 逐个试。
  */
-export function buildSongFileUrl({ url = '', filename = '', ekey = '', vkey = '', userKey = '' } = {}) {
+export function buildSongFileUrl({ url = '', filename = '', ekey = '', vkey = '', userKey = '', local = false, decrypt = false } = {}) {
   const base = getBase()
   const params = new URLSearchParams()
   params.set('url', String(url))
+  params.set('local', local ? '1' : '0')
+  if (decrypt) params.set('decrypt', '1')
   if (filename) params.set('filename', String(filename))
   if (ekey) params.set('key', String(ekey))
   if (vkey) params.set('vkey', String(vkey))
@@ -534,6 +536,7 @@ function mapSongUrlBody(body, type, realMedia) {
       mediaId: body.mediaId || d.mediaId || realMedia,
       pay: body.pay || d.pay,
       refreshed: body.refreshed,
+      audioRevision: body.audioRevision || d.audioRevision || '',
       playChannel: body.playChannel || d.playChannel,
       // 加密文件（.mflac/.mgg）：API 会一并下发 ekey / purl 里的 vkey。
       // 解密（含密钥候选与魔数校验）在 **API 侧**完成（util/drm.js），
@@ -558,11 +561,12 @@ function mapSongUrlBody(body, type, realMedia) {
 /** 单次指定音质 */
 export async function songUrl(
   songmid,
-  { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '', local = true } = {}
+  { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '', local = true, fresh = false } = {}
 ) {
   const realMedia = mediaId || songmid
   // quality + fallback 交给 API 侧的音质阶梯（一次请求内部逐级下探）
   const params = { id: songmid, mediaId: realMedia, channel, local: local ? 1 : 0 }
+  if (fresh) { params.fresh = 1; params.archive = 0 }
   if (quality) params.quality = quality
   else params.type = type
   if (Number(fallback) === 1) params.fallback = 1

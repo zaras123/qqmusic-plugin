@@ -76,6 +76,7 @@ export declare function downloadAudio(url: any, saveDir: any, filename?: string,
     size: number;
     ext: string;
     url: any;
+    sha256: string;
     decrypted: string;
 }>;
 /** 同一 vkey 在不同 QQ 音乐 CDN 域名间尝试 */
@@ -138,6 +139,14 @@ export declare function deliverSong(e: any, song: any, play: any, options?: {}):
     downloaded?: undefined;
     path?: undefined;
     size?: undefined;
+} | {
+    ok: boolean;
+    reason: string;
+    downloaded: boolean;
+    adapter: string;
+    path?: undefined;
+    size?: undefined;
+    error?: undefined;
 } | {
     reason?: undefined;
     ok: boolean;

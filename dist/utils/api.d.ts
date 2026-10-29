@@ -60,9 +60,11 @@ export declare function pullLoginMeta(userKey?: string): Promise<{
  * 加密曲目的「服务端下载并解密」地址（主逻辑在 API，插件只负责搬运明文）。
  * 抓包显示客户端下载 URL 上只有 vkey、没有 ekey，故两个都带上让 API 逐个试。
  */
-export declare function buildSongFileUrl({ url, filename, ekey, vkey, userKey }?: {
+export declare function buildSongFileUrl({ url, filename, ekey, vkey, userKey, local, decrypt }?: {
+    decrypt?: boolean;
     ekey?: string;
     filename?: string;
+    local?: boolean;
     url?: string;
     userKey?: string;
     vkey?: string;
@@ -186,9 +188,10 @@ export declare function normalizeSearchItem(item: any, idx?: number): {
 };
 export declare function songDetail(songmid: any, userKey?: string): Promise<any>;
 /** 单次指定音质 */
-export declare function songUrl(songmid: any, { type, quality, fallback, mediaId, channel, userKey, local }?: {
+export declare function songUrl(songmid: any, { type, quality, fallback, mediaId, channel, userKey, local, fresh }?: {
     channel?: string;
     fallback?: number;
+    fresh?: boolean;
     local?: boolean;
     quality?: string;
     type?: string;
@@ -230,6 +233,7 @@ export declare function songUrl(songmid: any, { type, quality, fallback, mediaId
     mediaId: any;
     pay: any;
     refreshed: any;
+    audioRevision: any;
     playChannel: any;
     ekey: any;
     vkey: any;

@@ -4,6 +4,7 @@
  */
 import fs from 'node:fs'
 import path from 'node:path'
+import { randomUUID, createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import axios from 'axios'
@@ -442,6 +443,13 @@ const CONTAINER_EXT = {
   webm: '.webm',
 }
 
+function diagnosticDownloadUrl(value) {
+  try {
+    const parsed = new URL(String(value))
+    return (parsed.protocol + '//' + parsed.host + parsed.pathname).slice(0, 160)
+  } catch { return 'unknown' }
+}
+
 export async function downloadAudio(url, saveDir, filename = 'song', timeout = 90000, qualityHint = '', formatHint = '') {
   if (!url) throw new Error('空下载地址')
   fs.mkdirSync(saveDir, { recursive: true })
@@ -478,7 +486,7 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
   if (hintedExt && q !== 'video') ext = hintedExt
 
   // ⚠️ 落盘路径挪到循环里算：扩展名要等**看过字节**之后才定得下来（见下面的魔数体检）
-  const savePathOf = (e) => path.join(saveDir, `${safe}_${Date.now()}${e}`)
+  const savePathOf = (e) => path.join(saveDir, `${safe}_${Date.now()}_${randomUUID().slice(0, 12)}${e}`)
 
   const candidates = buildDownloadCandidates(url)
   let lastErr = null
@@ -500,9 +508,9 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
         },
         validateStatus: () => true,
       })
-      if (res.status >= 400) {
+      if (res.status !== 200) {
         lastErr = new Error(`下载失败 HTTP ${res.status}`)
-        logWarn(`下载 ${res.status}: ${tryUrl.slice(0, 90)}…`)
+        logWarn(`下载 ${res.status}: ${diagnosticDownloadUrl(tryUrl)}…`)
         continue
       }
       const buf = Buffer.from(res.data)
@@ -523,7 +531,7 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
           lastErr = new Error('拿到的不是可解码的音频（可能仍是加密文件或假档链接）')
           logWarn(
             `下载到的字节不像音频（首 4 字节 ${buf.subarray(0, 4).toString('hex')}，共 ${buf.length}B）——` +
-              `多半是没解开的 .mflac/.mgg，换下一个候选: ${tryUrl.slice(0, 80)}…`
+              `多半是没解开的 .mflac/.mgg，换下一个候选: ${diagnosticDownloadUrl(tryUrl)}…`
           )
           continue
         }
@@ -534,7 +542,7 @@ export async function downloadAudio(url, saveDir, filename = 'song', timeout = 9
       }
       const filePath = savePathOf(realExt)
       fs.writeFileSync(filePath, buf)
-      return { filePath, size: buf.length, ext: realExt, url: tryUrl,
+      return { filePath, size: buf.length, ext: realExt, url: tryUrl, sha256: createHash('sha256').update(buf).digest('hex'),
         decrypted: String(res.headers?.['x-qqm-decrypted'] || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 32) }
     } catch (err) {
       lastErr = err
@@ -971,26 +979,27 @@ async function recordStatsAfterSend(e, song, cfg) {
  * 判据不只信 `encrypted` 标记，也看**文件名后缀**：上游有时只给一条
  * `AIM0<media_mid>.mflac` 却没把标记带回来，而名字本身就是证据。
  */
+function encryptedAudioFile(play = {}) {
+  const names = []
+  for (const value of [play.url, play.purl]) {
+    try { names.push(decodeURIComponent(new URL(value, 'https://cdn.invalid/').pathname.split('/').pop() || '')) } catch {}
+  }
+  names.push(String(play.file || ''))
+  return names.find(name => /\.(?:mflac|mflac0|mflach|mgg|mgg0|mgg1|mggl)$/i.test(name)) || ''
+}
 async function downloadUrlFor(play, userKey = '') {
   const url = play?.url
   if (!url) return ''
-  const looksEncrypted =
-    play.encrypted === true || /\.(mflac|mgg)(\?|$)/i.test(String(play.file || url))
-  if (!looksEncrypted) return url
   try {
-    const { buildSongFileUrl } = await import('./api.js')
-    return (
-      buildSongFileUrl({
-        url,
-        filename: play.file,
-        ekey: play.ekey,
-        vkey: play.vkey,
-        userKey,
-      }) || url
-    )
-  } catch {
-    return url // 构造失败就用原地址（沿用老行为）
-  }
+    if (/\/(?:song\/(?:file|relay)|library\/file)$/.test(new URL(url).pathname)) return url
+  } catch {}
+  const filename = encryptedAudioFile(play)
+  if (play.encrypted !== true && !filename) return url
+  const { buildSongFileUrl } = await import('./api.js')
+  const target = buildSongFileUrl({ url, filename: filename || play.file,
+    ekey: play.ekey, vkey: play.vkey, userKey, local: false, decrypt: true })
+  if (!target) throw new Error('无法构造API解密下载地址')
+  return target
 }
 
 /**
@@ -1088,12 +1097,12 @@ export async function deliverSong(e, song, play, options = {}) {
   let size = 0
   /** 群文件/好友文件展示名（规整后的 歌手-歌名.ext） */
   let displayName = ''
+  let playUserKey = ''
   try {
     const dir = getTempDir()
     const timeout = Number(cfg.downloadTimeout) || 120000
     // 下载走哪个账号槽：与取播放链同一套规则（普通曲 = 主人账号（开了「一律走主人账号」时）；
     // Apple 曲 = 请求者自己那份）。取播放链与下载用**同一个槽**，否则会"取得到、下不到"。
-    let playUserKey = ''
     try {
       const { pickPlayUserKey } = await import('./api.js')
       playUserKey = pickPlayUserKey(String(e.user_id || ''), { mediaId: play.mediaId })
@@ -1168,7 +1177,7 @@ export async function deliverSong(e, song, play, options = {}) {
       { asciiOnly: false, includeQuality: false }
     )
     logInfo(`已下载 ${path.basename(localPath)} → 展示名 ${displayName} ${formatSize(size)} [${adapter.kind}]`)
-    logInfo(`音源诊断: channel=${play.playChannel || (localPlayback ? 'library' : 'official')}；encrypted=${play.encrypted === true}；via=${/\/song\/(file|relay)(\?|$)/.test(dl.url || '') ? 'API' : 'direct'}；decrypted=${dl.decrypted || 'none'}；container=${dl.ext}`)
+    logInfo(`音源诊断: channel=${play.playChannel || (localPlayback ? 'library' : 'official')}；encrypted=${play.encrypted === true}；detectedEncrypted=${Boolean(encryptedAudioFile(play))}；via=${/\/(?:song\/(?:file|relay)|library\/file)(?:[?#]|$)/.test(dl.url || '') ? 'API' : 'direct'}；decrypted=${dl.decrypted || 'none'}；container=${dl.ext}；bytes=${dl.size}；sha256=${dl.sha256}；apiAudio=${play.audioRevision || 'unknown'}；fileHint=${String(play.file || '').split(/[?#]/)[0].split(/[\\/]/).pop()?.replace(/[^a-z0-9_.-]/gi, '_').slice(0,96) || 'unknown'}`)
   } catch (err) {
     logWarn(`下载失败: ${err.message}`)
     await e.reply(
@@ -1185,6 +1194,8 @@ export async function deliverSong(e, song, play, options = {}) {
     return { ok: false, reason: 'download_fail', error: err.message, adapter: adapter.kind }
   }
 
+  let voiceDelivered = false
+  let fileDelivered = false
   const cleanupPaths = new Set()
   if (localPath) cleanupPaths.add(localPath)
 
@@ -1193,29 +1204,66 @@ export async function deliverSong(e, song, play, options = {}) {
   let vocalPath = ''
   let vocalError = null
   const needCompress =
-    localPath && (cfg.sendVocal || (cfg.uploadFile && adapter.kind === 'onebot'))
+    localPath && (cfg.sendVocal || cfg.uploadFile)
   if (needCompress) {
+    const prepareOptions = {
+      directExt: adapter.kind === 'qqbot' ? QQBOT_DIRECT_AUDIO_EXT : VOCAL_DIRECT_EXT,
+      lowQuality: cfg.sendVocal && cfg.disableHighQualityVocal === true,
+      expectedSeconds: Number(song.interval) || Number(song.durationSeconds) || 0,
+      // File-only delivery validates the original stream without creating an MP3.
+      ...(!cfg.sendVocal && adapter.kind !== 'onebot' ? {
+        directExt: new Set([path.extname(localPath).slice(1).toLowerCase()]), maxBytes: Infinity,
+      } : {}),
+    }
     try {
-      vocalPath = await prepareVocalFile(localPath, {
-        directExt: adapter.kind === 'qqbot' ? QQBOT_DIRECT_AUDIO_EXT : VOCAL_DIRECT_EXT,
-        // 低音质只用于语音（禁用高清语音时 PC 可播）；仅作 OneBot 群文件兜底时仍保高音质
-        lowQuality: cfg.sendVocal && cfg.disableHighQualityVocal === true,
-        expectedSeconds: Number(song.interval) || Number(song.durationSeconds) || 0,
-      })
-    } catch (error) {
-      vocalError = error
-      logWarn(`停止发送异常语音: ${error.message}`)
-      await e.reply(`音频校验失败，已停止发送语音：${error.message}`)
+      vocalPath = await prepareVocalFile(localPath, prepareOptions)
+    } catch (firstError) {
+      vocalError = firstError
+      // A successful HTTP 200 is not proof of intact audio. Retry the official source once,
+      // bypassing both stale URL caches and local retention; every recovered byte is revalidated.
+      if (!localPlayback && !play.external && !song.external && (!song.source || song.source === 'qq') && song.songmid) {
+        try {
+          logWarn('官方音源验收失败，重新取流并经API下载验证（仅一次）: ' + firstError.message)
+          const { songUrl, buildSongFileUrl } = await import('./api.js')
+          const fresh = await songUrl(song.songmid, { quality: play.quality || cfg.quality || 'flac',
+            fallback: 0, mediaId: song.media_mid || play.mediaId || song.songmid,
+            userKey: playUserKey, local: false, fresh: true })
+          if (!fresh?.url) throw new Error('重新取流未返回地址')
+          const file = encryptedAudioFile(fresh)
+          const recoveryUrl = buildSongFileUrl({ url: fresh.url, filename: file || fresh.file,
+            ekey: fresh.ekey, vkey: fresh.vkey, userKey: playUserKey, local: false,
+            decrypt: fresh.encrypted === true || Boolean(file) })
+          const recovered = await downloadAudio(recoveryUrl, getTempDir(), 'qqmusic_retry',
+            Number(cfg.downloadTimeout) || 120000, fresh.quality || play.quality, fresh.ext || '')
+          cleanupPaths.add(recovered.filePath)
+          const prepared = await prepareVocalFile(recovered.filePath, prepareOptions)
+          localPath = recovered.filePath
+          size = recovered.size
+          vocalPath = prepared
+          play = { ...play, ...fresh, url: recoveryUrl, encrypted: false }
+          displayName = buildMusicFileName({ singer, title, quality: fresh.quality || play.quality,
+            ext: recovered.ext }, { asciiOnly: false, includeQuality: false })
+          vocalError = null
+          logInfo('官方音源重新取流验证通过: bytes=' + recovered.size +
+            ' sha256=' + recovered.sha256 + ' apiAudio=' + (fresh.audioRevision || 'unknown'))
+        } catch (retryError) {
+          vocalError = retryError
+          logWarn('官方音源重新取流仍失败: ' + retryError.message)
+        }
+      }
+      if (vocalError) {
+        logWarn('停止发送异常语音: ' + vocalError.message)
+        await e.reply('音频校验失败，已停止发送语音：' + vocalError.message)
+      }
     }
     if (vocalPath && vocalPath !== localPath) cleanupPaths.add(vocalPath)
   }
-
   if (cfg.sendVocal && localPath && !vocalError) {
     const vocalSend = vocalPath || localPath
     let ok = false
     try {
-      // httpFallback 传明文链：加密曲目的 url 是 DRM 文件，回退发它只会是条播不响的语音
-      ok = await withRetry(() => sendVocal(e, vocalSend, play.encrypted ? '' : play.url), {
+      // 仅发送本次验收通过的文件，协议端重试也不改回远程 URL
+      ok = await withRetry(() => sendVocal(e, vocalSend), {
         times: adapter.kind === 'qqbot' ? 3 : 1,
         retryIf: (_e, msg) => adapter.kind === 'qqbot' && QQ_RETRYABLE.test(msg),
         tag: '语音 ',
@@ -1223,9 +1271,8 @@ export async function deliverSong(e, song, play, options = {}) {
     } catch (err) {
       logWarn(`语音最终失败: ${err.message}`)
     }
-    if (!ok && !play.encrypted) {
-      await sendVocal(e, play.url)
-    }
+    voiceDelivered = Boolean(ok)
+    if (!ok) logWarn('语音发送失败，保留本地校验结果，不发送未经本次校验的远程URL')
   }
 
   if (cfg.uploadFile && (!vocalError || vocalError.code === 'VOCAL_TOOL_MISSING')) {
@@ -1274,6 +1321,7 @@ export async function deliverSong(e, song, play, options = {}) {
       }
     }
 
+    fileDelivered = Boolean(up)
     if (!up && e.group_id) {
       await e.reply(
         `群文件上传失败（${adapter.name || adapter.kind}；大文件可能触发 Highway 限制）。语音已尝试发送，可稍后再试或改用较低音质`
@@ -1301,6 +1349,8 @@ export async function deliverSong(e, song, play, options = {}) {
   if (vocalError) {
     return { ok: false, reason: 'vocal_prepare_fail', error: vocalError.message, adapter: adapter.kind }
   }
+
+  if (!voiceDelivered && !fileDelivered) return { ok: false, reason: 'send_fail', downloaded: true, adapter: adapter.kind }
 
   // 一起听：歌已经发出去了，再同步进群里的一起听（细节见 syncTogetherAfterSend）
   await syncTogetherAfterSend(e, song, cfg)
