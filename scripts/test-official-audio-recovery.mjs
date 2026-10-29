@@ -82,6 +82,11 @@ try{
   const before=resolved,out=await invoke(base+'/bad.flac');assert.equal(out.result.ok,true);assert.equal(resolved-before,1)
   assert.equal(lastQuery.get('fresh'),'1');assert.equal(lastQuery.get('local'),'0');assert.deepEqual(out.uploads,[digest(full)])
  })
+ await check('official HTTP failure refresh never switches to local library',async()=>{
+  const before=resolved,out=await invoke(base+'/missing-local.flac')
+  assert.equal(out.result.ok,true);assert.equal(resolved-before,1)
+  assert.equal(lastQuery.get('local'),'0');assert.deepEqual(out.uploads,[digest(full)])
+ })
  await check('second bad official result stops without sending',async()=>{
   returnBad=true;try{const before=resolved,out=await invoke(base+'/bad.flac');assert.equal(out.result.ok,false);assert.equal(resolved-before,1);assert.equal(out.voices.length,0);assert.equal(out.uploads.length,0)}finally{returnBad=false}
  })

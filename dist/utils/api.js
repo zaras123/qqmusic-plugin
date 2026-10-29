@@ -165,7 +165,7 @@ export async function request(pathname, params = {}, method = 'get', userKey = '
     // 这类查询不能被「一律走主人账号」顶掉，否则群友看到的是主人的进度。
     const perUserScoped = asUser === true || isPerUserScopePath(pathname) || isAppleScopedRequest(pathname, params);
     const effectiveUserKey = publicAccount && forceMaster && !perUserScoped ? publicAccount : userKey;
-    // Guoba / WebUI 的「本地曲库优先」必须覆盖所有会查本地库的入口，
+    // Guoba / WebUI 的「本地曲库」总开关必须覆盖所有会查本地库的入口，
     // 包括外部链接解析和取播放链；显式传 local 的调用也不能绕过这个总开关。
     if (!localLibrary && (pathname === '/search' || pathname === '/song/url' || pathname.startsWith('/resolve/'))) {
         params = { ...params, local: 0 };
@@ -519,6 +519,21 @@ function mapSongUrlBody(body, type, realMedia) {
         refreshReason: body?.refreshReason,
         triedChannels: body?.triedChannels,
     });
+}
+/** 菜单选中的本地记录：按 ID 取文件，避免重新匹配到另一版本或音质。 */
+export async function libraryItemPlay(id, { userKey = '' } = {}) {
+    if (Config.getConfig('qqmusic')?.localLibrary === false)
+        throw new Error('本地曲库已关闭');
+    if (!id)
+        throw new Error('本地曲库记录缺少 ID，请重新点歌');
+    const body = await request('/library/item', { id }, 'get', userKey);
+    const item = body?.data;
+    if (!item?.fileUrl || item.id !== id)
+        throw new Error('本地曲库记录不可用，请重新点歌');
+    return mapSongUrlBody({ data: item.fileUrl, local: true, libraryId: item.id,
+        source: item.source, quality: item.quality || 'unknown', ext: item.ext,
+        playChannel: 'library', channelKind: 'local', matchedSongmid: item.songmid,
+    }, item.quality || 'unknown', item.songmid);
 }
 /** 单次指定音质 */
 export async function prepareLibraryFallback(id, { songmid = '', badSha256 = '', userKey = '' } = {}) {

@@ -141,7 +141,7 @@ const SECTIONS = [
         tag: '自动',
         items: [
             { name: '分享卡片', desc: '群内 QQ 音乐分享自动识别', example: '（发送音乐卡片）' },
-            { name: '链接解析', desc: 'QQ音乐、Spotify、Apple Music、B站链接自动匹配播放', example: '粘贴分享链接' },
+            { name: '链接解析', desc: 'QQ音乐、Spotify、Apple Music 链接自动匹配播放', example: '粘贴分享链接' },
         ],
     },
 ];
@@ -180,7 +180,7 @@ function primarySections(isMaster) {
             { name: '选择曲目', desc: '播放自己最近一次列表第 1 首', example: '#qqm听1' },
             { name: '直接播放', desc: '搜索并播放第一条', example: '#qqm播放 七里香' },
             { name: '查看歌词', desc: '歌名或点歌列表序号', example: '#qqm歌词 晴天' },
-            { name: '音乐解析', desc: '分享卡片、QQ / Spotify / Apple / B站链接', example: '直接发送音乐分享链接' },
+            { name: '音乐解析', desc: '分享卡片、QQ / Spotify / Apple 链接', example: '直接发送音乐分享链接' },
             { name: '账号状态', desc: '查看登录、会员与音质', example: '#qqm状态' },
         ] };
     const entry = c => ({ name: c.name, desc: c.desc, example: '#qqm' + c.key + '帮助' });

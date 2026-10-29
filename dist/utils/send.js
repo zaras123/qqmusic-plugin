@@ -1183,6 +1183,7 @@ export async function deliverSong(e, song, play, options = {}) {
                             mediaId: song.media_mid || play.mediaId || song.songmid,
                             fallback: true,
                             userKey: playUserKey,
+                            local: false,
                         });
                         if (fresh?.url && fresh.url !== tryUrls[0]) {
                             play = { ...play, ...fresh };

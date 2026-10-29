@@ -187,6 +187,52 @@ export declare function normalizeSearchItem(item: any, idx?: number): {
     raw: any;
 };
 export declare function songDetail(songmid: any, userKey?: string): Promise<any>;
+/** 菜单选中的本地记录：按 ID 取文件，避免重新匹配到另一版本或音质。 */
+export declare function libraryItemPlay(id: any, { userKey }?: {
+    userKey?: string;
+}): Promise<{
+    url: string;
+    quality: any;
+    mediaId: any;
+    tip: string;
+    retcode: any;
+    hasLogin: any;
+    pay: any;
+    refreshed: any;
+    refreshReason: any;
+    triedChannels: any;
+    tried: any;
+    achieved: string;
+    raw: any;
+} | {
+    channelKind: string;
+    channelLabel: string;
+    local: boolean;
+    libraryId: string;
+    matchedSongmid: string;
+    matchedBy: string;
+    version: string;
+    versionLabel: string;
+    ext: string;
+    source: string;
+    sourceLabel: string;
+    qualityLabel: string;
+    external: boolean;
+    url: string;
+    file: any;
+    domain: any;
+    purl: any;
+    quality: any;
+    tried: any;
+    mediaId: any;
+    pay: any;
+    refreshed: any;
+    audioRevision: any;
+    playChannel: any;
+    ekey: any;
+    vkey: any;
+    encrypted: boolean;
+}>;
 /** 单次指定音质 */
 export declare function prepareLibraryFallback(id: any, { songmid, badSha256, userKey }?: {
     badSha256?: string;

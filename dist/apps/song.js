@@ -10,7 +10,7 @@
 import { loadPluginBase } from '../utils/plugin-base.js';
 // 预加载插件基类（支持 ESM + top-level await）
 await loadPluginBase();
-import { searchSongs, searchPlatformSongs, searchMultiSongs, songUrlBest, lyric, hotKeys, songInfoBatch, platformsStatus, } from '../utils/api.js';
+import { searchSongs, searchPlatformSongs, searchMultiSongs, songUrlBest, libraryItemPlay, lyric, hotKeys, songInfoBatch, platformsStatus, } from '../utils/api.js';
 import { pickSession, getUserSession, setSession } from '../utils/session.js';
 import { deliverSong, sendNativeMusicCard } from '../utils/send.js';
 import { QUALITY_LABEL } from '../utils/quality.js';
@@ -141,7 +141,7 @@ async function currentSourceOf(e, cfg) {
         return null;
     }
 }
-async function resolvePlay(song, cfg, userKey = '') {
+async function resolvePlay(song, cfg, userKey = '', preferLocal = false) {
     /**
      * 档位：QQ 本体用全局 `quality`；**外部平台用这家自己的档位**
      * （Karin WebUI → 该平台页签 → 音质档位）。不这样做的话，外源永远只能"按它默认"，
@@ -151,20 +151,23 @@ async function resolvePlay(song, cfg, userKey = '') {
     const quality = song.source && song.source !== 'qq' ? platformQualityPref(cfg, song.source) : cfg.quality || 'flac';
     const fallback = cfg.qualityFallback !== false;
     try {
-        const play = await songUrlBest(song.songmid, {
-            quality,
-            mediaId: song.media_mid || song.songmid,
-            fallback,
-            userKey,
-            local: cfg.localLibrary !== false,
-        });
+        // 点歌按菜单所选渠道取流；解析产生的会话仍允许优先匹配本地。
+        const play = song.local === true && cfg.localLibrary !== false
+            ? await libraryItemPlay(song.libraryId, { userKey })
+            : await songUrlBest(song.songmid, {
+                quality,
+                mediaId: song.media_mid || song.songmid,
+                fallback,
+                userKey,
+                local: preferLocal && cfg.localLibrary !== false,
+            });
         return {
             ...play,
             url: play.url || '',
             quality: play.quality,
             qualityLabel: play.qualityLabel || QUALITY_LABEL[play.quality] || play.quality,
             degradeNote: play.degradeNote || '',
-            mvVid: play.mvVid || '',
+            mvVid: play.mvVid || song.mvVid || '',
             raw: play,
         };
     }
@@ -696,7 +699,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         }
         const song = session.data[n - 1];
         // 先获取播放链接信息（songUrlBest 已带出歌曲 MV vid，无需额外请求）
-        const play = await resolvePlay(song, cfg, userKey);
+        const play = await resolvePlay(song, cfg, userKey, session.preferLocal === true);
         const mvVid = play.mvVid || '';
         // 记住本曲 MV，支持「#qqmMV 播放/下载」（不带参数）直接操作该曲 MV
         if (mvVid && session?.data?.length) {
@@ -775,7 +778,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
             const cur = await currentSourceOf(e, cfg);
             if (cur)
                 return await this.playDirectOnPlatform(e, cur.p.id, keyword, { viaSource: true });
-            const list = await searchSongs(keyword, { pageSize: 1, userKey, local: cfg.localLibrary !== false });
+            const list = await searchSongs(keyword, { pageSize: 1, userKey, local: false });
             if (!list.length) {
                 await e.reply('没有搜到相关歌曲');
                 return true;
@@ -806,7 +809,7 @@ export class qqmusicSong extends (await loadPluginBase()) {
         try {
             if (viaSource)
                 await e.reply(`正在搜索（当前音源 ${p.label}）：${keyword}`);
-            const res = await searchPlatformSongs(keyword, p.id, { pageSize: 1, userKey, local: cfg.localLibrary !== false });
+            const res = await searchPlatformSongs(keyword, p.id, { pageSize: 1, userKey, local: false });
             if (!res.list.length) {
                 await e.reply(res.error
                     ? `${p.label} 搜索失败：${res.error}`

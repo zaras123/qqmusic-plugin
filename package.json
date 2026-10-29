@@ -1,6 +1,6 @@
 {
   "name": "karin-plugin-qqmusic",
-  "version": "2.1.16",
+  "version": "2.1.17",
   "description": "Karin QQ 音乐点歌/解析插件（node-karin），对接 qqmusic-api-enhanced",
   "type": "module",
   "main": "dist/index.js",
