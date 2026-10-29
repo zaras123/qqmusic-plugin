@@ -4,6 +4,8 @@ export declare class qqmusicStats extends qqmusicStats_base {
     cfg(): any;
     /** 关着就直说（静默不响应会让人以为命令写错了） */
     disabled(e: any): Promise<boolean>;
+    /** 本地点播账本 + 本人平台只读查询，两种数据单独展示。 */
+    listeningStatus(e: any): Promise<boolean>;
     /** #qqm听歌：我自己的账 */
     myStats(e: any): Promise<boolean>;
     /** #qqm听歌榜 [今日|本周|总]：本群的账 */

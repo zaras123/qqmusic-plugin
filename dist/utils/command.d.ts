@@ -79,6 +79,7 @@ export declare function parsePlatformStatusCmd(text?: string): {
  * ⚠️ 形状上有意与「#qqm听N」（apps/song.js 里的 RE_LISTEN）错开：那条要求"听"字后面
  *    **直接跟数字**，这两条跟的是"歌 / 榜 / 排行"，两边不会互吃。
  */
+export declare const RE_LISTENING_STATUS: RegExp;
 export declare const RE_MY_STATS: RegExp;
 export declare const RE_STATS_BOARD: RegExp;
 /**
@@ -96,6 +97,7 @@ declare const _default: {
     RE_PICK_PLAIN: RegExp;
     RE_LYRIC_CMD: RegExp;
     RE_PLATFORM_STATUS: RegExp;
+    RE_LISTENING_STATUS: RegExp;
     RE_MY_STATS: RegExp;
     RE_STATS_BOARD: RegExp;
     RE_MEDAL: RegExp;

@@ -420,9 +420,9 @@ export function buildSchemas() {
   // ── 听歌时长统计（本地记账，与平台账号无关）──
   {
     field: 'statsEnable',
-    label: '听歌时长统计',
+    label: '本地点播统计',
     bottomHelpMessage:
-      '记录本机器人**真正发出去**的歌：时长/首数/连续天数，都是本地账本，不登录也不向任何平台上报。' +
+      '按成功发歌与歌曲时长估算点播时长/首数/连续天数，不代表实际收听或平台入账，也不向平台上报。' +
       '打开后：#qqm听歌 看自己、#qqm听歌榜 看本群排行',
     component: 'Switch',
   },

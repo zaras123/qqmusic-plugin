@@ -65,7 +65,7 @@ export function describeMedalCode(code, retMsg = '') {
     // 2026-10-18 实测：登录态下 QueryListeningDetail 会回 10007（不是 1000，所以不是"没登录"）。
     // 含义没在官方文档里，只把事实说清楚，别编一个像模像样的解释。
     if (n === 10007)
-        return '平台返回 code=10007：这次时长查询被上游拒绝（不是"需要登录"）。这一路暂时拿不到数据，可先看下面的播放页任务。';
+        return '平台返回 code=10007：这次时长查询被上游拒绝（不是"需要登录"）。这一路暂时拿不到数据，请稍后重试或查看官方客户端。';
     if (n === 500003)
         return '上游不认这个方法了（QQ 音乐接口可能已改版）';
     if (n === 40000)
@@ -207,7 +207,12 @@ export function formatListeningSection(payload = {}) {
         if (!hit)
             continue;
         used.add(hit);
-        const text = f.unit === 'sec' ? formatDuration(Number(data[hit]) || 0) : String(data[hit]);
+        const seconds = Number(data[hit]);
+        const text = f.unit === 'sec'
+            ? (Number.isFinite(seconds) && seconds >= 0
+                ? formatDuration(seconds)
+                : `${String(data[hit])}（无法解析时长）`)
+            : String(data[hit]);
         lines.push(`${f.label}：${text}`);
     }
     // 只把"没被上面认领的"顶层字段摆出来，别重复

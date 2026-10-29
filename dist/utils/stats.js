@@ -445,8 +445,8 @@ function displayNameOf(name, userId) {
  */
 export function formatPersonalStats(s = {}) {
     const lines = [
-        '【我的听歌统计】',
-        `时长：累计 ${formatDuration(s.sec)} · 近 7 天 ${formatDuration(s.weekSec)} · 今天 ${formatDuration(s.todaySec)}`,
+        '【我的本地点播统计】',
+        `估算点播时长：累计 ${formatDuration(s.sec)} · 近 7 天 ${formatDuration(s.weekSec)} · 今天 ${formatDuration(s.todaySec)}`,
         `点播：${Number(s.plays) || 0} 首（今天 ${Number(s.todayPlays) || 0} 首 · 近 7 天 ${Number(s.weekPlays) || 0} 首）`,
         `连续：${Number(s.streak) || 0} 天 · 有记录 ${Number(s.activeDays) || 0} 天`,
     ];
@@ -458,6 +458,7 @@ export function formatPersonalStats(s = {}) {
     if (platforms.length) {
         lines.push(`平台：${platforms.map((x) => `${platformLabelOf(x.name)} ${formatDuration(x.value)}`).join(' · ')}`);
     }
+    lines.push('按成功发歌记录与歌曲时长估算，不代表实际收听或平台入账。');
     return lines.join('\n');
 }
 /** 群榜文案 */
@@ -465,6 +466,7 @@ export function formatBoardText(rows = [], rangeLabel = '总榜') {
     return [
         `【本群听歌榜 · ${rangeLabel}】`,
         ...rows.map((r, i) => `${i + 1}. ${displayNameOf(r.name, r.userId)} ${formatDuration(r.sec)}（${r.plays} 首）`),
+        '按成功发歌记录与歌曲时长估算，不代表实际收听或平台入账。',
     ].join('\n');
 }
 /**
