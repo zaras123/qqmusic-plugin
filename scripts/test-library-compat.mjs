@@ -105,7 +105,7 @@ try {
   const play=await api.songUrlBest(song.songmid,{quality:'flac',userKey:'listener',probe:true})
   check('取流保留实际192k/M4A，不误报FLAC',play.local&&play.quality==='192k'&&play.ext==='m4a'&&play.external&&play.source==='bilibili'&&play.qualityLabel.includes('本地曲库')&&!play.degradeNote)
   const card=cards.buildListCardData('周杰伦 暗号',songs)
-  check('列表显示本地曲库、实际音质和版本',card.songs[0].sourceTag.includes('本地')&&card.songs[0].sourceTag.includes('192k')&&card.songs[0].version==='live'&&card.sourceCounts.some(s=>s.label==='本地曲库'))
+  check('列表显示本地曲库、实际音质和版本',card.songs[0].sourceTag.includes('本地')&&card.songs[0].sourceTag.includes('192k')&&card.songs[0].version==='live'&&card.sourceCounts.some(s=>s.id.startsWith('local:')&&s.label.includes('本地')))
   const dl=await send.downloadAudio(play.url,temp,'song',5000,play.quality,play.ext)
   check('真实HTTP下载格式与原音频哈希一致',path.extname(dl.filePath)==='.m4a'&&digest(fs.readFileSync(dl.filePath))===digest(audio))
   const refreshKeys=[]

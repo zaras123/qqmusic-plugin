@@ -3,17 +3,16 @@
  */
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { yunzaiPath } from './path.js'
 
 let cached = null
 /** 进行中/已完成的加载 Promise —— 并发调用共享同一个（见下方注释） */
 let pending = null
 
 async function doLoad() {
-  const candidates = [
-    path.join(process.cwd(), 'lib/plugins/plugin.js'),
-    path.join(process.cwd(), 'lib/plugins/plugin.ts'),
-    path.join(process.cwd(), 'lib/plugins/plugin.mjs'),
-  ]
+  const candidates = [...new Set([yunzaiPath, process.cwd()])].flatMap((root) =>
+    ['js', 'ts', 'mjs'].map((ext) => path.join(root, `lib/plugins/plugin.${ext}`))
+  )
 
   for (const p of candidates) {
     try {

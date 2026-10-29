@@ -227,3 +227,6 @@ try {
 } finally {
   await new Promise((resolve) => server.close(resolve))
 }
+
+// All assertions and server cleanup above are awaited; framework watchers are unrelated to this test.
+process.exit(0)
