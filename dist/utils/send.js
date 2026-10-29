@@ -995,6 +995,7 @@ async function downloadUrlFor(play, userKey = '') {
  * 流程: (可选文案/音乐卡) → 下载 → 语音 → 群文件
  */
 export async function deliverSong(e, song, play, options = {}) {
+    play = { ...(play?.raw?.url ? play.raw : {}), ...play };
     const cfg = getCfg();
     const adapter = detectAdapter(e);
     const title = song.songName || '未知歌曲';
@@ -1016,7 +1017,20 @@ export async function deliverSong(e, song, play, options = {}) {
     const skipCustom = options.skipCustomCard === true;
     // QQBot 原生/自定义 music 卡基本不可用，强制跳过避免刷错误日志
     // 原生 type:qq 按官方歌曲 ID 播放，不能承载本地文件；以实际取流结果决定卡片类型。
-    const localPlayback = play?.local === true || play?.playChannel === 'library';
+    const localPlayback = play?.local === true || play?.playChannel === 'library' || (() => {
+        try {
+            return new URL(play?.url).pathname === '/library/file';
+        }
+        catch {
+            return false;
+        }
+    })();
+    if (localPlayback && !play.libraryId) {
+        try {
+            play = { ...play, libraryId: new URL(play.url).searchParams.get('id') || song.libraryId || '' };
+        }
+        catch { }
+    }
     const allowNative = !skipNative && !localPlayback && !play?.external && !song.external && (!song.source || song.source === 'qq') && cfg.sendNativeCard && adapter.supportsNativeMusic;
     const allowCustom = !skipCustom && (cfg.sendCustomCard || (localPlayback && !skipNative && cfg.sendNativeCard)) && adapter.supportsNativeMusic;
     if (!skipText && cfg.sendTextInfo !== false) {
@@ -1078,6 +1092,27 @@ export async function deliverSong(e, song, play, options = {}) {
     /** 群文件/好友文件展示名（规整后的 歌手-歌名.ext） */
     let displayName = '';
     let playUserKey = '';
+    let repairState = options.libraryRecovery || null;
+    let localRecoveryAttempted = false;
+    let downloadedSha = '';
+    async function takeLocalFallback(badSha256 = '') {
+        if (localRecoveryAttempted)
+            throw new Error('local recovery already attempted');
+        localRecoveryAttempted = true;
+        let id = play.libraryId || song.libraryId || '';
+        if (!id) {
+            try {
+                id = new URL(play.url).searchParams.get('id') || '';
+            }
+            catch { }
+        }
+        if (!/^lib_[a-z0-9]+$/i.test(id))
+            throw new Error('local recovery: library ID missing');
+        const { prepareLibraryFallback } = await import('./api.js');
+        logWarn('本地音源不可用，正在请求经校验的官方同曲');
+        repairState = await prepareLibraryFallback(id, { songmid: song.songmid, badSha256, userKey: playUserKey });
+        return repairState;
+    }
     try {
         const dir = getTempDir();
         const timeout = Number(cfg.downloadTimeout) || 120000;
@@ -1098,12 +1133,46 @@ export async function deliverSong(e, song, play, options = {}) {
                 dl = await downloadAudio(tryUrls[i], dir, 
                 // 磁盘临时名尽量短 ASCII；展示名另算
                 'qqmusic', timeout, play.quality || cfg.quality || '', play.ext || '');
+                if (repairState?.sha256 && dl.sha256 !== repairState.sha256)
+                    throw new Error('官方回退音频指纹不一致');
                 break;
             }
             catch (err) {
+                if (dl?.filePath) {
+                    try {
+                        fs.unlinkSync(dl.filePath);
+                    }
+                    catch { }
+                }
+                dl = null;
                 lastErr = err;
                 logWarn(`下载尝试失败: ${err.message}`);
-                if (song.songmid && i === 0) {
+                if (localPlayback && !localRecoveryAttempted) {
+                    if (i === 0 && play.libraryId) {
+                        try {
+                            const { request } = await import('./api.js');
+                            const body = await request('/library/item', { id: play.libraryId }, 'get', playUserKey);
+                            const item = body?.data;
+                            if (item?.exists && item.id === play.libraryId && item.fileUrl && item.fileUrl !== tryUrls[0]) {
+                                play = { ...play, url: item.fileUrl, quality: item.quality, ext: item.ext };
+                                tryUrls.push(play.url);
+                                continue;
+                            }
+                        }
+                        catch (refreshError) {
+                            logWarn('本地链接刷新失败：' + refreshError.message);
+                        }
+                    }
+                    try {
+                        const recovered = await takeLocalFallback();
+                        play = { ...play, ...recovered.play };
+                        tryUrls.push(play.url);
+                    }
+                    catch (recoveryError) {
+                        logWarn('官方回退失败：' + recoveryError.message);
+                    }
+                }
+                if (!localPlayback && !repairState && song.songmid && i === 0) {
                     try {
                         const { songUrlBest } = await import('./api.js');
                         const prefer = /RS01|RS02|Q000|master|atmos|hires/i.test(String(play.quality || '') + String(play.url || ''))
@@ -1135,6 +1204,7 @@ export async function deliverSong(e, song, play, options = {}) {
             throw lastErr || new Error('下载失败');
         localPath = dl.filePath;
         size = dl.size;
+        downloadedSha = dl.sha256;
         // 加密文件（.mflac/.mgg）走的是 API 的 /song/file（下载 + 解密后回明文，见 downloadUrlFor）；
         // 解不开时那边直接回 4xx/502，这里当下载失败回落。
         // ⚠️ 原先这里还有一段"按 play.file 后缀把 .flac 改成 .ogg"的补丁 —— 已删：
@@ -1150,7 +1220,7 @@ export async function deliverSong(e, song, play, options = {}) {
             ext: fileExt,
         }, { asciiOnly: false, includeQuality: false });
         logInfo(`已下载 ${path.basename(localPath)} → 展示名 ${displayName} ${formatSize(size)} [${adapter.kind}]`);
-        logInfo(`音源诊断: channel=${play.playChannel || (localPlayback ? 'library' : 'official')}；encrypted=${play.encrypted === true}；detectedEncrypted=${Boolean(encryptedAudioFile(play))}；via=${/\/(?:song\/(?:file|relay)|library\/file)(?:[?#]|$)/.test(dl.url || '') ? 'API' : 'direct'}；decrypted=${dl.decrypted || 'none'}；container=${dl.ext}；bytes=${dl.size}；sha256=${dl.sha256}；apiAudio=${play.audioRevision || 'unknown'}；fileHint=${String(play.file || '').split(/[?#]/)[0].split(/[\\/]/).pop()?.replace(/[^a-z0-9_.-]/gi, '_').slice(0, 96) || 'unknown'}`);
+        logInfo(`音源诊断: channel=${play.playChannel || (localPlayback ? 'library' : 'official')}；encrypted=${play.encrypted === true}；detectedEncrypted=${Boolean(encryptedAudioFile(play))}；via=${/\/(?:song\/(?:file|relay)|library\/(?:fallback\/)?file)(?:[?#]|$)/.test(dl.url || '') ? 'API' : 'direct'}；decrypted=${dl.decrypted || 'none'}；container=${dl.ext}；bytes=${dl.size}；sha256=${dl.sha256}；apiAudio=${play.audioRevision || 'unknown'}；fileHint=${String(play.file || '').split(/[?#]/)[0].split(/[\\/]/).pop()?.replace(/[^a-z0-9_.-]/gi, '_').slice(0, 96) || 'unknown'}`);
     }
     catch (err) {
         logWarn(`下载失败: ${err.message}`);
@@ -1179,7 +1249,7 @@ export async function deliverSong(e, song, play, options = {}) {
         const prepareOptions = {
             directExt: adapter.kind === 'qqbot' ? QQBOT_DIRECT_AUDIO_EXT : VOCAL_DIRECT_EXT,
             lowQuality: cfg.sendVocal && cfg.disableHighQualityVocal === true,
-            expectedSeconds: Number(song.interval) || Number(song.durationSeconds) || 0,
+            expectedSeconds: Number(repairState?.song?.interval) || Number(song.interval) || Number(song.durationSeconds) || 0,
             // File-only delivery validates the original stream without creating an MP3.
             ...(!cfg.sendVocal && adapter.kind !== 'onebot' ? {
                 directExt: new Set([path.extname(localPath).slice(1).toLowerCase()]), maxBytes: Infinity,
@@ -1190,9 +1260,33 @@ export async function deliverSong(e, song, play, options = {}) {
         }
         catch (firstError) {
             vocalError = firstError;
+            if (localPlayback && !repairState) {
+                try {
+                    const state = await takeLocalFallback(downloadedSha);
+                    const recovered = await downloadAudio(state.play.url, getTempDir(), 'qqmusic_recovery', Number(cfg.downloadTimeout) || 120000, state.play.quality, state.play.ext || '');
+                    cleanupPaths.add(recovered.filePath);
+                    if (state.sha256 && recovered.sha256 !== state.sha256)
+                        throw new Error('官方回退音频指纹不一致');
+                    const prepared = await prepareVocalFile(recovered.filePath, {
+                        ...prepareOptions, expectedSeconds: Number(state.song?.interval) || prepareOptions.expectedSeconds,
+                    });
+                    localPath = recovered.filePath;
+                    size = recovered.size;
+                    downloadedSha = recovered.sha256;
+                    vocalPath = prepared;
+                    play = { ...play, ...state.play };
+                    displayName = buildMusicFileName({ singer, title, quality: play.quality, ext: recovered.ext }, { asciiOnly: false, includeQuality: false });
+                    vocalError = null;
+                    logInfo('官方同曲验收通过：bytes=' + size + ' sha256=' + downloadedSha);
+                }
+                catch (recoveryError) {
+                    vocalError = recoveryError;
+                    logWarn('官方回退失败：' + recoveryError.message);
+                }
+            }
             // A successful HTTP 200 is not proof of intact audio. Retry the official source once,
             // bypassing both stale URL caches and local retention; every recovered byte is revalidated.
-            if (!localPlayback && !play.external && !song.external && (!song.source || song.source === 'qq') && song.songmid) {
+            if (!localPlayback && !repairState && !play.external && !song.external && (!song.source || song.source === 'qq') && song.songmid) {
                 try {
                     logWarn('官方音源验收失败，重新取流并经API下载验证（仅一次）: ' + firstError.message);
                     const { songUrl, buildSongFileUrl } = await import('./api.js');
@@ -1289,6 +1383,21 @@ export async function deliverSong(e, song, play, options = {}) {
             await e.reply(`群文件上传失败（${adapter.name || adapter.kind}；大文件可能触发 Highway 限制）。语音已尝试发送，可稍后再试或改用较低音质`);
         }
     }
+    if (!vocalError && (voiceDelivered || fileDelivered) && repairState) {
+        if (repairState.canReplace) {
+            try {
+                const { commitLibraryFallback } = await import('./api.js');
+                const result = await commitLibraryFallback(repairState.ticket, downloadedSha, playUserKey);
+                logInfo(result?.replaced ? '发送成功，已替换损坏的本地音频：' + result.id
+                    : '官方同曲已发送，本地文件保留：' + (result?.reason || 'not replaced'));
+            }
+            catch (repairError) {
+                logWarn('官方同曲已发送；本地替换失败，原文件已保留：' + repairError.message);
+            }
+        }
+        else
+            logWarn('官方同曲已发送；本地文件正常或缺少曲库写权限，保留原文件');
+    }
     const keep = Number(cfg.keepFileSec);
     const delay = Number.isFinite(keep) ? Math.max(0, keep) * 1000 : 60_000;
     for (const p of cleanupPaths) {
@@ -1311,6 +1420,17 @@ export async function deliverSong(e, song, play, options = {}) {
     }
     if (vocalError) {
         return { ok: false, reason: 'vocal_prepare_fail', error: vocalError.message, adapter: adapter.kind };
+    }
+    if (!voiceDelivered && !fileDelivered && localPlayback && !localRecoveryAttempted && !repairState) {
+        try {
+            const state = await takeLocalFallback(downloadedSha);
+            return await deliverSong(e, song, { ...play, ...state.play }, {
+                ...options, skipTextInfo: true, skipNativeCard: true, skipCustomCard: true, libraryRecovery: state,
+            });
+        }
+        catch (err) {
+            logWarn('本地发送失败后的官方回退失败：' + err.message);
+        }
     }
     if (!voiceDelivered && !fileDelivered)
         return { ok: false, reason: 'send_fail', downloaded: true, adapter: adapter.kind };

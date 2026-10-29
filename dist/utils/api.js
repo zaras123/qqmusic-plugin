@@ -521,6 +521,17 @@ function mapSongUrlBody(body, type, realMedia) {
     });
 }
 /** 单次指定音质 */
+export async function prepareLibraryFallback(id, { songmid = '', badSha256 = '', userKey = '' } = {}) {
+    const body = await request('/library/fallback/prepare', { id, songmid, badSha256 }, 'post', userKey, { timeout: 180000 });
+    const data = body?.data;
+    if (!data?.play || !data?.ticket)
+        throw new Error(body?.errMsg || 'local recovery unavailable');
+    return { ...data, play: mapSongUrlBody(data.play, 'auto', data.song?.songmid || songmid) };
+}
+export async function commitLibraryFallback(ticket, sha256, userKey = '') {
+    const body = await request('/library/fallback/commit', { ticket, sha256 }, 'post', userKey);
+    return body?.data;
+}
 export async function songUrl(songmid, { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '', local = true, fresh = false } = {}) {
     const realMedia = mediaId || songmid;
     // quality + fallback 交给 API 侧的音质阶梯（一次请求内部逐级下探）

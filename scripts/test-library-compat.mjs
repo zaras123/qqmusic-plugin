@@ -53,20 +53,26 @@ try {
     Object.assign(process.env, { QQMUSIC_LIBRARY_DIR: path.join(temp,'library'), QQMUSIC_LIBRARY_AUTO:'0', QQMUSIC_LIBRARY_SUBS:'0', QQMUSIC_LIBRARY_PLANS:'0', QQMUSIC_API_TOKEN:'plugin-library-fixture', QQMUSIC_SHARED_CREDENTIALS:'0' })
     const requireApi = createRequire(path.join(path.resolve(process.env.QQMUSIC_TEST_API_ROOT), 'package.json'))
     lib = requireApi('./util/library')
+    const providers = requireApi('./util/providers')
+    providers.findFillCandidates=async()=>[]
+    providers.finalizeFill=async()=>({list:[],tried:[]})
     const item = lib.putItem({ songmid:localSong.songmid, source:'bilibili', title:'【4K60FPS】周杰伦《暗号》神级现场！The One演唱会live', artist:'测试UP主', quality:'192k', ext:'.m4a', duration:8 }, audio)
     localSong = lib.searchSongs('周杰伦 暗号').list[0]
     check('真实API识别长视频标题和演唱者', item.artist === '周杰伦' && item.title.includes('暗号') && localSong.local)
     const express = requireApi('express')
     app = express()
+    app.use(express.json())
+    app.get('/audio',(req,res)=>res.type('audio/mp4').send(audio))
     const cache = new (requireApi('./util/cache'))()
     const request = async input => {
+      if(input.url==='https://c.y.qq.com/soso/fcgi-bin/client_search_cp')return {data:{song:{list:[],totalnum:0,curpage:1,curnum:0}}}
       if(input.data?.songinfo?.param?.song_mid==='003fixtureQQ01') {
         details++
         return {songinfo:{data:{track_info:{mid:'003fixtureQQ01',id:123456,name:'晴天',singer:[{name:'周杰伦'}],interval:8,file:{media_mid:'mediaQQFixture'}}}}}
       }
       upstream++; throw new Error('unexpected upstream request')
     }
-    app.get('/search', (req,res,next) => req.query.key === 'filter-fixture' ? res.json({ result:100, data:{ list:[localSong, { ...localSong, local:false, songmid:'bi_online' }, {songmid:'kw_online',source:'kuwo',external:true}, {songmid:'qq_online',source:'qq'}] } }) : next())
+    app.get('/search', (req,res,next) => req.query.key === 'filter-fixture' ? res.json({ result:100, data:{ list:[localSong, { ...localSong, local:false, playChannel:'', channelKind:'fill', libraryId:'', songmid:'bi_online' }, {songmid:'kw_online',source:'kuwo',external:true}, {songmid:'qq_online',source:'qq'}] } }) : next())
     for (const [prefix,handlers] of [['/search',requireApi('./module/search')],['/song',requireApi('./module/song')],['/library',requireApi('./module/library')]]) {
       for (const [suffix,fn] of Object.entries(handlers)) if (typeof fn === 'function' && suffix.startsWith('/')) {
         app.all(prefix+(suffix==='/'?'':suffix), async(req,res) => {
@@ -81,10 +87,12 @@ try {
       const u = new URL(req.url, base)
       res.setHeader('Content-Type','application/json')
       if (u.pathname === '/search') {
-        const list = u.searchParams.get('key') === 'filter-fixture' ? [localSong,{...localSong,local:false,songmid:'bi_online'},{songmid:'kw_online',source:'kuwo',external:true},{songmid:'qq_online',source:'qq'}] : [localSong]
+        const list = u.searchParams.get('key') === 'filter-fixture' ? [localSong,{...localSong,local:false,playChannel:'',channelKind:'fill',libraryId:'',songmid:'bi_online'},{songmid:'kw_online',source:'kuwo',external:true},{songmid:'qq_online',source:'qq'}] : [localSong]
         res.end(JSON.stringify({result:100,data:{list,local:true}}))
       } else if (u.pathname === '/song/url') {
         res.end(JSON.stringify({result:100,data:base+'/audio',local:true,libraryId:'lib_fixture',quality:'192k',ext:'m4a',source:'bilibili',sourceLabel:'本地曲库',playChannel:'library'}))
+      } else if (u.pathname === '/library/item') {
+        res.end(JSON.stringify({result:100,data:{id:'lib_fixture',exists:true,fileUrl:base+'/audio',quality:'192k',ext:'m4a'}}))
       } else if (u.pathname === '/audio') {
         res.setHeader('Content-Type','audio/mp4');res.setHeader('Content-Length',audio.length)
         res.end(req.method==='HEAD'?undefined:audio)
@@ -94,7 +102,7 @@ try {
   server = http.createServer(app)
   await new Promise(r=>server.listen(0,'127.0.0.1',r))
   base='http://127.0.0.1:'+server.address().port
-  cfg={apiBase:base,apiToken:'plugin-library-fixture',quality:'flac',forceMaster:false,publicUserKey:'',sendNativeCard:true,sendCustomCard:false,sendTextInfo:false,sendVocal:true,uploadFile:true,keepFileSec:0,statsEnable:false,togetherEnable:false,togetherAuto:false,downloadTimeout:5000}
+  cfg={apiBase:base,apiToken:'plugin-library-fixture',quality:'flac',forceMaster:false,publicUserKey:'',sendNativeCard:true,sendCustomCard:false,sendTextInfo:false,sendVocal:true,uploadFile:true,keepFileSec:0,statsEnable:false,togetherEnable:false,togetherAuto:false,downloadTimeout:5000,tempDir:path.join(temp,'downloads')}
   check('本地字段兼容旧嵌套响应',helpers.playLibraryFields({}, {local:true,quality:'192k',source:'bilibili',ext:'.m4a',external:1}).external)
   check('扩展名拒绝路径，允许实际M4A',helpers.audioFormatExtension('../mp3')===''&&helpers.audioFormatExtension('.M4A')==='.m4a')
   const filtered=await api.searchSongs('filter-fixture',{fill:true,fillSources:[]})
@@ -109,7 +117,7 @@ try {
   const dl=await send.downloadAudio(play.url,temp,'song',5000,play.quality,play.ext)
   check('真实HTTP下载格式与原音频哈希一致',path.extname(dl.filePath)==='.m4a'&&digest(fs.readFileSync(dl.filePath))===digest(audio))
   const refreshKeys=[]
-  server.prependListener('request',req=>{const u=new URL(req.url,base);if(u.pathname==='/song/url')refreshKeys.push(u.searchParams.get('userKey'))})
+  server.prependListener('request',req=>{const u=new URL(req.url,base);if(u.pathname==='/library/item')refreshKeys.push(u.searchParams.get('userKey'))})
   const messages=[],uploads=[]
   const e={user_id:'listener',group_id:'fixture-group',reply:async m=>{messages.push(m);return {message_id:'fixture'}},bot:{adapter:{id:'QQ',name:'ICQQ',protocol:'icqq',standard:'icqq'},icqq:true},group:{sendFile:async(file,_pid,name)=>{uploads.push({name,hash:digest(fs.readFileSync(file))});return true}}}
   if(karin){e.contact={scene:'group',peer:'fixture-group'};e.bot.uploadFile=async(_contact,file,name)=>{uploads.push({name,hash:digest(fs.readFileSync(file))});return true}}
@@ -118,6 +126,9 @@ try {
   check('群文件使用歌手歌名及实际M4A，字节不变',uploads.length===1&&uploads[0].name.includes('周杰伦')&&uploads[0].name.includes('暗号')&&uploads[0].name.endsWith('.m4a')&&uploads[0].hash===digest(audio))
   check('B站本地曲目不会发成QQ原生音乐卡',!messages.flat().some(m=>m&&m.type==='music'&&(m.data?.type||m.platform)==='qq'))
   cfg.sendVocal=false
+  const refreshMeta=await api.request('/library/item',{id:play.libraryId},'get','listener')
+  assert.ok(refreshMeta.data?.exists&&refreshMeta.data.id===play.libraryId,JSON.stringify({exists:refreshMeta.data?.exists,id:refreshMeta.data?.id,expected:play.libraryId}))
+  refreshKeys.length=0
   const retried=await send.deliverSong(e,song,{...play,url:base+'/fixture-expired'})
   check('过期链接自动刷新后仍成功下载',retried.ok&&uploads.length===2&&uploads[1].hash===digest(audio))
   check('下载重试保留请求者账号槽位',refreshKeys.length===1&&refreshKeys[0]==='listener')
@@ -130,7 +141,7 @@ try {
   check('QQ卡片命中本地后仅发带本地直链的自定义卡',localCards.length===1&&(localCards[0].data?.type||localCards[0].platform)==='custom'&&(localCards[0].data?.audio||localCards[0].audio)===play.url)
   check('Karin自定义卡使用框架消息字段',localCards[0].platform==='custom'&&localCards[0].author==='周杰伦'&&!localCards[0].data)
   const nativeBefore=messages.length
-  await send.deliverSong(e,qqSong,{...play,local:false,external:false,source:'qq',playChannel:'client'})
+  await send.deliverSong(e,qqSong,{...play,url:base+'/audio',local:false,external:false,source:'qq',playChannel:'client'})
   check('本地未命中仍保持官方原生卡',messages.slice(nativeBefore).flat().some(m=>m&&m.type==='music'&&(m.data?.type||m.platform)==='qq'))
   if(lib){
     lib.putItem({songmid:'ext_qingtian_fixture',source:'nekomusic',title:'晴天',artist:'周杰伦',duration:8,quality:'192k',ext:'.m4a'},audio)

@@ -188,6 +188,12 @@ export declare function normalizeSearchItem(item: any, idx?: number): {
 };
 export declare function songDetail(songmid: any, userKey?: string): Promise<any>;
 /** 单次指定音质 */
+export declare function prepareLibraryFallback(id: any, { songmid, badSha256, userKey }?: {
+    badSha256?: string;
+    songmid?: string;
+    userKey?: string;
+}): Promise<any>;
+export declare function commitLibraryFallback(ticket: any, sha256: any, userKey?: string): Promise<any>;
 export declare function songUrl(songmid: any, { type, quality, fallback, mediaId, channel, userKey, local, fresh }?: {
     channel?: string;
     fallback?: number;

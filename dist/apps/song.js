@@ -159,6 +159,7 @@ async function resolvePlay(song, cfg, userKey = '') {
             local: cfg.localLibrary !== false,
         });
         return {
+            ...play,
             url: play.url || '',
             quality: play.quality,
             qualityLabel: play.qualityLabel || QUALITY_LABEL[play.quality] || play.quality,
