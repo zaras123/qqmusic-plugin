@@ -1,6 +1,6 @@
 {
   "name": "karin-plugin-qqmusic",
-  "version": "2.1.18",
+  "version": "2.1.19",
   "description": "Karin QQ 音乐点歌/解析插件（node-karin），对接 qqmusic-api-enhanced",
   "type": "module",
   "main": "dist/index.js",
@@ -27,6 +27,7 @@
     "engines": "^1.18.0"
   },
   "scripts": {
+    "test:cdn-retry": "node --test scripts/test-cdn-retry.mjs",
     "test:listening": "npm run build && node --test scripts/test-listening.mjs",
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",

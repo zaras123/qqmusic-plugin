@@ -240,7 +240,7 @@ export declare function prepareLibraryFallback(id: any, { songmid, badSha256, us
     userKey?: string;
 }): Promise<any>;
 export declare function commitLibraryFallback(ticket: any, sha256: any, userKey?: string): Promise<any>;
-export declare function songUrl(songmid: any, { type, quality, fallback, mediaId, channel, userKey, local, fresh }?: {
+export declare function songUrl(songmid: any, { type, quality, fallback, mediaId, channel, userKey, local, fresh, timeout }?: {
     channel?: string;
     fallback?: number;
     fresh?: boolean;

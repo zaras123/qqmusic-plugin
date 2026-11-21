@@ -553,7 +553,7 @@ export async function commitLibraryFallback(ticket, sha256, userKey = '') {
     const body = await request('/library/fallback/commit', { ticket, sha256 }, 'post', userKey);
     return body?.data;
 }
-export async function songUrl(songmid, { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '', local = true, fresh = false } = {}) {
+export async function songUrl(songmid, { type = '128', quality = '', fallback = 0, mediaId, channel = 'auto', userKey = '', local = true, fresh = false, timeout } = {}) {
     const realMedia = mediaId || songmid;
     // quality + fallback 交给 API 侧的音质阶梯（一次请求内部逐级下探）
     const params = { id: songmid, mediaId: realMedia, channel, local: local ? 1 : 0 };
@@ -570,7 +570,7 @@ export async function songUrl(songmid, { type = '128', quality = '', fallback = 
     try {
         // 取链是只读请求；参数放 query，避免 301/302/303 将 POST 改成 GET 时丢失正文。
         // Token 仍由 request() 放在鉴权 header 中。
-        const body = await request('/song/url', params, 'get', userKey);
+        const body = await request('/song/url', params, 'get', userKey, { timeout });
         return mapSongUrlBody(body, quality || type, realMedia);
     }
     catch (e) {
@@ -712,6 +712,7 @@ export async function songUrlBest(songmid, { quality = 'flac', mediaId, fallback
     let askFrom = preferred;
     let lastResult = null;
     let lastErr = null;
+    let cdnRetryUsed = false;
     // 音质阶梯已挪到 API：一次请求内部就从请求档位逐级下探到可用档。
     // 插件只按「客户端探活」结果继续下探 —— 下载发生在机器人主机，
     // 那条链能不能下只有这里知道（API 那边看不到机器人的网络）。
@@ -748,7 +749,22 @@ export async function songUrlBest(songmid, { quality = 'flac', mediaId, fallback
         }
         const isExt = Boolean(r.external);
         if (probe !== false) {
-            const ok = await probeUrlAlive(r.url);
+            let ok = await probeUrlAlive(r.url);
+            if (!ok && !cdnRetryUsed && !isExt && !isExternalMid && !r.local && QUALITY_LADDER.includes(r.quality)) {
+                // Cached links and short CDN outages are not evidence that the current quality is unavailable.
+                cdnRetryUsed = true;
+                const freshLink = await songUrl(songmid, {
+                    quality: r.quality, fallback: 0, mediaId: r.mediaId || realMedia, userKey,
+                    local: false, fresh: true, timeout: 4000,
+                }).catch(() => null);
+                if (freshLink?.url && !freshLink.local && !freshLink.external && freshLink.quality === r.quality
+                    && await probeUrlAlive(freshLink.url, 2500)) {
+                    r = freshLink;
+                    lastResult = r;
+                    ok = true;
+                    logInfo('QQ CDN 同档重取成功：' + r.quality);
+                }
+            }
             if (!ok) {
                 tried.push(`${r.quality}:cdn-dead`);
                 logWarn(`${r.quality} 链接不可用${isExt ? '' : '，继续下探…'}`);
