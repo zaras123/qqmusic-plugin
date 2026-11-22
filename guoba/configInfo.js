@@ -1,4 +1,5 @@
 import { buildSchemas, getConfigData, setConfigData } from './schemas.js'
+import actions from './actions.js'
 
 export default {
   /**
@@ -12,4 +13,5 @@ export default {
   },
   getConfigData,
   setConfigData,
+  actions,
 }

@@ -438,6 +438,81 @@ export function buildSchemas() {
   },
   group('③ 发送与下载'),
   {
+    field: 'libraryWebQuery',
+    label: '曲库关键词',
+    bottomHelpMessage: '留空 = 列出最新入库；先点「预览结果」确认序号',
+    component: 'Input',
+    componentProps: {
+      placeholder: '歌名 / 歌手 / 专辑 / songmid',
+    },
+  },
+  {
+    field: 'libraryWebPick',
+    label: '发送第几首',
+    bottomHelpMessage: '对应「预览结果」里的序号，从 1 开始',
+    component: 'InputNumber',
+    componentProps: {
+      min: 1,
+      max: 200,
+      placeholder: '1',
+    },
+  },
+  {
+    field: 'libraryWebGroups',
+    label: '目标群（群选择器）',
+    bottomHelpMessage: '可多选；会和下面的「补充群号」合并去重',
+    component: 'GSelectGroup',
+    componentProps: {
+      placeholder: '点击选择要接收歌曲的群',
+    },
+  },
+  {
+    field: 'libraryWebManualGroups',
+    label: '补充群号',
+    bottomHelpMessage: '群选择器里没有时可手填；多个群号用逗号、空格或换行分隔',
+    component: 'Input',
+    componentProps: {
+      placeholder: '例如：123456789,987654321',
+    },
+  },
+  {
+    field: 'libraryWebPreview',
+    label: '曲库操作',
+    component: 'GButtons',
+    componentProps: {
+      buttons: [
+        {
+          label: '预览结果',
+          type: 'primary',
+          action: 'library_preview',
+          args: ['#{libraryWebQuery}', 8],
+        },
+        {
+          label: '发送到群',
+          type: 'primary',
+          confirm: '确定把选中的本地曲库歌曲发送到目标群？',
+          action: 'library_send',
+          args: [
+            '#{libraryWebQuery}',
+            '#{libraryWebPick}',
+            '#{libraryWebGroups}',
+            '#{libraryWebManualGroups}',
+          ],
+        },
+        {
+          label: '查看发送结果',
+          action: 'library_status',
+          args: [],
+        },
+      ],
+    },
+  },
+  {
+    component: 'Divider',
+    label: '用法：先点「预览结果」确认序号；填序号和群后点「发送到群」。发送在后台执行，点「查看发送结果」看进度。',
+  },
+
+  {
     field: 'sendVocal',
     label: '发送群语音',
     bottomHelpMessage: '下载完整音频后以语音发送',
@@ -663,6 +738,11 @@ export function getConfigData() {
     // 勋章进度：缺省 = 开（老配置没这个键 → 装完就能用）；活动 ID 缺省为空串
     medalEnable: c.medalEnable !== false,
     medalActID: String(c.medalActID ?? '').trim(),
+    // 本地曲库点歌是 WebUI 操作区，不写回插件配置
+    libraryWebQuery: '',
+    libraryWebPick: 1,
+    libraryWebGroups: [],
+    libraryWebManualGroups: '',
     pullLoginMeta: false,
     // QQ 音源开关：缺省=开（老配置没有这个键 → 与 1.x 完全一致）
     qqEnabled: c.qqEnabled !== false,
@@ -724,7 +804,14 @@ export async function setConfigData(data, { Result } = {}) {
 
     // 白名单直接由 schema 推导 —— 以前是手写数组，加了新开关忘了同步这里，
     // 锅巴保存时会被静默丢弃（表现：开关一打开就弹回原状）
-    const UI_ONLY_FIELDS = new Set(['pullLoginMeta']) // 仅界面用，不落盘
+    const UI_ONLY_FIELDS = new Set([
+      'pullLoginMeta',
+      'libraryWebQuery',
+      'libraryWebPick',
+      'libraryWebGroups',
+      'libraryWebManualGroups',
+      'libraryWebPreview',
+    ]) // 仅界面用，不落盘
     // 平台凭据输入框同理（**绝不落盘**）：它是"上传动作"，值由 API 保管 ——
     // 落进插件配置就等于把 cookie 明文写进 yaml（还会跟着配置备份到处跑）
     const UI_ONLY_FIELD_RE = /^platforms\.[^.]+\.(ck|ckClear)$/

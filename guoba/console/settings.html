@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QQ音乐 API 设置</title>
+    <link rel="icon" type="image/png" href="./logo.png" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><img src="./logo.png" alt="QQ音乐" /></span>
+          <span class="brand-word">QQM<em>studio</em></span>
+        </div>
+        <div class="crumb">QQM / LOCAL LIBRARY / API SETTINGS</div>
+        <div class="top-actions">
+          <span id="status-pill" class="live">API 连接</span>
+          <button id="theme-toggle" class="link-btn" type="button">DARK</button>
+          <button id="back" class="link-btn" type="button">返回曲库</button>
+        </div>
+      </header>
+
+      <section class="settings-view">
+        <div class="settings-head">
+          <div>
+            <p class="kicker">API CONNECTION</p>
+            <h2>API 设置</h2>
+          </div>
+          <button id="save-settings" class="solid" type="button">保存</button>
+        </div>
+        <p id="settings-status" class="muted">正在读取 API 配置…</p>
+        <div class="settings-group">
+          <div class="settings-group-body">
+            <label class="setting-row">
+              <span class="setting-copy">
+                <strong>API 地址</strong>
+                <small>qqmusic-api-enhanced 服务地址；本机/IP 直连保留 HTTP</small>
+              </span>
+              <input id="api-base" class="setting-control" type="text" placeholder="http://127.0.0.1:3300" />
+            </label>
+            <label class="setting-row">
+              <span class="setting-copy">
+                <strong>API Token</strong>
+                <small>未填写时不会请求 API 本地曲库</small>
+              </span>
+              <input id="api-token" class="setting-control" type="password" autocomplete="off" placeholder="API Token" />
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>QQM / LOCAL DELIVERY CONSOLE</span>
+        <span id="footer-state">API</span>
+      </footer>
+    </div>
+    <script type="module" src="./bridge.js"></script>
+    <script type="module" src="./settings.js"></script>
+  </body>
+</html>

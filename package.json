@@ -10,6 +10,7 @@
     "test:cdn-retry": "node --test scripts/test-cdn-retry.mjs",
     "test:listening": "node --test scripts/test-listening.mjs",
     "test:external": "node scripts/test-external-resolve.mjs",
+    "test:library-web": "node scripts/test-library-web.mjs",
     "test:channels": "node --test scripts/test-library-channels.mjs",
     "test:ticket": "node --test scripts/test-ticket.mjs",
     "test:stats": "node --test scripts/test-stats.mjs",
