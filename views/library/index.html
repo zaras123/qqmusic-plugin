@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>本地曲库点歌</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">QQ 音乐 · 本地曲库</p>
+          <h1>点歌并发送到群</h1>
+          <p class="sub">直接读取 API 本地曲库，按 ID 投递原文件，不走重新匹配。</p>
+        </div>
+        <div class="hero-actions">
+          <button id="refresh-groups" class="btn ghost" type="button">刷新群列表</button>
+          <button id="refresh-latest" class="btn ghost" type="button">最新入库</button>
+        </div>
+      </header>
+
+      <section class="panel search-panel">
+        <label class="field grow">
+          <span>搜索本地曲库</span>
+          <input id="query" type="search" autocomplete="off" placeholder="歌名 / 歌手 / 专辑 / songmid；留空看最新入库" />
+        </label>
+        <label class="field compact">
+          <span>数量</span>
+          <select id="limit">
+            <option value="20">20</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+        </label>
+        <button id="search" class="btn primary" type="button">搜索</button>
+      </section>
+
+      <div class="layout">
+        <section class="panel results-panel">
+          <div class="panel-head">
+            <div>
+              <h2>曲库结果</h2>
+              <p id="result-summary" class="muted">正在读取…</p>
+            </div>
+            <div class="inline-actions">
+              <button id="select-all" class="btn small ghost" type="button">全选可用</button>
+              <button id="clear-selection" class="btn small ghost" type="button">清空选择</button>
+            </div>
+          </div>
+          <div id="results" class="results" aria-live="polite"></div>
+        </section>
+
+        <aside class="side">
+          <section class="panel">
+            <div class="panel-head">
+              <div>
+                <h2>发送到群</h2>
+                <p class="muted">勾选已连接平台里的群，或手动补充群号。</p>
+              </div>
+            </div>
+            <div class="group-filter">
+              <input id="group-filter" type="search" placeholder="筛选群名 / 群号" autocomplete="off" />
+            </div>
+            <div id="groups" class="groups" aria-live="polite"></div>
+            <div class="manual">
+              <label class="field">
+                <span>手动补充群号</span>
+                <textarea id="manual-groups" rows="3" placeholder="每行一个群号，或用 平台|群号"></textarea>
+              </label>
+              <label class="field">
+                <span>手动群所属平台</span>
+                <select id="manual-platform"></select>
+              </label>
+            </div>
+          </section>
+
+          <section class="panel send-panel">
+            <div class="send-head">
+              <div>
+                <h2>投递</h2>
+                <p id="selection-summary" class="muted">未选择歌曲</p>
+              </div>
+              <button id="send" class="btn primary" type="button">发送选中歌曲</button>
+            </div>
+            <div id="job" class="job hidden" aria-live="polite"></div>
+          </section>
+        </aside>
+      </div>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

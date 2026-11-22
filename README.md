@@ -2,6 +2,8 @@
 
 AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解析、演出票务和本地图卡。插件对接已部署的 `qqmusic-api-enhanced`，**不需要 Node.js、Karin、浏览器或远程渲染服务**，但仍需要能访问音乐 API。
 
+仓库：<https://github.com/zaras123/astrbot_plugin_qqmusic>
+
 纯 Python 重构已完成，功能未与 Karin 版完全对齐。未迁移项见[迁移差异](#迁移差异)。
 
 ## 版本记录
@@ -10,7 +12,7 @@ AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解�
 
 ## 安装
 
-1. 用 **AstrBot 4.29.4** 和 **Python 3.12+**。将 ZIP 内的 `astrbot_plugin_qqmusic` 目录解压到 AstrBot 的 `data/plugins/`。从 Git 安装时须选择 `astrbot` 分支，仓库默认分支不是本插件。
+1. 用 **AstrBot 4.29.4** 和 **Python 3.12+**。将 ZIP 内的 `astrbot_plugin_qqmusic` 目录解压到 AstrBot 的 `data/plugins/`。从 Git 安装时直接使用本仓库默认分支；本仓库只放 AstrBot 插件。
 2. 用 **AstrBot 正在使用的 Python 环境**安装插件的 `requirements.txt`，然后在插件管理页加载或重载。
 3. 在插件配置填写 `apiBase`（不重定向的最终地址）与 `apiToken`（后端启用鉴权时填写，不要发到群里）。管理员先发 `#qqm测试`，再用 `#qqm点歌 晴天`、`#qqm听1` 验证搜索和投递。
 4. 试听与部分音频转换需宿主机安装 FFmpeg 并加入 PATH；普通卡片渲染不需要 FFmpeg。
@@ -25,6 +27,10 @@ AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解�
 | 控制媒体投递 | `sendVocal`、`uploadFile` 分别控制语音和文件；`sendNativeCard` 只在 OneBot V11 有对应路径。 |
 
 音源偏好、统计、订阅和定时任务存入 AstrBot 的插件 KV；媒体临时文件默认保存在插件数据目录，不写回插件源码目录。
+
+## 本地曲库 WebUI
+
+在 AstrBot 插件详情页打开「本地曲库点歌」视图：搜索 API 本地曲库，勾选歌曲和已连接平台的群聊，即可直接投递原文件。页面只拿曲库 ID 和元数据，带 token 的音频地址由插件后端重新获取；发送任务在后台执行，页面会显示每首歌到每个群的结果。适合一次补发/群发，不依赖群里先发命令。
 
 ## 命令
 

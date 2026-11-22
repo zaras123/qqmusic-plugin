@@ -39,6 +39,7 @@ main = importlib.import_module(f"{NAME}.main")
 features = importlib.import_module(f"{NAME}.features")
 transport = importlib.import_module(f"{NAME}.astrbot_transport")
 delivery = importlib.import_module(f"{NAME}.delivery")
+library_web = importlib.import_module(f"{NAME}.library_web")
 
 
 class FakeEvent:
@@ -317,6 +318,88 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         await self.star.terminate()
         self.assertTrue(task.cancelled())
         self.assertIsNone(main.qqapi._session)
+
+    async def test_library_web_helpers_and_job(self):
+        item = library_web._public_item({
+            "id": "lib_abc123",
+            "songmid": "003abc",
+            "title": "晴天",
+            "artist": "周杰伦",
+            "album": "叶惠美",
+            "duration": 269,
+            "quality": "flac",
+            "source": "qq",
+            "cover": "https://example.invalid/cover.jpg",
+            "bytes": 1234,
+            "filePresent": True,
+            "status": "ok",
+        })
+        self.assertEqual(item["id"], "lib_abc123")
+        self.assertEqual(item["title"], "晴天")
+        self.assertTrue(item["available"])
+        self.assertFalse(library_web._public_item({
+            "id": "lib_missing", "filePresent": False, "status": "missing"
+        })["available"])
+        groups = library_web._normalize_groups([
+            {"group_id": 123, "group_name": "测试群"},
+            {"group_id": "123", "group_name": "重复群"},
+            {"group_id": 456, "group_name": "另一个群"},
+        ])
+        self.assertEqual({row["group_id"] for row in groups}, {"123", "456"})
+        targets = library_web._valid_targets(
+            [{"platform": "aiocqhttp", "support_proactive": True}],
+            [
+                {"platform": "aiocqhttp", "group_id": "123", "name": "测试群"},
+                {"platform": "aiocqhttp", "group_id": "123", "name": "重复"},
+                {"platform": "unknown", "group_id": "999"},
+            ],
+        )
+        self.assertEqual(len(targets), 1)
+        self.assertEqual(targets[0]["umo"], "aiocqhttp:GroupMessage:123")
+        song, play = library_web._song_and_play({
+            "id": "lib_abc123", "songmid": "003abc", "title": "晴天",
+            "artist": "周杰伦", "album": "叶惠美", "duration": 269,
+            "quality": "flac", "source": "qq", "fileUrl": "http://127.0.0.1/library/file?id=lib_abc123",
+        }, "master")
+        self.assertEqual(song["libraryId"], "lib_abc123")
+        self.assertTrue(play["local"])
+        self.assertEqual(play["userKey"], "master")
+
+        fake = SimpleNamespace(
+            context=SimpleNamespace(),
+            _data_dir=self.tmp.name,
+            _cfg=lambda: self.config,
+            _library_jobs={},
+            _library_tasks=set(),
+            _log_warn=lambda text: None,
+        )
+        job = {
+            "id": "libjob_test",
+            "ids": ["lib_abc123"],
+            "targets": targets,
+            "userKey": "master",
+            "status": "queued",
+            "total": 1,
+            "done": 0,
+            "results": [],
+            "error": "",
+            "startedAt": 0,
+            "finishedAt": 0,
+        }
+        fake._library_jobs[job["id"]] = job
+        with unittest.mock.patch.object(
+            library_web, "_fetch_item", AsyncMock(return_value={
+                "id": "lib_abc123", "songmid": "003abc", "title": "晴天",
+                "artist": "周杰伦", "duration": 269, "quality": "flac",
+                "source": "qq", "fileUrl": "http://127.0.0.1/library/file?id=lib_abc123",
+            })
+        ), unittest.mock.patch.object(
+            library_web, "deliver_song", AsyncMock(return_value={"ok": True, "reason": "voice"})
+        ):
+            await library_web._run_job(fake, job)
+        self.assertEqual(job["status"], "done")
+        self.assertEqual(job["done"], 1)
+        self.assertTrue(job["results"][0]["ok"])
 
     async def test_real_python_renderer(self):
         e = FakeEvent("#qqm演出")

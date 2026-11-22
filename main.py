@@ -95,7 +95,12 @@ class QQMusicPlugin(FeatureCommands, Star):
         self._jobs = None
         self._state_lock = asyncio.Lock()
         self._data_dir = Path(StarTools.get_data_dir("astrbot_plugin_qqmusic")).resolve()
+        self._library_jobs = {}
+        self._library_tasks = set()
         qqapi.set_config_getter(self._cfg)
+        from .library_web import register_web_api
+
+        register_web_api(self)
 
     async def initialize(self):
         self._data_dir.mkdir(parents=True, exist_ok=True)
@@ -3273,7 +3278,7 @@ class QQMusicPlugin(FeatureCommands, Star):
         event.stop_event()
 
     async def terminate(self):
-        tasks = list(self._login_tasks)
+        tasks = list(self._login_tasks) + list(self._library_tasks)
         for uid in list(self._active_logins):
             self._stop_poll(uid)
         if self._jobs:

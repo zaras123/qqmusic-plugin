@@ -39,6 +39,9 @@ async def smoke():
         assert f"## {loaded.version}" in changelog["content"]
         assert first.config["apiBase"] == "http://127.0.0.1:3300"
         assert first._jobs and not first._jobs.done()
+        plugin_dir = Path(loaded.module.__file__).parent
+        assert (plugin_dir / "views" / "library" / "index.html").is_file()
+        assert (plugin_dir / ".astrbot-plugin" / "i18n" / "zh-CN.json").is_file()
         handlers = star_handlers_registry.get_handlers_by_module_name(module)
         assert any(h.handler_name == "pick_song" for h in handlers)
         messages = []

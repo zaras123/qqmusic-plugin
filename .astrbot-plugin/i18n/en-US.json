@@ -1,0 +1,8 @@
+{
+  "views": {
+    "library": {
+      "title": "Local Library",
+      "description": "Search the API local music library and send selected songs to connected groups."
+    }
+  }
+}

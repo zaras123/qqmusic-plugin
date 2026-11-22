@@ -20,7 +20,12 @@ class SourceBoundary(unittest.TestCase):
         runtime = {"__init__.py", "_conf_schema.json", "main.py", "metadata.yaml", "requirements.txt"}
         prohibited = {".js", ".ts", ".cjs", ".mjs", ".tsx", ".jsx", ".html", ".css", ".vue", ".wasm"}
         self.assertTrue(runtime.issubset(live))
-        self.assertFalse([p for p in live if Path(p).suffix.lower() in prohibited])
+        view_assets = {"views/", ".astrbot-plugin/i18n/"}
+        self.assertFalse([
+            p for p in live
+            if Path(p).suffix.lower() in prohibited
+            and not any(p.startswith(prefix) for prefix in view_assets)
+        ])
         self.assertTrue({"dist", "apps", "utils", "web"}.isdisjoint(p.split("/", 1)[0] for p in live))
         self.assertTrue({"package.json", "package-lock.json", "tsconfig.json"}.isdisjoint(live))
 

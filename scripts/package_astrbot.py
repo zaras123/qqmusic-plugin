@@ -7,10 +7,12 @@ from zipfile import ZIP_DEFLATED, ZipFile
 ROOT = Path(__file__).resolve().parents[1]
 NAME = "astrbot_plugin_qqmusic"
 FILES = """__init__.py main.py api.py astrbot_transport.py cards.py delivery.py
-features.py quality.py render.py updater.py _conf_schema.json
+features.py quality.py render.py updater.py library_web.py _conf_schema.json
 metadata.yaml requirements.txt logo.png LICENSE README.md CHANGELOG.md""".split()
 ASSETS = """astrbot_assets/LICENSE-WBNDM astrbot_assets/fonts/LICENSE-NotoSansSC.txt
-astrbot_assets/fonts/QQM-CJK-Regular.otf""".split()
+astrbot_assets/fonts/QQM-CJK-Regular.otf
+.astrbot-plugin/i18n/zh-CN.json .astrbot-plugin/i18n/en-US.json
+views/library/index.html views/library/app.js views/library/style.css""".split()
 
 
 def main():
