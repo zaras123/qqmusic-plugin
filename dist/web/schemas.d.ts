@@ -33,6 +33,7 @@ export declare function buildSchemas(): ({
     required: boolean;
     componentProps: {
         placeholder: string;
+        height?: undefined;
         disabled?: undefined;
         step?: undefined;
         options?: undefined;
@@ -46,6 +47,37 @@ export declare function buildSchemas(): ({
     bottomHelpMessage: string;
     component: string;
     componentProps: {
+        placeholder: string;
+        height?: undefined;
+        disabled?: undefined;
+        step?: undefined;
+        options?: undefined;
+        min?: undefined;
+        max?: undefined;
+    };
+} | {
+    required?: undefined;
+    field: string;
+    label: string;
+    bottomHelpMessage: string;
+    component: string;
+    componentProps: {
+        min: number;
+        max: number;
+        placeholder: string;
+        height?: undefined;
+        disabled?: undefined;
+        step?: undefined;
+        options?: undefined;
+    };
+} | {
+    required?: undefined;
+    field: string;
+    label: string;
+    bottomHelpMessage: string;
+    component: string;
+    componentProps: {
+        height: number;
         placeholder: string;
         disabled?: undefined;
         step?: undefined;
@@ -67,6 +99,7 @@ export declare function buildSchemas(): ({
     bottomHelpMessage: string;
     component: string;
     componentProps: {
+        height?: undefined;
         disabled: boolean;
         placeholder: string;
         step?: undefined;
@@ -80,6 +113,7 @@ export declare function buildSchemas(): ({
     label: string;
     component: string;
     componentProps: {
+        height?: undefined;
         disabled: boolean;
         placeholder: string;
         step?: undefined;
@@ -102,6 +136,7 @@ export declare function buildSchemas(): ({
     bottomHelpMessage: string;
     component: string;
     componentProps: {
+        height?: undefined;
         disabled?: undefined;
         options: readonly {
             label: string;
@@ -119,20 +154,7 @@ export declare function buildSchemas(): ({
     bottomHelpMessage: string;
     component: string;
     componentProps: {
-        disabled?: undefined;
-        min: number;
-        max: number;
-        placeholder: string;
-        step?: undefined;
-        options?: undefined;
-    };
-} | {
-    required?: undefined;
-    field: string;
-    label: string;
-    bottomHelpMessage: string;
-    component: string;
-    componentProps: {
+        height?: undefined;
         disabled?: undefined;
         options: {
             label: string;
@@ -150,6 +172,7 @@ export declare function buildSchemas(): ({
     bottomHelpMessage: string;
     component: string;
     componentProps: {
+        height?: undefined;
         disabled?: undefined;
         min: number;
         max: number;
@@ -164,6 +187,7 @@ export declare function buildSchemas(): ({
     label: string;
     component: string;
     componentProps: {
+        height?: undefined;
         disabled?: undefined;
         min: number;
         max: number;
@@ -178,6 +202,7 @@ export declare function buildSchemas(): ({
     label: string;
     component: string;
     componentProps: {
+        height?: undefined;
         disabled?: undefined;
         placeholder: string;
         step?: undefined;
@@ -192,6 +217,7 @@ export declare function buildSchemas(): ({
     label: string;
     component: string;
     componentProps: {
+        height?: undefined;
         disabled?: undefined;
         placeholder?: undefined;
         min: number;

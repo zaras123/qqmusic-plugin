@@ -1,2 +1,2 @@
-declare const _default: import("node-karin").DefineComponentConfig<Record<string, unknown>>;
+declare const _default: import("node-karin").DefinePageConfig;
 export default _default;

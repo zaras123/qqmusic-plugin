@@ -1,31 +1,19 @@
-import { components, defineConfig } from 'node-karin';
-import { buildSchemas, getConfigData, setConfigData } from './web/schemas.js';
-import { buildKarinComponents } from './web/components.js';
+import { defineConfig } from 'node-karin';
+import { CONSOLE_URL, registerQqmusicConsole } from './utils/console-server.js';
 const PLUGIN_ID = 'karin-plugin-qqmusic';
-function buildComponents() {
-    const data = getConfigData();
-    return buildKarinComponents(components, buildSchemas(), data);
-}
+registerQqmusicConsole();
 export default defineConfig({
     info: {
         id: PLUGIN_ID,
         name: 'QQ音乐插件',
         author: { name: 'local', home: '' },
         icon: { color: '#31c27c' },
-        description: 'QQ 音乐点歌 / 卡片解析 / 扫码登录',
+        description: 'QQ 音乐点歌 / 本地曲库投递 / 卡片解析 / 扫码登录',
     },
-    components: () => buildComponents(),
-    save: async (config) => {
-        try {
-            const result = await setConfigData(config);
-            return {
-                success: result?.success !== false,
-                message: result?.message || (result?.success === false ? '保存失败' : '保存成功'),
-            };
-        }
-        catch (err) {
-            return { success: false, message: err?.message || String(err) };
-        }
+    page: {
+        url: CONSOLE_URL,
+        title: 'QQ音乐管理',
+        description: '本地曲库检索、按适配器选择群并投递原文件；音频地址只在服务端使用。',
     },
 });
 //# sourceMappingURL=web.config.js.map

@@ -1,4 +1,5 @@
 import { configPathValue, schemaUiKey } from './schemas.js'
+import { listKarinGroupOptions } from '../utils/group-targets.js'
 
 function componentOptions(schema, data) {
   const props = schema.componentProps || {}
@@ -86,12 +87,39 @@ export function groupSchemas(schemas) {
   return groups
 }
 
-export function buildKarinComponents(components, schemas, data) {
+export async function buildKarinComponents(components, schemas, data) {
   const groups = groupSchemas(schemas)
+  let groupOptions: Awaited<ReturnType<typeof listKarinGroupOptions>> = []
+  try {
+    groupOptions = await listKarinGroupOptions()
+  } catch {
+    groupOptions = []
+  }
   const items = groups.map((group, groupIndex) => {
     const children = group.schemas
       .map((schema, schemaIndex) => toKarinComponent(components, schema, schemaIndex, data))
       .filter(Boolean)
+    if (groupIndex === 0) {
+      children.unshift(
+        components.select.create('qqmusicLibraryGroupPick', {
+          label: '选择群（自动）',
+          description: '列出当前在线适配器的群；跨适配器也可在下方手填 适配器|账号|群号',
+          defaultValue: configPathValue(data, 'qqmusicLibraryGroupPick') || '',
+          isRequired: false,
+          isDisabled: false,
+          items: groupOptions.length
+            ? groupOptions.map((option, itemIndex) =>
+                components.select.createItem(`qqmusic-group-${itemIndex}`, option)
+              )
+            : [
+                components.select.createItem('qqmusic-group-empty', {
+                  label: '没有读取到群列表，可下方手填',
+                  value: '',
+                }),
+              ],
+        })
+      )
+    }
     return components.accordion.createItem(group.key, {
       title: group.title,
       subtitle: '',

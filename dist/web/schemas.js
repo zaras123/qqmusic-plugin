@@ -24,6 +24,7 @@ import { V2_FIELD, isV2Unlocked, platformEnabled, platformQualityPref, platformF
 const group = (label) => ({ label, component: 'SOFT_GROUP_BEGIN' });
 /** 仅用于保存、但不显示成独立配置项的历史字段 */
 const EXTRA_SAVED_KEYS = [
+    'qqmusicLibraryGroupPick',
     'songRequestMaxList',
     'resolveLinks',
     'resolveCards',
@@ -236,6 +237,56 @@ export function buildSchemas() {
             componentProps: {
                 placeholder: 'API Token',
             },
+        },
+        // ── 本地曲库 WebUI 点歌（用保存动作触发，不额外占一组页签）──
+        {
+            field: 'qqmusicLibraryQuery',
+            label: '本地曲库关键词',
+            bottomHelpMessage: '留空 = 最新入库；操作选「搜索曲库」并保存后回执会列出前 10 首',
+            component: 'Input',
+            componentProps: {
+                placeholder: '歌名 / 歌手 / 专辑 / songmid',
+            },
+        },
+        {
+            field: 'qqmusicLibraryPick',
+            label: '发送第几首',
+            bottomHelpMessage: '对应搜索回执里的序号，从 1 开始',
+            component: 'InputNumber',
+            componentProps: {
+                min: 1,
+                max: 200,
+                placeholder: '1',
+            },
+        },
+        {
+            field: 'qqmusicLibraryGroups',
+            label: '目标群号',
+            bottomHelpMessage: '多个群号用逗号、空格或换行分隔；跨适配器可写 适配器|账号|群号，例如 onebot:10001|123456789；仅在点保存时读取',
+            component: 'InputTextArea',
+            componentProps: {
+                height: 86,
+                placeholder: '例如：123456789 或 onebot:10001|123456789',
+            },
+        },
+        {
+            field: 'qqmusicLibraryAction',
+            label: '曲库操作',
+            bottomHelpMessage: '选好后点页面底部「保存」执行；发送在后台跑，可再选「查看进度」并保存查看',
+            component: 'Select',
+            componentProps: {
+                options: [
+                    { label: '不执行', value: 'none' },
+                    { label: '搜索曲库', value: 'search' },
+                    { label: '发送到群', value: 'send' },
+                    { label: '查看进度', value: 'status' },
+                ],
+                placeholder: '不执行',
+            },
+        },
+        {
+            component: 'Divider',
+            label: '本地曲库用法：操作选「搜索曲库」→ 保存看序号；填序号和群号，操作选「发送到群」→ 保存；再选「查看进度」→ 保存看结果。',
         },
         {
             field: 'pullLoginMeta',
@@ -751,6 +802,11 @@ export function getConfigData() {
         // 勋章进度：缺省 = 开（老配置没这个键 → 装完就能用）；活动 ID 缺省为空串
         medalEnable: c.medalEnable !== false,
         medalActID: String(c.medalActID ?? '').trim(),
+        // 本地曲库点歌是 WebUI 操作区，不写回插件配置
+        qqmusicLibraryQuery: '',
+        qqmusicLibraryPick: 1,
+        qqmusicLibraryGroups: '',
+        qqmusicLibraryAction: 'none',
         pullLoginMeta: false,
         // QQ 音源开关：缺省=开（老配置没有这个键 → 与 1.x 完全一致）
         qqEnabled: c.qqEnabled !== false,
@@ -806,7 +862,14 @@ export async function setConfigData(data, { Result } = {}) {
         const pickValue = (k) => incoming[k];
         // 白名单直接由 schema 推导 —— 以前是手写数组，加了新开关忘了同步这里，
         // Karin WebUI 保存时会被静默丢弃（表现：开关一打开就弹回原状）
-        const UI_ONLY_FIELDS = new Set(['pullLoginMeta']); // 仅界面用，不落盘
+        const UI_ONLY_FIELDS = new Set([
+            'pullLoginMeta',
+            'qqmusicLibraryQuery',
+            'qqmusicLibraryPick',
+            'qqmusicLibraryGroups',
+            'qqmusicLibraryGroupPick',
+            'qqmusicLibraryAction',
+        ]); // 仅界面用，不落盘
         // 平台凭据输入框同理（**绝不落盘**）：它是"上传动作"，值由 API 保管 ——
         // 落进插件配置就等于把 cookie 明文写进 yaml（还会跟着配置备份到处跑）
         const UI_ONLY_FIELD_RE = /^platforms\.[^.]+\.(ck|ckClear)$/;

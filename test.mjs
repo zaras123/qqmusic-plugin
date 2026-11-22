@@ -2482,7 +2482,7 @@ function v2Check(name, got, want) {
         createItem: (key, options) => ({ componentType: 'accordion-item', key, ...options }),
       },
     }
-    const webTree = WC.buildKarinComponents(fakeComponents, currentSchemas, getConfigData())
+    const webTree = await WC.buildKarinComponents(fakeComponents, currentSchemas, getConfigData())
     v2Check('Karin WebUI：根节点使用标准 accordion', webTree[0]?.componentType, 'accordion')
     v2Check('Karin WebUI：配置组全部是 accordion-item', webTree[0]?.children.every((item) => item.componentType === 'accordion-item'), true)
     v2Check(
