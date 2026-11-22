@@ -1,16 +1,21 @@
+# 旧分支可能在本机留下依赖、配置；不跟踪也不删除本机数据。
 node_modules/
-# 运行时用户配置（保留目录占位，删除 yaml 后重启会按 default 重新生成）
 config/config/*
-!config/config/.gitkeep
 *.log
 .DS_Store
-# Playwright MCP 浏览器测试产物
 .playwright-mcp/
+.serena/
 
 # 本地 AI 助手配置：settings.local.json 里硬编码着本机 API Token，不要提交
 .claude/settings.local.json
-# 本地生成物：卡片预览（scripts/preview-cards.mjs 的产物）等
+# 本地测试环境和输出
 temp/
-
-# 运行时数据：歌手订阅 / 定时点歌（data/qqmusic-store.json）
 data/
+
+# AstrBot/Python development
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+output/astrbot/

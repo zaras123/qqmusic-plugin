@@ -1,0 +1,30 @@
+name: astrbot_plugin_qqmusic
+display_name: "QQ音乐点歌/解析插件"
+short_desc: 多音源点歌、歌词、MV、演出票务，支持本地图卡。
+desc: |
+  对接 qqmusic-api-enhanced，支持多音源点歌、歌词、MV、音乐分享解析、演出票务和定时点歌。
+  内置中文卡片渲染，无需浏览器；语音、视频与文件按适配器能力投递。
+version: v2.1.18
+author: zaras123
+repo: https://github.com/zaras123/qqmusic-plugin
+astrbot_version: ">=4.29.4,<5"
+support_platforms:
+  - aiocqhttp
+  - qq_official
+  - qq_official_webhook
+  - telegram
+  - dingtalk
+  - lark
+  - kook
+  - discord
+  - weixin_oc
+  - weixin_official_account
+  - wecom
+  - wecom_ai_bot
+  - line
+  - mattermost
+  - misskey
+  - satori
+  - slack
+  - webchat
+  - icqq

@@ -1,102 +1,87 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/zaras123/qqmusic-plugin/karin/resources/img/logo.png" width="120" alt="QQ 音乐插件 Logo">
-</p>
+# QQ 音乐 · AstrBot
 
-<h1 align="center">karin-plugin-qqmusic</h1>
+AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解析、演出票务和本地图卡。插件对接已部署的 `qqmusic-api-enhanced`，**不需要 Node.js、Karin、浏览器或远程渲染服务**，但仍需要能访问音乐 API。
 
-<p align="center"><strong>node-karin · 点歌 / 解析 / 本地曲库</strong></p>
+纯 Python 重构已完成，功能未与 Karin 版完全对齐。未迁移项见[迁移差异](#迁移差异)。
 
-<p align="center">
-  <img src="https://img.shields.io/badge/License-MIT-yellow" alt="MIT">
-  <img src="https://img.shields.io/github/stars/zaras123/qqmusic-plugin?style=flat&logo=github" alt="GitHub Stars">
-</p>
+## 版本记录
 
-<p align="center">
-  <a href="https://github.com/zaras123/qqmusic-plugin">
-    <img src="https://count.getloli.com/get/@zaras123.qqmusic-plugin?theme=rule34" alt="访问次数">
-  </a>
-</p>
-
-## API 与用户群
-
-**插件开源，配套的 `qqmusic-api-enhanced` 后端 API 不开源。** 使用前请加入 [QQ 用户群](https://qm.qq.com/q/GKxEVvF8Ua)，申请 **API 地址和 Token**。群内提供使用反馈与更新通知。
+见 [更新日志](CHANGELOG.md)。AstrBot 插件管理中可查看完整记录，管理员也可发送 **#qqm更新日志** 查看当前安装版本的更新内容。
 
 ## 安装
 
-准备好对应的机器人框架、Node.js、pnpm 和 FFmpeg（`ffmpeg`、`ffprobe`）。按框架选择一种安装方式；下列命令均从对应框架的根目录执行。
+1. 用 **AstrBot 4.29.4** 和 **Python 3.12+**。将 ZIP 内的 `astrbot_plugin_qqmusic` 目录解压到 AstrBot 的 `data/plugins/`。从 Git 安装时须选择 `astrbot` 分支，仓库默认分支不是本插件。
+2. 用 **AstrBot 正在使用的 Python 环境**安装插件的 `requirements.txt`，然后在插件管理页加载或重载。
+3. 在插件配置填写 `apiBase`（不重定向的最终地址）与 `apiToken`（后端启用鉴权时填写，不要发到群里）。管理员先发 `#qqm测试`，再用 `#qqm点歌 晴天`、`#qqm听1` 验证搜索和投递。
+4. 试听与部分音频转换需宿主机安装 FFmpeg 并加入 PATH；普通卡片渲染不需要 FFmpeg。
 
-### Yunzai / TRSS-Yunzai · main 分支
+### 常用配置
 
-```bash
-git clone --branch main https://github.com/zaras123/qqmusic-plugin.git plugins/qqmusic-plugin
-cd plugins/qqmusic-plugin
-pnpm install
-```
-
-完成后重启 Yunzai / TRSS-Yunzai。
-
-### Karin · karin 分支
-
-推荐使用 npm 包：
-
-```bash
-pnpm add karin-plugin-qqmusic
-```
-
-需要修改源码时，也可以使用 Git 安装：
-
-```bash
-git clone --branch karin https://github.com/zaras123/qqmusic-plugin.git plugins/karin-plugin-qqmusic
-cd plugins/karin-plugin-qqmusic
-pnpm install
-pnpm build
-```
-
-完成后重启 Karin。npm 与 Git 安装选一种即可，避免重复加载。
-
-[Yunzai / TRSS-Yunzai 分支](https://github.com/zaras123/qqmusic-plugin/tree/main) · [Karin 分支](https://github.com/zaras123/qqmusic-plugin/tree/karin)
-
-## 配置与开始使用
-
-1. 在 **锅巴（Yunzai）或 Karin WebUI** 填写申请到的 API 地址和 Token。
-2. QQ 音乐账号由主人发送 `#qqm登录` 扫码登录；其他平台的凭据方式见 `#qqm登录帮助`，凭据只在私聊或配置界面填写。
-3. 发送 `#qqm点歌 晴天`，再用 `#qqm听1` 播放；`#qqm播放 晴天` 可直接播放第一首。
-
-| 框架 | 用户配置文件（相对框架根目录） |
+| 目标 | 要改什么 |
 | --- | --- |
-| Yunzai / TRSS-Yunzai | `plugins/qqmusic-plugin/config/config/qqmusic.yaml` |
-| Karin | `@karinjs/karin-plugin-qqmusic/config/qqmusic.yaml` |
+| 开启第三方音源 | 打开 `unlockV2`，并在 `enabledSources` 中加入所需来源，例如 `netease`；具体可用性取决于 API 和账号。 |
+| 控制图片卡 | `renderListCard` 控制出图，`imageFormat` 选 PNG/JPEG，`uiTheme` 和 `uiDark` 切换配色与明暗。绘制或图片投递失败时可降级为文本。 |
+| 封面和生僻字 | Pillow 默认离线绘图，内置 Noto Sans SC 中文字体子集。`renderCover` 可选用公开 CDN 封面，`renderFontPath` 可指定本机字体。 |
+| 控制媒体投递 | `sendVocal`、`uploadFile` 分别控制语音和文件；`sendNativeCard` 只在 OneBot V11 有对应路径。 |
 
-多平台功能需在设置中开启「？？？」；随后可按需启用各音源平台。**本地曲库**默认开启。点歌菜单同时展示本地、QQ 官方和已启用的第三方结果，按所选条目的渠道播放，不自动换成本地；`#qqm播放` 直接走所选平台的在线渠道。QQ / Spotify / Apple 分享解析仍优先本地；关闭本地曲库后不再查库。B站链接、BV / av 号及卡片交由其它插件处理，主动 B站点歌和采集不受影响。音质与可用功能以实际音源、账号权限及 API 支持为准。
+音源偏好、统计、订阅和定时任务存入 AstrBot 的插件 KV；媒体临时文件默认保存在插件数据目录，不写回插件源码目录。
 
-## 帮助卡片
+## 命令
 
-支持点歌、歌词、MV、音乐链接解析、演出票务、订阅、定时和听歌统计等。发送 `#qqm帮助` 查看入口，`#qqm帮助 全部` 查看完整清单；也可以直接发送 `#qqm点歌帮助`、`#qqm平台帮助` 等分类命令。
+| 功能 | 示例 |
+| --- | --- |
+| 点歌、播放、选曲 | #qqm点歌 晴天、#qqm听1、#qqm播放 晴天 |
+| 歌词、试听、歌词海报 | #qqm歌词1、#qqm试听1、#qqm海报1 |
+| 热搜、发现 | #qqm热搜、#qqm排行、#qqm新歌、#qqm推荐、#qqm电台、#qqm日推、#qqm收藏 |
+| 歌手/专辑/歌单/评论 | #qqm歌手 周杰伦、#qqm专辑 范特西、#qqm歌单 关键词、#qqm评论 晴天 |
+| MV | #qqmMV 搜索 周杰伦、#qqmMV 播放1、#qqmMV 下载1 |
+| 多音源 | 配置启用后，#qqm平台、#qqm平台状态、#qqm源 网易、#qqm酷狗播放 晴天 |
+| 分享解析 | QQ 音乐链接和分享卡；Spotify / Apple Music 分享由 API 匹配可播放歌曲 |
+| QQ 音乐登录 | 管理员私聊 `#qqm登录` 获取 QQ 码；`#qqm登录微信`、`#qqm登录qq`、`#qqm登录app` 走 QQ 音乐 App 通道；`#qqm状态` 查看状态 |
+| 平台凭据 | #qqm登录帮助；第三方扫码或凭据仅私聊；不要在群里发送凭据 |
+| 账号操作 | #qqm账号操作；写操作需要管理员私聊，并以「确认」结尾 |
+| 演出/票务 | #qqm演唱会、#qqm演出 城市=北京、#qqm演出详情1、#qqm演出下一页 |
+| 订阅/定时 | 群管理员 #qqm订阅 歌手、#qqm定时 20:00 晴天；#qqm订阅列表、#qqm定时列表 |
+| 统计/勋章 | #qqm听歌、#qqm听歌榜 本周、#qqm听歌状态、#qqm勋章 |
+| 设置/更新 | `#qqm设置`、`#qqm界面 深色`；管理员可用 `#qqm更新日志` 查看当前版本，更新和重载在 AstrBot 插件管理执行 |
 
-`#qqm听歌` 查看本地点播统计，`#qqm听歌榜` 查看群排行：时长按成功发歌记录与歌曲时长估算，不代表实际收听或平台入账。`#qqm听歌状态`（或 `#qqm官方时长`）分开展示本地统计与本人 QQ 音乐平台进度；平台查询需要本人登录，只读且不回退到主人账号，失败或缺少字段时不会用本地数字填补。
+点歌按 AstrBot 实例、会话、用户隔离，个人最近列表优先，无个人列表时退回本会话最新列表。点击播放或收到文件不代表用户实际听完；插件本地统计只记录成功走过音频投递路径的曲目时长。票务按用户会话单独存储，历史演出仅覆盖 API 已归档记录。
 
-下面是当前版本的默认帮助卡片示例（含主人入口）；实际内容会随身份和配置变化。
+## 适配器
 
-<p align="center">
-  <a href="https://raw.githubusercontent.com/zaras123/qqmusic-plugin/karin/resources/img/help.png">
-    <img src="https://raw.githubusercontent.com/zaras123/qqmusic-plugin/karin/resources/img/help.png" width="720" alt="QQ 音乐插件帮助卡片，点击查看原图">
-  </a>
-</p>
+覆盖 AstrBot 4.29.4 的 18 个内置适配器及第三方 iCQQ。旧版插件列出的 8 个适配器（OneBot V11、QQ 官方、Telegram、钉钉、飞书、KOOK、Discord、个人微信）均在覆盖范围内。
 
-## 仓库活跃度
+下表描述本插件根据 [AstrBot 4.29.4 平台适配器源码](https://github.com/AstrBotDevs/AstrBot/tree/v4.29.4/astrbot/core/platform/sources) 选择的投递路径，不代表对应媒体已经在真实账号上发出。账号权限、文件大小、公网文件服务及被动回复配额仍由平台限制。
 
-<p align="center">
-  <a href="https://github.com/zaras123/qqmusic-plugin/pulse">
-    <img src="https://repobeats.axiom.co/api/embed/8ffa0d49f1cc9f86300f9903b9a98c31cd6d694c.svg" width="720" alt="Repobeats 仓库活跃度与贡献者统计" title="Repobeats analytics image">
-  </a>
-</p>
+| 适配器 | 文本与图片外的媒体路线 |
+| --- | --- |
+| OneBot V11 (aiocqhttp) | 语音、视频、文件；仅在该适配器走原生 QQ 音乐卡 |
+| QQ 官方 / QQ 官方 Webhook | 语音、视频、文件，合并回复并优先首个成功媒体 |
+| Telegram、Discord、飞书、钉钉、KOOK、Mattermost、Misskey、Satori、WebChat | 按适配器发送语音、视频、文件 |
+| 企业微信 / 企业微信智能机器人 | 框架有语音、视频、文件组件；主动推送能力由实例提供 |
+| 个人微信 | 视频、文件；跳过语音 |
+| 微信公众号 | 语音；文件/视频回退来源页面 |
+| LINE | 语音和视频需要可公开访问的 AstrBot 文件服务；公网文件服务未配置时不能保证媒体投递 |
+| Slack | 语音、文件；不直发 Video，MV 可转文件 |
+| 第三方 iCQQ | 标准语音、视频、文件；具体由安装的适配器处理 |
+| 其他第三方适配器 | 标准文本和图片；不假定支持媒体，回退来源链接 |
 
-## AI 辅助开发声明
+不把内网 API、鉴权 Token 或带签名参数的音频 URL 作为文本发到群。原生卡/媒体能否播放、扫码能否成功、定时消息能否主动发送，以实际平台、账号和 API 版本为准。
 
-**本插件部分代码由 AI 辅助完成。** 可能存在尚未发现的逻辑缺陷、兼容性或安全问题，请在理解并审查代码后部署，不要将未经验证的代码直接用于生产或商业项目。发现问题欢迎通过 Issue 反馈或提交修复。
+## 迁移差异
 
-本项目仅供技术学习与交流，请遵守相关法律法规和平台用户协议，勿用于侵犯他人权益的用途。
+| Karin 功能 | AstrBot 当前行为 |
+| --- | --- |
+| QQ 群「一起听」 | **未迁移**。AstrBot 公共适配器不提供房间控制接口。 |
+| 平台听歌时长上报任务 | **未迁移**。仅保留本地投递统计、官方时长与勋章只读查询。 |
+| 损坏曲库文件修复 | 本地音频下载或格式校验失败时，符合条件的 QQ 曲目会尝试改用官方音源；**不会自动覆盖**后端曲库文件。 |
+| 主题与 WebUI | 用 Pillow 重绘卡片，设置采用 AstrBot 原生配置 Schema；不复刻 Karin 的主题细节、背景或 WebUI 控件。 |
 
-## License
+- 从 Karin 或旧 Python 移植升级：账号槽按 AstrBot 适配器实例和用户隔离，原账号槽不会被误当成当前登录；需要本人重新登录或显式配置公共播放账号。
+- Python 基线来自 [wbndm 的 AstrBot 移植](https://github.com/wbndmqaq/astrbot_plugin_qqmusic)，保留其 [MIT 声明](astrbot_assets/LICENSE-WBNDM)。
 
-MIT
+## 验证与发布
+
+已在 Python 3.12.13、AstrBot 4.29.4 上通过本地回归。安装包解压后验证了真实框架加载、重载、帮助图片和后台更新日志。适配器测试使用模拟事件验证消息组件和降级，**未逐平台验收真实账号扫码和语音、视频、文件实发**。
+
+发版时，在 [CHANGELOG.md](CHANGELOG.md) 增加 `## vX.Y.Z` 版本标题和简要变更，并同步 [metadata.yaml](metadata.yaml) 的版本号与功能描述。运行 `python scripts/package_astrbot.py` 校验后生成安装包。

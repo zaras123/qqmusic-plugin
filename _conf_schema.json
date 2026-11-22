@@ -1,0 +1,371 @@
+{
+  "apiBase": {
+    "type": "string",
+    "description": "QQ 音乐 API 地址",
+    "default": "http://127.0.0.1:3300",
+    "hint": "填写可直接访问的地址，不要填写带有重定向的路径。"
+  },
+  "apiToken": {
+    "type": "string",
+    "description": "QQ 音乐 API Token",
+    "default": "",
+    "secret": true
+  },
+  "enable": {
+    "type": "bool",
+    "description": "插件总开关",
+    "default": true
+  },
+  "enableSongRequest": {
+    "type": "bool",
+    "description": "点歌功能开关",
+    "default": true
+  },
+  "enableResolve": {
+    "type": "bool",
+    "description": "QQ 音乐分享/链接自动解析开关",
+    "default": true
+  },
+  "resolveCards": {
+    "type": "bool",
+    "description": "自动解析 QQ 音乐分享卡片",
+    "default": true
+  },
+  "resolveLinks": {
+    "type": "bool",
+    "description": "自动解析 y.qq.com 链接",
+    "default": true
+  },
+  "maxList": {
+    "type": "int",
+    "description": "点歌列表最大显示条数（1-20）",
+    "default": 10
+  },
+  "quality": {
+    "type": "string",
+    "description": "最高播放音质",
+    "default": "auto",
+    "options": [
+      "auto",
+      "128",
+      "m4a",
+      "320",
+      "flac",
+      "ape",
+      "hires",
+      "atmos",
+      "master",
+      "atmos_master"
+    ],
+    "labels": [
+      "auto 自动适配最高可用",
+      "128 标准 128K",
+      "m4a 较高 M4A",
+      "320 极高 320K",
+      "flac 无损 FLAC",
+      "ape 无损 APE",
+      "hires Hi-Res",
+      "atmos 臻品全景声",
+      "master 臻品母带",
+      "atmos_master 臻品母带2.0"
+    ],
+    "hint": "auto 自动匹配歌曲最高可用音质并逐级降级；其余为指定最高档位。也可用指令 #qqm 音质 <档位> 修改。"
+  },
+  "qualityFallback": {
+    "type": "bool",
+    "description": "音质自动降级（逐级降档直至拿到可用链接）",
+    "default": true
+  },
+  "sendNativeCard": {
+    "type": "bool",
+    "description": "发送 OneBot 原生音乐卡片（go-cqhttp 风格，部分协议支持）",
+    "default": false
+  },
+  "sendCustomCard": {
+    "type": "bool",
+    "description": "发送自定义音乐卡片（部分协议支持）",
+    "default": false
+  },
+  "sendVocal": {
+    "type": "bool",
+    "description": "以语音消息方式发送音频",
+    "default": true
+  },
+  "uploadFile": {
+    "type": "bool",
+    "description": "以群/好友文件方式发送音频",
+    "default": true
+  },
+  "tempDir": {
+    "type": "string",
+    "description": "媒体临时路径（相对 AstrBot 插件数据目录）",
+    "default": "tmp"
+  },
+  "downloadTimeout": {
+    "type": "int",
+    "description": "音频下载超时（毫秒）",
+    "default": 90000
+  },
+  "keepFileSec": {
+    "type": "int",
+    "description": "临时文件保留秒数（0 表示立即删除）",
+    "default": 60
+  },
+  "identifyPrefix": {
+    "type": "string",
+    "description": "识别提示前缀",
+    "default": "识别："
+  },
+  "qrLoginEnable": {
+    "type": "bool",
+    "description": "允许使用 #qqm登录 扫码登录命令",
+    "default": true
+  },
+  "qqofficialAdapt": {
+    "type": "bool",
+    "description": "QQ 官方消息合并与媒体适配",
+    "default": true
+  },
+  "renderListCard": {
+    "type": "bool",
+    "description": "将点歌/列表结果渲染为图片卡片（关闭则纯文本）",
+    "default": true
+  },
+  "sendTextInfo": {
+    "type": "bool",
+    "description": "投递音频时附带文本信息（歌名/歌手/音质）",
+    "default": true
+  },
+  "localLibrary": {
+    "type": "bool",
+    "description": "允许 API 本地曲库",
+    "default": true
+  },
+  "unlockV2": {
+    "type": "bool",
+    "description": "开启第三方音源",
+    "default": false
+  },
+  "qqEnabled": {
+    "type": "bool",
+    "description": "启用 QQ 音乐",
+    "default": true
+  },
+  "enabledSources": {
+    "type": "list",
+    "description": "第三方音源 ID（须同时开启第三方音源）",
+    "default": [],
+    "hint": "可选：netease、kuwo、bilibili、kugou、qishui、migu、youtube、apple、jiosaavn、audius"
+  },
+  "defaultPickSong": {
+    "type": "bool",
+    "description": "接管无 qqm 前缀的点歌",
+    "default": false
+  },
+  "extraSources": {
+    "type": "bool",
+    "description": "点歌列表允许补充其他启用的音源",
+    "default": true
+  },
+  "resolveExternal": {
+    "type": "bool",
+    "description": "解析 Spotify / Apple Music 分享",
+    "default": true
+  },
+  "publicAccount": {
+    "type": "string",
+    "description": "公共播放账号槽（空为最近一次管理员登录）",
+    "default": ""
+  },
+  "forceMasterAccount": {
+    "type": "bool",
+    "description": "公共播放使用管理员账号槽",
+    "default": true
+  },
+  "lastLoginUserKey": {
+    "type": "string",
+    "description": "最近管理员登录账号槽（插件维护）",
+    "default": ""
+  },
+  "uiTheme": {
+    "type": "string",
+    "description": "卡片主题色",
+    "default": "classic",
+    "options": [
+      "classic",
+      "apple",
+      "nebula",
+      "multi"
+    ]
+  },
+  "uiDark": {
+    "type": "string",
+    "description": "卡片颜色模式",
+    "default": "浅色",
+    "options": [
+      "浅色",
+      "深色",
+      "自动"
+    ]
+  },
+  "imageFormat": {
+    "type": "string",
+    "description": "Python 本地图片格式",
+    "default": "jpeg",
+    "options": [
+      "jpeg",
+      "png"
+    ]
+  },
+  "previewSec": {
+    "type": "int",
+    "description": "试听秒数（5–60 秒）",
+    "default": 30
+  },
+  "subScanHours": {
+    "type": "int",
+    "description": "歌手订阅扫描间隔（小时，0 关闭）",
+    "default": 6
+  },
+  "subMaxPerGroup": {
+    "type": "int",
+    "description": "每会话订阅上限",
+    "default": 10
+  },
+  "scheduleMaxPerGroup": {
+    "type": "int",
+    "description": "每会话定时播放上限",
+    "default": 10
+  },
+  "statsEnable": {
+    "type": "bool",
+    "description": "统计本地播放记录（仅成功投递）",
+    "default": true
+  },
+  "statsKeepDays": {
+    "type": "int",
+    "description": "本地播放记录保留天数",
+    "default": 60
+  },
+  "statsMaxUsersPerGroup": {
+    "type": "int",
+    "description": "每会话最多记录用户数",
+    "default": 100
+  },
+  "medalEnable": {
+    "type": "bool",
+    "description": "勋章只读查询",
+    "default": true
+  },
+  "medalActID": {
+    "type": "string",
+    "description": "QQ 音乐活动 ID（可选）",
+    "default": ""
+  },
+  "neteaseQuality": {
+    "type": "string",
+    "description": "netease 音质",
+    "default": "auto",
+    "options": [
+      "auto",
+      "standard",
+      "exhigh",
+      "lossless",
+      "hires"
+    ]
+  },
+  "kuwoQuality": {
+    "type": "string",
+    "description": "kuwo 音质",
+    "default": "auto",
+    "options": [
+      "auto"
+    ]
+  },
+  "bilibiliQuality": {
+    "type": "string",
+    "description": "bilibili 音质",
+    "default": "auto",
+    "options": [
+      "auto",
+      "192",
+      "flac"
+    ]
+  },
+  "kugouQuality": {
+    "type": "string",
+    "description": "kugou 音质",
+    "default": "auto",
+    "options": [
+      "auto",
+      "128",
+      "320",
+      "flac",
+      "hires"
+    ]
+  },
+  "qishuiQuality": {
+    "type": "string",
+    "description": "qishui 音质",
+    "default": "auto",
+    "options": [
+      "auto",
+      "128",
+      "256",
+      "flac"
+    ]
+  },
+  "miguQuality": {
+    "type": "string",
+    "description": "migu 音质",
+    "default": "auto",
+    "options": [
+      "auto",
+      "128",
+      "320",
+      "flac"
+    ]
+  },
+  "youtubeQuality": {
+    "type": "string",
+    "description": "youtube 音质",
+    "default": "auto",
+    "options": [
+      "auto"
+    ]
+  },
+  "appleQuality": {
+    "type": "string",
+    "description": "apple 音质",
+    "default": "auto",
+    "options": [
+      "auto"
+    ]
+  },
+  "jiosaavnQuality": {
+    "type": "string",
+    "description": "jiosaavn 音质",
+    "default": "auto",
+    "options": [
+      "auto"
+    ]
+  },
+  "audiusQuality": {
+    "type": "string",
+    "description": "audius 音质",
+    "default": "auto",
+    "options": [
+      "auto"
+    ]
+  },
+  "renderFontPath": {
+    "type": "string",
+    "description": "自定义本地字体路径（空为内置 Noto Sans SC）",
+    "default": ""
+  },
+  "renderCover": {
+    "type": "bool",
+    "description": "卡片从指定公开 CDN 加载封面（默认完全离线）",
+    "default": false
+  }
+}
