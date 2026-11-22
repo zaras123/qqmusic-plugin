@@ -26,9 +26,20 @@ if NAME not in sys.modules:
     spec.loader.exec_module(package)
 
 library_web = importlib.import_module(f"{NAME}.library_web")
+qqapi = importlib.import_module(f"{NAME}.api")
 
 
 class LibraryWebTests(unittest.IsolatedAsyncioTestCase):
+    def test_normalize_api_base(self):
+        self.assertEqual(qqapi.normalize_api_base("example.com"), "https://example.com")
+        self.assertEqual(qqapi.normalize_api_base("127.0.0.1:3300"), "http://127.0.0.1:3300")
+        self.assertEqual(qqapi.normalize_api_base("http：//localhost:3300/"), "http://localhost:3300")
+        self.assertEqual(qqapi.normalize_api_base("  https://api.example.com///  "), "https://api.example.com")
+        self.assertEqual(qqapi.normalize_api_base(""), "")
+        self.assertTrue(library_web._valid_api_base("https://api.example.com/path"))
+        self.assertFalse(library_web._valid_api_base("https://bad host"))
+        self.assertFalse(library_web._valid_api_base("ftp://api.example.com"))
+
     async def test_register_routes(self):
         class FakeContext:
             def __init__(self):
@@ -46,6 +57,7 @@ class LibraryWebTests(unittest.IsolatedAsyncioTestCase):
                 f"/{library_web.PLUGIN_NAME}/library/search",
                 f"/{library_web.PLUGIN_NAME}/library/send",
                 f"/{library_web.PLUGIN_NAME}/library/job",
+                f"/{library_web.PLUGIN_NAME}/library/api-config",
             ],
         )
 

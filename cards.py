@@ -2,7 +2,77 @@ from __future__ import annotations
 
 import re
 import time
+from pathlib import Path
 from urllib.parse import urlparse
+
+# ──────────── 主题/来源色标 ────────────
+
+ROOT = Path(__file__).resolve().parent
+
+# 与 Yunzai/Karin 分支 utils/platforms.js 的品牌色、短名保持同一口径。
+PLATFORMS = {
+    "qq": ("QQ音乐", "QQ", "#31c27c", "320k+"),
+    "netease": ("网易云", "网易", "#c62f2f", "128k"),
+    "kuwo": ("酷我", "酷我", "#ffb500", "128k"),
+    "kugou": ("酷狗", "酷狗", "#0ea0e8", "128k"),
+    "bilibili": ("B站", "B站", "#fb7299", "192k"),
+    "qishui": ("汽水", "汽水", "#00e0c6", "256k"),
+    "migu": ("咪咕", "咪咕", "#ff5a5f", "128k"),
+    "youtube": ("YouTube", "YouTube", "#ff0033", "128k"),
+    "apple": ("Apple Music", "Apple", "#fa2a55", "256k"),
+    "local": ("本地曲库", "本地", "#6b7280", ""),
+}
+
+
+def logo_url() -> str:
+    """卡片 logo 用 file:// 地址；模板会被写进浏览器，相对路径会按主题目录解析。"""
+    try:
+        return (ROOT / "resources" / "img" / "logo.png").as_uri()
+    except ValueError:
+        return ""
+
+
+def _platform(source: str):
+    key = str(source or "").strip().lower()
+    return PLATFORMS.get(key) or ("", str(source or ""), "#8a8a8e", "")
+
+
+def _source_tag_fields(song: dict) -> dict:
+    """与 Yunzai/Karin 的 channelTagOf()/songs.map 对齐的来源字段。"""
+    source = str(song.get("source") or "")
+    local = bool(song.get("local"))
+    external = bool(song.get("external")) or bool(source and source.lower() != "qq")
+    label, short, color, default_quality = _platform(source)
+    if local:
+        source_label = str(song.get("sourceLabel") or "本地曲库")
+        short = "本地"
+        color = PLATFORMS["local"][2]
+        extra_label = "" if source_label in {"本地曲库", "本地", "library"} else f" · {source_label}"
+        tag = f"本地库{extra_label}" + (
+            f" · {song.get('quality')}" if song.get("quality") else ""
+        )
+    elif external:
+        source_label = str(song.get("sourceLabel") or label or source or "填充")
+        tag = f"填充 · {source_label}" + (
+            f" · {song.get('quality')}" if song.get("quality") else ""
+        )
+        short = source_label if source_label else short
+    else:
+        source_label = ""
+        short = "QQ官方"
+        color = PLATFORMS["qq"][2]
+        tag = "QQ音乐官方"
+    short_tag = (str(song.get("quality") or "") if external or local else "官方") or default_quality
+    return {
+        "external": external,
+        "sourceId": source if external else "",
+        "sourceLabel": source_label,
+        "sourceColor": color,
+        "sourceShort": short,
+        "sourceTag": tag,
+        "sourceTagShort": short_tag,
+    }
+
 
 # ──────────── 会话存储 ────────────
 
@@ -234,7 +304,7 @@ def build_list_card_data(
         commands.append(
             {
                 "name": "#qqmMV 播放 序号",
-                "desc": "播放 / 下载该曲 MV（列表带 🎬 即是有 MV 的歌曲）",
+                "desc": "播放 / 下载该曲 MV（列表带 MV 即是有 MV 的歌曲）",
                 "example": "#qqmMV 播放 1",
             }
         )
@@ -245,11 +315,57 @@ def build_list_card_data(
             "example": "#qqm点歌 关键词",
         }
     )
+    source_counts = {}
+    for s in songs:
+        source = str(s.get("source") or "")
+        kind = s.get("channelKind") or (
+            "local" if s.get("local") else ("fill" if source and source.lower() != "qq" else "official")
+        )
+        key = (
+            f"local:{source or 'library'}"
+            if kind == "local"
+            else (source or "fill") if kind == "fill" else "qq"
+        )
+        label, short, color, _q = _platform(source if kind != "official" else "qq")
+        local_label = str(s.get("sourceLabel") or "")
+        local_extra = (
+            f" · {local_label}"
+            if local_label and local_label not in {"本地曲库", "本地", "library", "local"}
+            else ""
+        )
+        shown = (
+            f"本地{local_extra}"
+            if kind == "local"
+            else f"填充 · {s.get('sourceLabel') or label or '三方'}"
+            if kind == "fill"
+            else "QQ官方"
+        )
+        cur = source_counts.get(key) or {
+            "id": key,
+            "label": shown,
+            "color": "#6b7280" if kind == "local" else color,
+            "n": 0,
+        }
+        cur["n"] += 1
+        source_counts[key] = cur
+    counts = list(source_counts.values())
+    top = None
+    for c in counts:
+        if top is None or c["n"] > top["n"]:
+            top = c
+    if top:
+        top["on"] = True
     return {
         "keyword": keyword or "歌曲列表",
+        "sourceLabel": options.get("sourceLabel") or "",
+        "sourceCounts": counts,
+        "hasExternal": any(bool(s.get("source")) for s in songs),
         "total": len(songs),
+        "logo": logo_url(),
         "quality": str(cfg.get("quality") or "auto").upper(),
         "apiHint": api_hint_for(cfg),
+        "singerInfo": options.get("singerInfo") or "",
+        "albumInfo": options.get("albumInfo") or "",
         "songs": [
             {
                 "index": i + 1,
@@ -260,6 +376,7 @@ def build_list_card_data(
                 "duration": s.get("duration") or "",
                 "payplay": bool(s.get("payplay")),
                 "hasMv": bool(s.get("mvVid")),
+                **_source_tag_fields(s),
             }
             for i, s in enumerate(songs)
         ],
@@ -419,29 +536,56 @@ def build_comment_card_data(
 
 
 def build_detail_card_data(
-    song: dict, *, quality_label="", payplay=False, source="", has_url=False
+    song: dict,
+    *,
+    quality_label="",
+    payplay=False,
+    source="",
+    has_url=False,
+    mv_vid="",
 ) -> dict:
     is_vip = bool(song.get("payplay")) or payplay
+    pay = song.get("pay") if isinstance(song.get("pay"), dict) else {}
+    pay_down = bool(pay.get("pay_down"))
+    pay_info = "会员" if is_vip else ("付费" if pay_down else "免费")
+    pay_icon = "lock" if is_vip else ("coin" if pay_down else "spark")
+    url_status = "有播放链接" if has_url else "仅免费链接"
+    url_icon = "check" if has_url else "warn"
 
     source_text = source or "未知来源"
     if source == "链接":
-        source_text = "🔗 链接解析"
+        source_text = "链接解析"
     elif source == "卡片":
-        source_text = "📋 卡片解析"
+        source_text = "卡片解析"
+
+    api_source = str(song.get("source") or "")
+    source_label, source_short, source_color, _q = _platform(api_source)
 
     return {
+        "title": (song.get("songName") or "未知")
+        + (" [会员]" if is_vip else (" [付费]" if pay_down else "")),
         "songName": song.get("songName") or "未知",
         "singerName": song.get("singerName") or "未知歌手",
         "albumName": song.get("albumName") or "",
         "cover": song.get("cover") or "",
+        "songmid": song.get("songmid") or "",
         "duration": song.get("duration") or "",
         "qualityLabel": quality_label or "",
         "payplay": is_vip,
         "showPay": True,
+        "payInfo": pay_info,
+        "payIcon": pay_icon,
+        "urlStatus": url_status,
+        "urlIcon": url_icon,
         "source": source_text,
+        "sourceId": api_source,
+        "sourceColor": source_color if api_source else "#31c27c",
+        "sourceShort": source_short if api_source else "QQ",
+        "sourceIsExternal": bool(api_source),
         "tip": f"正在下载并发送语音（{quality_label or '默认音质'}）..."
         if has_url
         else "未获取到播放链接",
+        "mvVid": mv_vid or song.get("mvVid") or "",
     }
 
 
@@ -463,15 +607,24 @@ def build_mv_card_data(mv: dict, cfg: dict | None = None) -> dict:
         "发 #qqmMV 播放/下载 序号",
     ]
     return {
+        "title": title,
         "songName": title,
         "singerName": singer or "未知歌手",
         "albumName": "",  # MV 无专辑概念，发行日期进 tip
         "cover": mv.get("cover") or mv.get("picurl") or "",
+        "songmid": "",
         "duration": duration,
         "qualityLabel": "",  # 音质概念不适用于 MV
         "payplay": False,
         "showPay": False,  # 不显示 付费/免费 徽章
+        "payInfo": "免费",
+        "payIcon": "spark",
+        "urlStatus": "有播放链接",
+        "urlIcon": "check",
         "source": "MV",
+        "sourceColor": "#31c27c",
+        "sourceShort": "MV",
+        "sourceIsExternal": False,
         "tip": " · ".join(x for x in tip_parts if x) or "发 #qqmMV 播放/下载 序号",
         "vid": mv.get("vid") or "",
         "listennum": play,
@@ -493,7 +646,11 @@ def build_help_card_data(cfg: dict | None = None, version: str = "?") -> dict:
     else:
         stat_mode = "待机"
     return {
+        "title": "QQ音乐帮助",
+        "subtitle": "常用功能 · 分类帮助",
         "version": f"v{version}",
+        "logo": logo_url(),
+        "detail": False,
         "statCommands": "30+",
         "statQuality": quality,
         "statMode": stat_mode,

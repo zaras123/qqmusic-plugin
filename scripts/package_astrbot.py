@@ -1,4 +1,9 @@
-"""Build a deployable AstrBot ZIP from an explicit Python-only allowlist."""
+"""Build a deployable AstrBot ZIP from an explicit allowlist.
+
+Runtime code stays Python; resources/ carries the shared card themes
+(HTML/CSS + art-template browser runtime + CJK fonts) used by the
+Chromium renderer.
+"""
 from pathlib import Path
 from hashlib import sha256
 from runpy import run_path
@@ -12,7 +17,12 @@ metadata.yaml requirements.txt logo.png LICENSE README.md CHANGELOG.md""".split(
 ASSETS = """astrbot_assets/LICENSE-WBNDM astrbot_assets/fonts/LICENSE-NotoSansSC.txt
 astrbot_assets/fonts/QQM-CJK-Regular.otf
 .astrbot-plugin/i18n/zh-CN.json .astrbot-plugin/i18n/en-US.json
-views/library/index.html views/library/app.js views/library/style.css""".split()
+views/library/index.html views/library/app.js views/library/bridge.js views/library/settings.html views/library/settings.js views/library/style.css views/library/logo.png""".split()
+ASSETS += sorted(
+    path.relative_to(ROOT).as_posix()
+    for path in (ROOT / "resources").rglob("*")
+    if path.is_file()
+)
 
 
 def main():

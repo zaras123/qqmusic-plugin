@@ -42,6 +42,27 @@ def _cfg() -> dict:
     return {}
 
 
+def normalize_api_base(raw: Any) -> str:
+    """与 Yunzai/Karin 对齐：补协议、去全角冒号/引号/零宽字符和尾部斜杠。"""
+    text = str(raw or "")
+    text = re.sub(r"[\u200B-\u200D\u2060\uFEFF]", "", text)
+    text = text.strip().strip("\"'`").replace("：", ":").strip()
+    if not text:
+        return ""
+    if re.match(r"^https?://", text, re.IGNORECASE):
+        return text.rstrip("/")
+    if not re.match(r"^[a-z][a-z0-9+.-]*://", text, re.IGNORECASE):
+        text = text.lstrip("/")
+        authority = re.split(r"[/?#]", text, maxsplit=1)[0]
+        direct = re.fullmatch(
+            r"(?:localhost|(?:\d{1,3}\.){3}\d{1,3}|\[[0-9a-f:.%]+\])(?::\d+)?",
+            authority,
+            re.IGNORECASE,
+        )
+        text = f"{'http' if direct else 'https'}://{text}"
+    return text.rstrip("/")
+
+
 class ApiError(Exception):
     def __init__(
         self, message: str, *, code=None, payload=None, pay=None, retcode=None, tip=None
@@ -55,13 +76,18 @@ class ApiError(Exception):
 
 
 def _get_base() -> str:
-    base = str(_cfg().get("apiBase") or "")
-    return base.rstrip("/")
+    return normalize_api_base(_cfg().get("apiBase"))
+
+
+def _token_from_cfg(cfg: dict) -> str:
+    if "apiToken" in cfg:
+        return str(cfg.get("apiToken") or "").strip()
+    return str(cfg.get("api_token") or "").strip()
 
 
 def _get_token() -> str:
     c = _cfg()
-    token = c.get("apiToken") or ""
+    token = _token_from_cfg(c)
     if not token:
         # 与 JS 版一致：支持环境变量 QQMUSIC_API_TOKEN（对应 API 端 .env 的 QQMUSIC_API_TOKEN）
         import os

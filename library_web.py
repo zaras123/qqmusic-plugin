@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import os
 import re
 import time
+from urllib.parse import urlsplit
 from uuid import uuid4
 
 from astrbot.api import logger
@@ -28,6 +30,39 @@ _KEEP_JOBS = 20
 def _play_user_key(plugin) -> str:
     cfg = plugin._cfg()
     return str(cfg.get("publicAccount") or cfg.get("lastLoginUserKey") or "")
+
+
+def _has_api_token(plugin) -> bool:
+    cfg = plugin._cfg()
+    token = qqapi._token_from_cfg(cfg) or os.environ.get("QQMUSIC_API_TOKEN") or ""
+    return bool(str(token).strip())
+
+
+def _token_required():
+    return error_response(
+        "TOKEN_REQUIRED: 还没有配置 API Token，请先在插件设置里填写后再使用",
+        status_code=409,
+        data={"code": "TOKEN_REQUIRED"},
+    )
+
+
+def _valid_api_base(value: str) -> bool:
+    if not value:
+        return True
+    if re.search(r"\s", value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        return (
+            parsed.scheme in {"http", "https"}
+            and bool(parsed.hostname)
+            and not parsed.username
+            and not parsed.password
+            and not parsed.query
+            and not parsed.fragment
+        )
+    except ValueError:
+        return False
 
 
 async def _maybe_await(value):
@@ -138,6 +173,7 @@ async def _platforms(plugin) -> list[dict]:
         out.append({
             "platform": str(meta.id),
             "name": str(meta.adapter_display_name or meta.name or meta.id),
+            "uin": "",
             "groups": groups,
             "error": error,
             "support_proactive": bool(getattr(meta, "support_proactive_message", True)),
@@ -312,6 +348,8 @@ async def _groups_handler(plugin):
 async def _search_handler(plugin):
     if plugin._cfg().get("localLibrary", True) is False:
         return error_response("本地曲库开关已关闭", status_code=400)
+    if not _has_api_token(plugin):
+        return _token_required()
     q = str(request.query.get("q", "") or "").strip()
     try:
         limit = max(1, min(200, int(request.query.get("limit", 30) or 30)))
@@ -332,6 +370,7 @@ async def _search_handler(plugin):
             if isinstance(item, dict) and _ID_RE.fullmatch(str(item.get("id") or ""))
         ]
         return json_response({
+            "q": q,
             "query": q,
             "items": items,
             "total": int(data.get("total") or len(items)) if isinstance(data, dict) else len(items),
@@ -344,6 +383,8 @@ async def _search_handler(plugin):
 async def _send_handler(plugin):
     if plugin._cfg().get("localLibrary", True) is False:
         return error_response("本地曲库开关已关闭", status_code=400)
+    if not _has_api_token(plugin):
+        return _token_required()
     payload = await request.json(default={})
     if not isinstance(payload, dict):
         return error_response("请求体必须是 JSON 对象", status_code=400)
@@ -399,6 +440,31 @@ async def _job_handler(plugin):
     return json_response(_public_job(job))
 
 
+async def _api_config_handler(plugin):
+    if str(getattr(request, "method", "GET")).upper() == "POST":
+        payload = await request.json(default={})
+        if not isinstance(payload, dict):
+            return error_response("请求体必须是 JSON 对象", status_code=400)
+        api_base = qqapi.normalize_api_base(payload.get("apiBase"))
+        if not _valid_api_base(api_base):
+            return error_response(
+                "API 地址格式不正确，请填写 http/https 地址或裸域名",
+                status_code=400,
+            )
+        plugin.config["apiBase"] = api_base
+        plugin.config["apiToken"] = str(payload.get("apiToken") or "").strip()
+        save = getattr(plugin.config, "save_config", None)
+        if callable(save):
+            save()
+        return json_response({"message": "API 配置已保存"})
+    cfg = plugin._cfg()
+    return json_response({
+        "apiBase": qqapi.normalize_api_base(cfg.get("apiBase")),
+        "apiToken": qqapi._token_from_cfg(cfg),
+        "hasToken": _has_api_token(plugin),
+    })
+
+
 def register_web_api(plugin):
     register = getattr(plugin.context, "register_web_api", None)
     if not callable(register):
@@ -419,4 +485,8 @@ def register_web_api(plugin):
     register(
         f"{ROUTE}/job", lambda: _job_handler(plugin), ["GET"],
         "Read a local library send job",
+    )
+    register(
+        f"{ROUTE}/api-config", lambda: _api_config_handler(plugin), ["GET", "POST"],
+        "Read or save the API base and token",
     )

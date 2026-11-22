@@ -1,7 +1,11 @@
-"""Draw QQ Music cards in Python; no browser, JavaScript or template engine."""
+"""QQ Music cards: shared HTML themes via Chromium, with a Pillow fallback."""
 from __future__ import annotations
 
 import asyncio
+import json
+import math
+import os
+import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
@@ -10,6 +14,13 @@ from urllib.parse import urlsplit
 
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageOps
+
+try:
+    from astrbot.api import logger
+except Exception:  # pragma: no cover - 独立运行/单测环境没有 AstrBot
+    import logging
+
+    logger = logging.getLogger("astrbot")
 
 ROOT = Path(__file__).resolve().parent
 FONT = ROOT / "astrbot_assets" / "fonts" / "QQM-CJK-Regular.otf"
@@ -290,33 +301,482 @@ def _decode_cover(payload):
         return image.convert("RGB")
 
 
+# ══════════════════ HTML 主题渲染（与 Yunzai/Karin 完全同源） ══════════════════
+#
+# 三端共用同一套 resources/themes/<id>/*.html + _base.css。AstrBot 端不再用
+# Pillow 重画一套“相似但不一样”的卡片，而是把同一份 art-template 模板交给
+# 无头 Chromium 渲染，再按 Yunzai 的同一组参数截图：640/660 视口、3x DPR
+# （超过像素预算降 2x）、.page 元素截图、不透明主题底色、JPEG q92。
+#
+# Pillow 渲染器保留为降级路径：没有 Playwright / Chromium / 系统库时仍能出图。
+
+RESOURCES = ROOT / "resources"
+THEMES_DIR = RESOURCES / "themes"
+ART_RUNTIME = RESOURCES / "vendor" / "art-template-web.js"
+DEFAULT_THEME = "classic"
+CARD_PIXEL_BUDGET = 8_000_000
+IMAGE_QUALITY = 92
+_CHROME_ARGS = [
+    "--no-sandbox",
+    "--disable-setuid-sandbox",
+    "--disable-dev-shm-usage",
+    "--font-render-hinting=none",
+    "--enable-font-antialiasing",
+    "--hide-scrollbars",
+]
+
+_THEME_ALIASES = {
+    "经典": "classic",
+    "classic": "classic",
+    "apple": "apple",
+    "apple 风": "apple",
+    "苹果": "apple",
+    "nebula": "nebula",
+    "星云": "nebula",
+    "multi": "multi",
+    "多平台": "multi",
+}
+
+_manifest_cache: dict[str, tuple[float, dict]] = {}
+
+
+def _load_manifest(theme_id: str) -> dict:
+    path = THEMES_DIR / theme_id / "theme.json"
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+    cached = _manifest_cache.get(theme_id)
+    if cached and cached[0] == mtime:
+        return cached[1]
+    try:
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            manifest = {}
+    except (OSError, ValueError):
+        manifest = {}
+    _manifest_cache[theme_id] = (mtime, manifest)
+    return manifest
+
+
+def _time_period(dt: datetime | None = None) -> str:
+    hour = (dt or datetime.now()).hour
+    if 5 <= hour < 8:
+        return "dawn"
+    if 8 <= hour < 17:
+        return "day"
+    if 17 <= hour < 20:
+        return "dusk"
+    return "night"
+
+
+def _dark_pref(value) -> str:
+    if value is True:
+        return "dark"
+    if value is False or value is None or value == "":
+        return "light"
+    text = str(value).strip().lower()
+    if text in {"auto", "time", "自动"}:
+        return "auto"
+    if text in {"true", "1", "yes", "on", "dark", "深色"}:
+        return "dark"
+    return "light"
+
+
+@dataclass(frozen=True)
+class Theme:
+    id: str
+    manifest: dict
+    dark: bool
+    period: str
+
+    @property
+    def page_bg(self) -> str:
+        page_bg = self.manifest.get("pageBg")
+        if not isinstance(page_bg, dict):
+            page_bg = {}
+        mode = "dark" if self.dark else "light"
+        return str(page_bg.get(mode) or page_bg.get("light") or "#F2F2F7")
+
+    @property
+    def viewport_width(self) -> int:
+        try:
+            width = int(self.manifest.get("viewportWidth") or 640)
+        except (TypeError, ValueError):
+            width = 640
+        return width if width > 0 else 640
+
+
+def resolve_theme(cfg: dict | None = None) -> Theme:
+    cfg = cfg or {}
+    requested = str(cfg.get("uiTheme") or "").strip()
+    theme_id = _THEME_ALIASES.get(requested.lower(), _THEME_ALIASES.get(requested, ""))
+    if not theme_id or not (THEMES_DIR / theme_id / "theme.json").is_file():
+        theme_id = DEFAULT_THEME
+    manifest = _load_manifest(theme_id)
+    period = "day" if cfg.get("uiTimeColor") is False else _time_period()
+    pref = _dark_pref(cfg.get("uiDark"))
+    dark = manifest.get("dark") is True and (
+        pref == "dark" or (pref == "auto" and period == "night")
+    )
+    return Theme(theme_id, manifest, dark, period)
+
+
+def _rewrite_resources(html: str, res_url: str) -> str:
+    html = re.sub(r'(src|href)="(?:\./)?resources/', rf'\1="{res_url}', html)
+    html = re.sub(r'url\((["\'])?(?:\./)?resources/', rf"url(\1{res_url}", html)
+    return html
+
+
+_SET_BACKGROUND_JS = """(bg) => {
+    document.documentElement.style.background = bg;
+    document.body.style.background = bg;
+    document.documentElement.style.width = 'fit-content';
+    document.body.style.width = 'fit-content';
+    document.documentElement.style.margin = '0';
+    document.body.style.margin = '0';
+}"""
+
+_WAIT_ASSETS_JS = """async () => {
+    try {
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    } catch (e) {}
+    const images = Array.from(document.images || []);
+    const pending = images.map((img) => (
+        img.complete ? Promise.resolve() : new Promise((resolve) => {
+            img.addEventListener('load', resolve, { once: true });
+            img.addEventListener('error', resolve, { once: true });
+        })
+    ));
+    await Promise.race([
+        Promise.all(pending),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
+}"""
+
+_WAIT_FRAMES_JS = """([count, timeout]) => new Promise((resolve) => {
+    let done = false;
+    let left = count;
+    const finish = () => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(1);
+    };
+    const timer = setTimeout(finish, timeout);
+    const tick = () => {
+        left -= 1;
+        if (left <= 0) finish();
+        else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+})"""
+
+
+async def _wait_frames(page, count: int = 2, timeout_ms: int = 1000) -> None:
+    await page.evaluate(_WAIT_FRAMES_JS, [count, timeout_ms])
+
+
+class _BrowserHost:
+    """常驻 Chromium；浏览器/依赖不可用时短路，后续直接走 Pillow。"""
+
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._playwright = None
+        self._browser = None
+        self._failed = False
+        self._hint_logged = False
+
+    @staticmethod
+    def _launch_options() -> list[dict]:
+        options: list[dict] = []
+        env = os.environ.get("QQMUSIC_CHROME_PATH") or os.environ.get("CHROME_PATH")
+        if env:
+            options.append({"executable_path": env})
+        for candidate in (
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+        ):
+            if os.path.isfile(candidate):
+                options.append({"executable_path": candidate})
+        options.extend([{"channel": "chrome"}, {"channel": "msedge"}, {}])
+        return options
+
+    def _hint(self, reason: str) -> None:
+        if self._hint_logged:
+            logger.warning(f"[qqmusic] 卡片浏览器渲染不可用（{reason}），已回退 Pillow")
+            return
+        self._hint_logged = True
+        logger.error(
+            "[qqmusic] 卡片浏览器渲染不可用（%s）。卡片已回退 Pillow。\n"
+            "如需与 Yunzai/Karin 完全一致的主题卡片，请安装：\n"
+            "  pip install playwright\n"
+            "  python -m playwright install chromium\n"
+            "（已有系统 Chrome/Edge 时可不下载 Chromium）",
+            reason,
+        )
+
+    async def get(self):
+        if self._browser is not None:
+            return self._browser
+        if self._failed:
+            return None
+        async with self._lock:
+            if self._browser is not None:
+                return self._browser
+            if self._failed:
+                return None
+            try:
+                from playwright.async_api import async_playwright
+            except Exception as exc:  # noqa: BLE001
+                self._failed = True
+                self._hint(f"缺少依赖 {exc}")
+                return None
+            playwright = None
+            try:
+                playwright = await async_playwright().start()
+                last_error = None
+                for kwargs in self._launch_options():
+                    try:
+                        browser = await playwright.chromium.launch(
+                            headless=True, args=_CHROME_ARGS, **kwargs
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        last_error = exc
+                        continue
+                    self._playwright = playwright
+                    self._browser = browser
+                    logger.info(
+                        "[qqmusic] 卡片渲染已启用 Chromium（主题模板与 Yunzai/Karin 同源）"
+                    )
+                    return browser
+                self._failed = True
+                self._hint(f"无法启动 Chromium：{last_error}")
+                try:
+                    await playwright.stop()
+                except Exception:  # noqa: BLE001
+                    pass
+                return None
+            except Exception as exc:  # noqa: BLE001
+                self._failed = True
+                self._hint(f"Playwright 启动失败：{exc}")
+                if playwright is not None:
+                    try:
+                        await playwright.stop()
+                    except Exception:  # noqa: BLE001
+                        pass
+                return None
+
+    async def close(self) -> None:
+        browser, playwright = self._browser, self._playwright
+        self._browser = None
+        self._playwright = None
+        if browser is not None:
+            try:
+                await browser.close()
+            except Exception:  # noqa: BLE001
+                pass
+        if playwright is not None:
+            try:
+                await playwright.stop()
+            except Exception:  # noqa: BLE001
+                pass
+        self._failed = False
+        self._hint_logged = False
+
+
 class Renderer:
     def __init__(self):
         self._limit = asyncio.Semaphore(2)
         self._active = set()
         self._closed = False
+        self._host = _BrowserHost()
+        self._fallback_logged = False
 
     async def render(self, kind, data, target, cfg):
         async with self._limit:
             if self._closed:
                 raise RuntimeError("绘图组件已关闭")
+            cfg = cfg or {}
+            target = Path(target)
+            engine = str(cfg.get("renderEngine") or "html").strip().lower()
+            if engine != "pillow":
+                job = asyncio.create_task(
+                    self._render_html(kind, data, str(target), cfg)
+                )
+                self._active.add(job)
+                job.add_done_callback(self._active.discard)
+                try:
+                    if await asyncio.shield(job):
+                        return
+                except asyncio.CancelledError:
+                    await asyncio.gather(job, return_exceptions=True)
+                    target.unlink(missing_ok=True)
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    if not self._fallback_logged:
+                        self._fallback_logged = True
+                        logger.warning(
+                            f"[qqmusic] HTML 卡片渲染失败（{type(exc).__name__}: {exc}），回退 Pillow"
+                        )
+                if not target.exists() and not self._fallback_logged:
+                    self._fallback_logged = True
+                    logger.warning("[qqmusic] HTML 卡片渲染未产出文件，回退 Pillow")
+
             card = describe(kind, data)
-            job = asyncio.create_task(self._render(card, target, cfg))
+            job = asyncio.create_task(self._render_pillow(card, str(target), cfg))
             self._active.add(job)
             job.add_done_callback(self._active.discard)
             try:
                 await asyncio.shield(job)
             except asyncio.CancelledError:
-                # A worker thread cannot stop mid-save; keep it owned by the
-                # Star and remove its artifact before propagating cancellation.
                 await asyncio.gather(job, return_exceptions=True)
-                Path(target).unlink(missing_ok=True)
+                target.unlink(missing_ok=True)
                 raise
 
-    async def _render(self, card, target, cfg):
-        cover = await _artwork(card.cover) if card.cover and cfg.get("renderCover", False) else None
+    async def _render_pillow(self, card, target, cfg):
+        cover = (
+            await _artwork(card.cover)
+            if card.cover and cfg.get("renderCover", False)
+            else None
+        )
         await asyncio.to_thread(_redraw, card, target, cfg, cover)
+
+    # ────────── Chromium 截图主路径 ──────────
+
+    async def _render_html(self, kind, data, target: str, cfg: dict) -> bool:
+        browser = await self._host.get()
+        if browser is None:
+            return False
+        card = kind if kind.startswith("qqmusic-") else f"qqmusic-{kind}"
+        theme = resolve_theme(cfg)
+        tpl_path = THEMES_DIR / theme.id / f"{card}.html"
+        if not tpl_path.is_file():
+            tpl_path = THEMES_DIR / DEFAULT_THEME / f"{card}.html"
+        if not tpl_path.is_file():
+            return False
+        if not ART_RUNTIME.is_file():
+            logger.warning("[qqmusic] 缺少 resources/vendor/art-template-web.js")
+            return False
+        try:
+            source = tpl_path.read_text(encoding="utf-8")
+            runtime = ART_RUNTIME.read_text(encoding="utf-8")
+        except OSError as exc:
+            logger.warning(f"[qqmusic] 读取卡片模板失败: {exc}")
+            return False
+        res_url = RESOURCES.as_uri().rstrip("/") + "/"
+        try:
+            box = await self._capture(
+                browser, 3, tpl_path, source, runtime, data, theme, res_url, target
+            )
+            if box and box[0] * box[1] * 9 > CARD_PIXEL_BUDGET:
+                # 与 Yunzai 的 deviceScaleFor() 同口径：长卡降到 2x，控制图片体积。
+                box = await self._capture(
+                    browser, 2, tpl_path, source, runtime, data, theme, res_url, target
+                )
+            return bool(box) and Path(target).is_file()
+        except Exception as exc:  # noqa: BLE001
+            Path(target).unlink(missing_ok=True)
+            raise
+
+    async def _capture(
+        self,
+        browser,
+        dpr: int,
+        tpl_path: Path,
+        source: str,
+        runtime: str,
+        data: dict,
+        theme: Theme,
+        res_url: str,
+        target: str,
+    ):
+        width = theme.viewport_width
+        context = await browser.new_context(
+            viewport={"width": width, "height": 2200},
+            device_scale_factor=dpr,
+            color_scheme="dark" if theme.dark else "light",
+        )
+        page = await context.new_page()
+        try:
+            await page.goto(tpl_path.as_uri(), wait_until="load", timeout=60000)
+            await page.add_script_tag(content=runtime)
+            html = await page.evaluate(
+                "([source, data]) => template.render(source, {data})", [source, data]
+            )
+            if not isinstance(html, str) or not html.strip():
+                raise RuntimeError("模板渲染结果为空")
+            html = _rewrite_resources(html, res_url)
+            html = re.sub(
+                r"<html\b",
+                '<html data-theme="%s" data-mode="%s" data-time="%s"' % (
+                    theme.id,
+                    "dark" if theme.dark else "light",
+                    theme.period,
+                ),
+                html,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            await page.evaluate(
+                "(html) => {document.open();document.write(html);document.close();}",
+                html,
+            )
+            await page.evaluate(_SET_BACKGROUND_JS, theme.page_bg)
+            await page.evaluate(_WAIT_ASSETS_JS)
+            await _wait_frames(page)
+
+            element = (
+                await page.query_selector(".page")
+                or await page.query_selector(".card")
+                or await page.query_selector("body")
+            )
+            if element is None:
+                raise RuntimeError("模板里没有可截图的元素")
+            box = await element.bounding_box()
+            if not box:
+                raise RuntimeError("卡片尺寸为 0")
+            need_w = math.ceil(box["x"] + box["width"] + 4)
+            need_h = math.ceil(box["y"] + box["height"] + 4)
+            if need_w > width or need_h > 2200:
+                await page.set_viewport_size(
+                    {"width": max(width, need_w), "height": max(2200, need_h)}
+                )
+                await _wait_frames(page)
+                element = (
+                    await page.query_selector(".page")
+                    or await page.query_selector(".card")
+                    or await page.query_selector("body")
+                )
+                box = await element.bounding_box() if element else None
+                if not box:
+                    raise RuntimeError("调整视口后卡片尺寸为 0")
+
+            suffix = Path(target).suffix.lower()
+            if suffix == ".png":
+                await element.screenshot(
+                    path=target, type="png", omit_background=False
+                )
+            else:
+                await element.screenshot(
+                    path=target,
+                    type="jpeg",
+                    quality=IMAGE_QUALITY,
+                    omit_background=False,
+                )
+            return (box["width"], box["height"])
+        finally:
+            try:
+                await context.close()
+            except Exception:  # noqa: BLE001
+                pass
 
     async def close(self):
         self._closed = True
         await asyncio.gather(*self._active, return_exceptions=True)
+        await self._host.close()

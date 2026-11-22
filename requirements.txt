@@ -1,2 +1,5 @@
 aiohttp>=3.11.18,<4
 Pillow>=11.2.1,<14
+# Card themes share the same HTML/CSS as the Yunzai/Karin branches.
+# Falls back to Pillow when Playwright/Chromium is unavailable.
+playwright>=1.40.0

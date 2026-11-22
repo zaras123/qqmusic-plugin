@@ -1,8 +1,6 @@
 # QQ 音乐 · AstrBot
 
-AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解析、演出票务和本地图卡。插件对接已部署的 `qqmusic-api-enhanced`，**不需要 Node.js、Karin、浏览器或远程渲染服务**，但仍需要能访问音乐 API。
-
-仓库：<https://github.com/zaras123/astrbot_plugin_qqmusic>
+AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解析、演出票务和本地图卡。插件对接已部署的 `qqmusic-api-enhanced`，**不需要 Node.js、Karin 或远程渲染服务**；卡片默认用本机 Chromium 渲染与 Yunzai/Karin 相同的 HTML 主题，缺少浏览器时自动回退 Pillow。
 
 纯 Python 重构已完成，功能未与 Karin 版完全对齐。未迁移项见[迁移差异](#迁移差异)。
 
@@ -13,7 +11,7 @@ AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解�
 ## 安装
 
 1. 用 **AstrBot 4.29.4** 和 **Python 3.12+**。将 ZIP 内的 `astrbot_plugin_qqmusic` 目录解压到 AstrBot 的 `data/plugins/`。从 Git 安装时直接使用本仓库默认分支；本仓库只放 AstrBot 插件。
-2. 用 **AstrBot 正在使用的 Python 环境**安装插件的 `requirements.txt`，然后在插件管理页加载或重载。
+2. 用 **AstrBot 正在使用的 Python 环境**安装插件的 `requirements.txt`，然后在插件管理页加载或重载。卡片主题需要 Playwright：装完依赖后再执行 `python -m playwright install chromium`（已有系统 Chrome/Edge 时可跳过下载）。没有浏览器时不会报错，只是回退到 Pillow 简化卡片。
 3. 在插件配置填写 `apiBase`（不重定向的最终地址）与 `apiToken`（后端启用鉴权时填写，不要发到群里）。管理员先发 `#qqm测试`，再用 `#qqm点歌 晴天`、`#qqm听1` 验证搜索和投递。
 4. 试听与部分音频转换需宿主机安装 FFmpeg 并加入 PATH；普通卡片渲染不需要 FFmpeg。
 
@@ -22,15 +20,15 @@ AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解�
 | 目标 | 要改什么 |
 | --- | --- |
 | 开启第三方音源 | 打开 `unlockV2`，并在 `enabledSources` 中加入所需来源，例如 `netease`；具体可用性取决于 API 和账号。 |
-| 控制图片卡 | `renderListCard` 控制出图，`imageFormat` 选 PNG/JPEG，`uiTheme` 和 `uiDark` 切换配色与明暗。绘制或图片投递失败时可降级为文本。 |
-| 封面和生僻字 | Pillow 默认离线绘图，内置 Noto Sans SC 中文字体子集。`renderCover` 可选用公开 CDN 封面，`renderFontPath` 可指定本机字体。 |
+| 控制图片卡 | `renderListCard` 控制出图，`imageFormat` 选 PNG/JPEG，`uiTheme`（classic / apple / nebula / multi）和 `uiDark` 切换主题与明暗。`renderEngine=html` 使用与 Yunzai/Karin 同源的模板，`pillow` 强制本地简化绘图。绘制或图片投递失败时可降级为文本。 |
+| 封面和生僻字 | HTML 主题与 Yunzai/Karin 共用 Noto Sans SC 子集和四套模板；回退 Pillow 时使用内置 `QQM-CJK-Regular.otf`。`renderCover` 只影响 Pillow 回退路径。 |
 | 控制媒体投递 | `sendVocal`、`uploadFile` 分别控制语音和文件；`sendNativeCard` 只在 OneBot V11 有对应路径。 |
 
 音源偏好、统计、订阅和定时任务存入 AstrBot 的插件 KV；媒体临时文件默认保存在插件数据目录，不写回插件源码目录。
 
 ## 本地曲库 WebUI
 
-在 AstrBot 插件详情页打开「本地曲库点歌」视图：搜索 API 本地曲库，勾选歌曲和已连接平台的群聊，即可直接投递原文件。页面只拿曲库 ID 和元数据，带 token 的音频地址由插件后端重新获取；发送任务在后台执行，页面会显示每首歌到每个群的结果。适合一次补发/群发，不依赖群里先发命令。
+在 AstrBot 插件详情页打开「本地曲库点歌」视图：搜索 API 本地曲库，勾选歌曲和已连接平台的群聊，即可直接投递原文件。页面与 Yunzai / Karin 分支使用同一套 HTML/CSS/主逻辑，统一为「曲库检索 / 发送任务 / 说明」，右上角「插件设置」只配置 API 地址和 Token。未配置 Token 时搜索和发送会在服务端直接拒绝，不会请求 API 本地曲库。
 
 ## 命令
 
@@ -81,7 +79,7 @@ AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解�
 | QQ 群「一起听」 | **未迁移**。AstrBot 公共适配器不提供房间控制接口。 |
 | 平台听歌时长上报任务 | **未迁移**。仅保留本地投递统计、官方时长与勋章只读查询。 |
 | 损坏曲库文件修复 | 本地音频下载或格式校验失败时，符合条件的 QQ 曲目会尝试改用官方音源；**不会自动覆盖**后端曲库文件。 |
-| 主题与 WebUI | 用 Pillow 重绘卡片，设置采用 AstrBot 原生配置 Schema；不复刻 Karin 的主题细节、背景或 WebUI 控件。 |
+| 主题与 WebUI | 卡片复用 Yunzai/Karin 的 `resources/themes`（classic / apple / nebula / multi，含浅色/深色与时段底色）；本地曲库管理页三平台统一，AstrBot 侧通过原生 WebUI bridge 接入，其余插件配置仍使用 AstrBot 原生 Schema。 |
 
 - 从 Karin 或旧 Python 移植升级：账号槽按 AstrBot 适配器实例和用户隔离，原账号槽不会被误当成当前登录；需要本人重新登录或显式配置公共播放账号。
 - Python 基线来自 [wbndm 的 AstrBot 移植](https://github.com/wbndmqaq/astrbot_plugin_qqmusic)，保留其 [MIT 声明](astrbot_assets/LICENSE-WBNDM)。

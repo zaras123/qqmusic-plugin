@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 热搜</title>
+  <link rel="stylesheet" href="resources/themes/nebula/_base.css" />
+  <style>
+    .hot-row .row-main {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .hot-line {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .hot-word {
+      font-size: 17px;
+      line-height: 22px;
+      font-weight: 500;
+      letter-spacing: -0.1px;
+    }
+    .hot-val {
+      flex: none;
+      font-size: 13px;
+      line-height: 18px;
+      color: var(--label-2);
+      font-variant-numeric: tabular-nums;
+    }
+    .rank--1 {
+      color: var(--red);
+    }
+    .rank--2 {
+      color: var(--orange);
+    }
+    .rank--3 {
+      color: var(--gold);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music · 热搜</div>
+          <div class="t-hero">{{data.title || '热搜榜'}}</div>
+          <div class="t-sub hero-sub">{{data.subtitle || '实时热搜'}}</div>
+        </div>
+      </div>
+
+      <div class="group inset" style="margin-top:4px">
+        <div class="group-body">
+          {{each data.items item}}
+          <div class="row hot-row">
+            <div class="rank {{if item.index <= 3}}rank--{{item.index}}{{/if}}">{{item.index}}</div>
+            <div class="row-main">
+              <div class="hot-line">
+                <span class="hot-word truncate">{{item.word}}</span>
+                {{if item.hot}}<span class="hot-val">热度 {{item.hot}}</span>{{/if}}
+              </div>
+              <div class="bar {{if item.index <= 3}}bar--warm{{/if}}">
+                <i style="width:{{100 - (item.index - 1) * 5}}%"></i>
+              </div>
+            </div>
+          </div>
+          {{/each}}
+        </div>
+      </div>
+
+      {{if data.tip}}<div class="empty">{{data.tip}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

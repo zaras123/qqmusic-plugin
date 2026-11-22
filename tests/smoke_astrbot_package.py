@@ -68,7 +68,7 @@ async def smoke():
         with patch("asyncio.create_subprocess_exec", side_effect=AssertionError("changelog requires git")):
             await next(h for h in handlers if h.handler_name == "update_log").handler(event)
         text = "\n".join(getattr(c, "text", "") for c in messages)
-        assert loaded.version in text and "默认离线绘制卡片" in text
+        assert loaded.version in text and "默认用 Chromium 渲染" in text
         print(f"Dashboard changelog + ZIP update command + short description OK | {loaded.version}", flush=True)
         if output := os.environ.get("QQMUSIC_SMOKE_PREVIEW"):
             from astrbot.api.message_components import Image

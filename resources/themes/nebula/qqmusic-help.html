@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 帮助</title>
+  <link rel="stylesheet" href="resources/themes/nebula/_base.css" />
+  <style>
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: var(--fill-3);
+      object-fit: contain;
+      flex: none;
+    }
+    .cmd-name {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace, "QQM CJK";
+      font-size: 15px;
+      letter-spacing: -0.2px;
+    }
+    .cmd-example {
+      font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace, "QQM CJK";
+      font-size: 12px;
+    }
+    .tip {
+      padding: 16px var(--pad) 0;
+    }
+    .card--detail .row { display: block; }
+    .card--detail .cmd-example { display: inline-block; margin-top: 7px; max-width: 100%; white-space: normal; overflow-wrap: anywhere; line-height: 1.6; }
+    .card--detail .row-sub { white-space: normal; overflow: visible; text-overflow: clip; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card{{if data.detail}} card--detail{{/if}}">
+      <div class="hero">
+        <div class="hero-main">
+          <div class="brand-row">
+            {{if data.logo}}<img class="brand-logo" src="{{data.logo}}" alt="logo" />{{/if}}
+            <div style="min-width:0">
+              <div class="hero-eyebrow">QQ Music Plugin</div>
+              <div class="t-hero">{{data.title || 'QQ音乐帮助'}}</div>
+            </div>
+          </div>
+          <div class="t-sub hero-sub">{{data.subtitle || '常用功能 · 分类帮助'}}</div>
+        </div>
+      </div>
+
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-v t-num">{{data.statCommands}}</div>
+          <div class="stat-k">指令</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v">{{data.statQuality}}</div>
+          <div class="stat-k">最高音质</div>
+        </div>
+        <div class="stat">
+          <div class="stat-v">{{data.statMode}}</div>
+          <div class="stat-k">运行模式</div>
+        </div>
+      </div>
+
+      {{each data.sections section}}
+      <div class="group inset">
+        <div class="group-title">
+          <span class="t-caption">{{section.title}}</span>
+          {{if section.tag}}<span class="pill">{{section.tag}}</span>{{/if}}
+        </div>
+        <div class="group-body">
+          {{each section.items item}}
+          <div class="row row--plain">
+            <div class="row-main">
+              <div class="row-title cmd-name truncate">{{item.name}}</div>
+              <div class="row-sub truncate">{{item.desc}}</div>
+            </div>
+            {{if item.example}}<span class="pill pill--accent cmd-example">{{item.example}}</span>{{/if}}
+          </div>
+          {{/each}}
+        </div>
+      </div>
+      {{/each}}
+
+      {{if data.tip}}<div class="tip t-foot">{{data.tip}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>QQ音乐 · 歌词</title>
+  <link rel="stylesheet" href="resources/themes/multi/_base.css" />
+  <style>
+    /* 歌词：阅读优先 —— 18px/1.9，字色略淡，行与行之间留白靠行高而非 margin */
+    .lyric {
+      padding: 4px var(--pad) 8px;
+    }
+    .lyric p {
+      font-size: 18px;
+      line-height: 34px;
+      color: var(--label);
+      letter-spacing: 0.1px;
+    }
+    .lyric p.blank {
+      height: 18px;
+      line-height: 18px;
+    }
+    .head-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .head-cover {
+      width: 56px;
+      height: 56px;
+      border-radius: 12px;
+      background: var(--fill-3) center/cover no-repeat;
+      flex: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="card">
+      <div class="hero">
+        {{if data.cover}}
+        <div class="head-cover" style="background-image:url('{{data.cover}}')"></div>
+        {{/if}}
+        <div class="hero-main">
+          <div class="hero-eyebrow">QQ Music · 歌词</div>
+          <div class="t-title truncate">{{data.songName || '未知歌曲'}}</div>
+          <div class="t-sub truncate" style="margin-top:4px">
+            {{data.singerName || '未知歌手'}}{{if data.albumName}} · {{data.albumName}}{{/if}}{{if data.lineCount}} · 共 {{data.lineCount}} 行{{/if}}
+          </div>
+        </div>
+      </div>
+
+      <div class="group inset" style="margin-top:4px">
+        <div class="lyric">
+          {{each data.lines line}}
+          {{if line}}<p>{{line}}</p>{{else}}<p class="blank"></p>{{/if}}
+          {{/each}}
+        </div>
+      </div>
+
+      {{if data.tip}}<div class="empty">{{data.tip}}</div>{{/if}}
+
+      <div class="foot">
+        <span class="foot-brand">qqmusic-plugin</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

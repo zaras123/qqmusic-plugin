@@ -403,7 +403,7 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_real_python_renderer(self):
         e = FakeEvent("#qqm演出")
-        self.config.update(renderListCard=True, renderCover=False)
+        self.config.update(renderListCard=True, renderCover=False, renderEngine="pillow")
         rendered = await asyncio.gather(self.star._render_card(e, {"title": "票务·测试", "rows": ["中文标题"]}, "summary"),
                                        self.star._render_card(e, {"title": "票务·并发", "rows": ["第二张"]}, "summary"))
         self.assertTrue(all(rendered))
@@ -420,7 +420,9 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_card_layouts_offline_and_png_theme(self):
         e = FakeEvent("#qqm帮助")
-        self.config.update(renderListCard=True, imageFormat="png", uiTheme="nebula")
+        self.config.update(
+            renderListCard=True, imageFormat="png", uiTheme="nebula", renderEngine="pillow"
+        )
         shapes = {
             "list": {"keyword": "中文列表", "total": 1, "songs": [{"songName": "一首歌", "singerName": "歌手", "hasMv": True}]},
             "hot": {"items": [{"word": "中文热搜"}]},

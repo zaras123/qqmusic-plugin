@@ -208,9 +208,23 @@
       "自动"
     ]
   },
+  "uiTimeColor": {
+    "type": "bool",
+    "description": "主题底色跟随时间段（清晨/白天/黄昏/夜晚；仅 2.0 主题生效）",
+    "default": true
+  },
+  "renderEngine": {
+    "type": "string",
+    "description": "卡片渲染引擎（html 与 Yunzai/Karin 同源；缺少浏览器时自动回退 pillow）",
+    "default": "html",
+    "options": [
+      "html",
+      "pillow"
+    ]
+  },
   "imageFormat": {
     "type": "string",
-    "description": "Python 本地图片格式",
+    "description": "卡片图片格式",
     "default": "jpeg",
     "options": [
       "jpeg",

@@ -3,92 +3,169 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>本地曲库点歌</title>
+    <title>QQ音乐管理</title>
+    <link rel="icon" type="image/png" href="./logo.png" />
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <main class="page">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">QQ 音乐 · 本地曲库</p>
-          <h1>点歌并发送到群</h1>
-          <p class="sub">直接读取 API 本地曲库，按 ID 投递原文件，不走重新匹配。</p>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark"><img src="./logo.png" alt="QQ音乐" /></span>
+          <span class="brand-word">QQM<em>studio</em></span>
         </div>
-        <div class="hero-actions">
-          <button id="refresh-groups" class="btn ghost" type="button">刷新群列表</button>
-          <button id="refresh-latest" class="btn ghost" type="button">最新入库</button>
+        <div class="crumb">QQM / LOCAL LIBRARY / CONSOLE</div>
+        <div class="top-actions">
+          <span id="status-pill" class="live">正在连接…</span>
+          <button id="theme-toggle" class="link-btn" type="button">DARK</button>
+          <button id="refresh-groups" class="link-btn" type="button">刷新群列表</button>
+          <button id="open-settings" class="link-btn hidden" type="button">插件设置</button>
+          <button id="refresh" class="link-btn" type="button">刷新本页</button>
         </div>
       </header>
 
-      <section class="panel search-panel">
-        <label class="field grow">
-          <span>搜索本地曲库</span>
-          <input id="query" type="search" autocomplete="off" placeholder="歌名 / 歌手 / 专辑 / songmid；留空看最新入库" />
-        </label>
-        <label class="field compact">
-          <span>数量</span>
-          <select id="limit">
-            <option value="20">20</option>
-            <option value="50" selected>50</option>
-            <option value="100">100</option>
-            <option value="200">200</option>
-          </select>
-        </label>
-        <button id="search" class="btn primary" type="button">搜索</button>
+      <section class="masthead">
+        <div class="mast-copy">
+          <p class="kicker">LOCAL LIBRARY / 本地曲库</p>
+          <h1>把本地收藏<br /><span>送进群里。</span></h1>
+          <p class="lede">
+            检索 API 本地曲库，按 ID 投递原文件。带签名的音频地址只在服务端使用，
+            不回传浏览器。
+          </p>
+        </div>
+        <div class="mast-stats">
+          <div class="stat">
+            <span id="stat-tracks">00</span>
+            <small>TRACKS / 曲目</small>
+          </div>
+          <div class="stat">
+            <span id="stat-groups">00</span>
+            <small>GROUPS / 群</small>
+          </div>
+          <div class="stamp">QQM<br />2026</div>
+        </div>
+        <img class="mast-logo" src="./logo.png" alt="" />
       </section>
 
-      <div class="layout">
-        <section class="panel results-panel">
-          <div class="panel-head">
-            <div>
-              <h2>曲库结果</h2>
-              <p id="result-summary" class="muted">正在读取…</p>
-            </div>
-            <div class="inline-actions">
-              <button id="select-all" class="btn small ghost" type="button">全选可用</button>
-              <button id="clear-selection" class="btn small ghost" type="button">清空选择</button>
-            </div>
-          </div>
-          <div id="results" class="results" aria-live="polite"></div>
-        </section>
+      <nav class="tabs" role="tablist">
+        <button class="tab active" data-tab="library" type="button"><b>01</b> 曲库检索</button>
+        <button class="tab" data-tab="jobs" type="button"><b>02</b> 发送任务</button>
+        <button class="tab" data-tab="help" type="button"><b>03</b> 说明</button>
+      </nav>
 
-        <aside class="side">
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <h2>发送到群</h2>
-                <p class="muted">勾选已连接平台里的群，或手动补充群号。</p>
+      <main id="panel-library" class="panel-view">
+        <div class="workspace">
+          <section class="library">
+            <div class="searchline">
+              <span class="prompt">⌕</span>
+              <input id="query" type="search" autocomplete="off" placeholder="歌名 / 歌手 / 专辑 / songmid，留空看最新入库" />
+              <label class="limit">
+                <span>LIMIT</span>
+                <select id="limit">
+                  <option value="20">20</option>
+                  <option value="50" selected>50</option>
+                  <option value="100">100</option>
+                  <option value="200">200</option>
+                </select>
+              </label>
+              <button id="search" class="solid" type="button">检索</button>
+            </div>
+            <div id="config-warning" class="config-warning hidden">
+              <span>还没有配置 API Token，配置后才能搜索 API 本地曲库。</span>
+              <button id="config-warning-open" class="link-btn" type="button">打开插件设置</button>
+            </div>
+
+            <div class="list-head">
+              <span>#</span>
+              <span></span>
+              <span>曲目 / TRACK</span>
+              <span>来源 / SOURCE</span>
+              <span>时长</span>
+              <span></span>
+            </div>
+            <div id="results" class="results" aria-live="polite">
+              <p class="empty">正在读取曲库…</p>
+            </div>
+            <div class="list-foot">
+              <span id="result-summary" class="muted">正在读取…</span>
+              <div class="inline-actions">
+                <button id="select-all" class="link-btn" type="button">全选可用</button>
+                <button id="clear-selection" class="link-btn" type="button">清空选择</button>
               </div>
-            </div>
-            <div class="group-filter">
-              <input id="group-filter" type="search" placeholder="筛选群名 / 群号" autocomplete="off" />
-            </div>
-            <div id="groups" class="groups" aria-live="polite"></div>
-            <div class="manual">
-              <label class="field">
-                <span>手动补充群号</span>
-                <textarea id="manual-groups" rows="3" placeholder="每行一个群号，或用 平台|群号"></textarea>
-              </label>
-              <label class="field">
-                <span>手动群所属平台</span>
-                <select id="manual-platform"></select>
-              </label>
             </div>
           </section>
 
-          <section class="panel send-panel">
-            <div class="send-head">
-              <div>
-                <h2>投递</h2>
-                <p id="selection-summary" class="muted">未选择歌曲</p>
+          <aside class="queue">
+            <div class="queue-head">
+              <h2>发送队列</h2>
+              <span>SIDE B / 目标群</span>
+            </div>
+            <p class="queue-note">勾选已连接平台的群，或手动补充 QQ 群号。</p>
+            <input id="group-filter" class="queue-filter" type="search" placeholder="筛选群名 / 群号" autocomplete="off" />
+            <div class="queue-tools">
+              <span id="group-count">0 GROUPS</span>
+              <div class="queue-tool-actions">
+                <button id="select-all-groups" class="link-btn queue-link" type="button">全选</button>
+                <button id="clear-groups" class="link-btn queue-link" type="button">清空</button>
               </div>
-              <button id="send" class="btn primary" type="button">发送选中歌曲</button>
+            </div>
+            <div id="adapter-tabs" class="adapter-tabs"></div>
+            <div id="selected-groups" class="selected-groups hidden"></div>
+            <div id="groups" class="groups" aria-live="polite">
+              <p class="empty">正在读取群列表…</p>
+            </div>
+            <label class="manual">
+              <span>手动补充群号 / MANUAL</span>
+              <textarea id="manual-groups" rows="2" placeholder="每行一个群号，或用 平台|群号"></textarea>
+              <select id="manual-platform" class="manual-platform" aria-label="手动群所属适配器"></select>
+            </label>
+            <div class="send-bar">
+              <div>
+                <strong id="selection-summary">未选择歌曲</strong>
+                <small>发送到勾选的群</small>
+              </div>
+              <button id="send" class="send-btn" type="button">发送 <i>→</i></button>
             </div>
             <div id="job" class="job hidden" aria-live="polite"></div>
-          </section>
-        </aside>
-      </div>
-    </main>
+          </aside>
+        </div>
+      </main>
+
+      <section id="panel-jobs" class="panel-view hidden">
+        <div class="jobs-view">
+          <div class="jobs-head">
+            <div>
+              <p class="kicker">DELIVERY LOG</p>
+              <h2>发送任务</h2>
+            </div>
+            <span id="job-status" class="live">暂无任务</span>
+          </div>
+          <div id="job-large" class="job">
+            <p class="empty">还没有通过本页发送过歌曲。</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-help" class="panel-view hidden">
+        <div class="help-view">
+          <p class="kicker">HOW IT WORKS</p>
+          <h2>使用说明</h2>
+          <ol>
+            <li>在「曲库检索」搜索歌名、歌手、专辑或 songmid；留空搜索会列出最新入库。</li>
+            <li>在左侧曲目列表勾选歌曲，在右侧发送队列勾选目标群，或手动填写 QQ 群号。</li>
+            <li>点「发送」，任务在后台执行；「发送任务」可查看每首歌到每个群的结果。</li>
+            <li>首次使用先配置 API 地址和 Token；未配置 Token 时不会请求 API 本地曲库。</li>
+            <li>页面只提交曲库 ID 和群号，带签名的音频地址由服务端重新获取，不会回传到浏览器。</li>
+          </ol>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <span>QQM / LOCAL DELIVERY CONSOLE</span>
+        <span id="footer-state">READY</span>
+      </footer>
+    </div>
+    <script type="module" src="./bridge.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

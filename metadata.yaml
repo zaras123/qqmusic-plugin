@@ -1,9 +1,9 @@
 name: astrbot_plugin_qqmusic
 display_name: "QQ音乐点歌/解析插件"
-short_desc: 多音源点歌、歌词、MV、演出票务，支持本地图卡。
+short_desc: 多音源点歌、歌词、MV、演出票务，卡片主题与 Yunzai/Karin 一致。
 desc: |
   对接 qqmusic-api-enhanced，支持多音源点歌、歌词、MV、音乐分享解析、演出票务和定时点歌。
-  内置中文卡片渲染，无需浏览器；语音、视频与文件按适配器能力投递。
+  卡片与 Yunzai/Karin 共用四套 HTML 主题，浏览器缺失时回退本地绘图；语音、视频与文件按适配器能力投递。
 version: v2.1.18
 author: zaras123
 repo: https://github.com/zaras123/astrbot_plugin_qqmusic
