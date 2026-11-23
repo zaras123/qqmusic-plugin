@@ -364,7 +364,7 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(uploads, [])
         self.assertTrue(any(isinstance(c, C.Record) for msg in event.sent for c in msg.chain))
 
-    async def test_official_bot_prefers_mp3_file(self):
+    async def test_official_bot_sends_voice_and_lossless_file(self):
         self.config.update(
             sendVocal=True,
             uploadFile=True,
@@ -388,8 +388,9 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         files = [c for msg in event.sent for c in msg.chain if isinstance(c, C.File)]
         records = [c for msg in event.sent for c in msg.chain if isinstance(c, C.Record)]
         self.assertEqual(len(files), 1)
-        self.assertTrue(files[0].name.endswith(".mp3"))
-        self.assertEqual(records, [])
+        self.assertTrue(files[0].name.endswith(".wav"))
+        self.assertFalse(files[0].name.endswith(".mp3"))
+        self.assertEqual(len(records), 1)
 
     async def test_local_audio_retries_official_without_writing(self):
         e = FakeEvent()

@@ -353,9 +353,6 @@ async def deliver_song(plugin, event, song, play, *, cfg, plugin_dir, options=No
         if preview:
             path = await _ffmpeg_mp3(path, max(5, min(60, int(cfg.get("previewSec", 30)))))
             files.add(path)
-        passive_limited = _is_passive_limited(event)
-        prefer_file = passive_limited and want_file
-
         async def send_voice_once():
             nonlocal text, sent
             voice = await _ffmpeg_mp3(path)
@@ -364,57 +361,51 @@ async def deliver_song(plugin, event, song, play, *, cfg, plugin_dir, options=No
             sent = True
             text = ""
 
-        if want_voice and not prefer_file:
+        if want_voice:
             try:
                 await send_voice_once()
             except Exception as exc:
                 plugin._log_warn(f"{platform} 语音转码/发送失败（{type(exc).__name__}），改发文件")
 
-        if want_file and (prefer_file or not (passive_limited and sent)):
-            file_path = path
-            # QQ 官方 / 微信公众号等被动回复平台：优先发文件，且尽量发压缩 mp3，
-            # 原 FLAC 体积大、格式也可能被官方文件接口拒绝。
-            if passive_limited and Path(path).suffix.lower() not in {".mp3", ".m4a"}:
-                try:
-                    file_path = await _ffmpeg_mp3(path)
-                    files.add(file_path)
-                except Exception as exc:
-                    plugin._log_warn(
-                        f"{platform} 文件压缩失败（{type(exc).__name__}），尝试原文件"
-                    )
-            name = build_music_filename(singer=singer, title=title, ext=Path(file_path).suffix)
-            file_sent = False
-            # OneBot 的 File 消息段在 NapCat/Lagrange 上常被 retcode 0 吞掉，
-            # 表现为“开了文件发送但群里没有文件”。aiocqhttp 优先走标准上传接口。
-            if (
-                platform == "aiocqhttp"
-                and hasattr(event, "get_group_id")
-                and hasattr(event, "get_sender_id")
-            ):
-                try:
-                    action = "upload_group_file" if event.get_group_id() else "upload_private_file"
-                    await onebot(event, action, {"file": file_path, "name": name})
-                    file_sent = True
-                    sent = True
-                except Exception as upload_exc:
-                    plugin._log_warn(
-                        f"{platform} 文件上传失败（{type(upload_exc).__name__}），尝试消息文件段"
-                    )
-            if not file_sent:
-                try:
-                    await plugin._send_chain(event, plugin._plain(text) if text else None, File(name, file=file_path))
-                    sent = True
-                except Exception as exc:
-                    plugin._log_warn(
-                        f"{platform} 文件发送失败（{type(exc).__name__}: {exc}）"
-                    )
+        if want_file:
+            async def send_file_once(fp: str) -> None:
+                name = build_music_filename(singer=singer, title=title, ext=Path(fp).suffix)
+                # OneBot 的 File 消息段在 NapCat/Lagrange 上常被 retcode 0 吞掉，
+                # 表现为“开了文件发送但群里没有文件”。aiocqhttp 优先走标准上传接口。
+                if (
+                    platform == "aiocqhttp"
+                    and hasattr(event, "get_group_id")
+                    and hasattr(event, "get_sender_id")
+                ):
+                    try:
+                        action = "upload_group_file" if event.get_group_id() else "upload_private_file"
+                        await onebot(event, action, {"file": fp, "name": name})
+                        return
+                    except Exception as upload_exc:
+                        plugin._log_warn(
+                            f"{platform} 文件上传失败（{type(upload_exc).__name__}: {upload_exc}），尝试消息文件段"
+                        )
+                await plugin._send_chain(event, plugin._plain(text) if text else None, File(name, file=fp))
 
-        # 官方文件优先时，文件失败仍回退语音，避免整首歌没有任何音频。
-        if prefer_file and not sent and want_voice:
+            file_sent = False
             try:
-                await send_voice_once()
+                # 优先发原始文件，尽量保留无损；官方接口拒绝大 FLAC 时再降级压缩 MP3。
+                await send_file_once(path)
+                file_sent = True
             except Exception as exc:
-                plugin._log_warn(f"{platform} 文件失败后的语音回退也失败（{type(exc).__name__}）")
+                plugin._log_warn(f"{platform} 原始文件发送失败（{type(exc).__name__}: {exc}）")
+                if Path(path).suffix.lower() not in {".mp3", ".m4a"}:
+                    try:
+                        compressed = await _ffmpeg_mp3(path)
+                        files.add(compressed)
+                        await send_file_once(compressed)
+                        file_sent = True
+                    except Exception as fallback_exc:
+                        plugin._log_warn(
+                            f"{platform} 压缩文件发送也失败（{type(fallback_exc).__name__}: {fallback_exc}）"
+                        )
+            if file_sent:
+                sent = True
     except Exception as exc:
         plugin._log_warn(f"媒体下载或校验失败（{type(exc).__name__}）")
     finally:
