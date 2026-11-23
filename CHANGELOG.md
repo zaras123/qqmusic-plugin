@@ -27,6 +27,7 @@
 - 恢复 OneBot 文件发送失败后的 upload_group_file / upload_private_file 降级。
 - 修复 sandbox iframe 下访问 localStorage 导致页面初始化中断。
 - 打包清单补入 views/library 与 resources/，发行包不再缺 WebUI 和卡片资源。
+- AstrBot 发行包字体精简为 GB2312 + Big5 常用字子集，ZIP 降到 12.8MB，满足插件市场 16 MiB 限制。
 
 ## v2.1.18
 
