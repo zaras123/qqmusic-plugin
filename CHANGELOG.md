@@ -2,6 +2,17 @@
 
 这里只记录 AstrBot 分支的版本；Karin 与 Yunzai 的历史不计入。
 
+## v2.1.20
+
+与 Yunzai / Karin 对齐到 2.1.20；本分支作为 AstrBot 插件的源码分支，修复同步到 `astrbot_plugin_qqmusic_ref`。
+
+- 本地曲库 WebUI 统一为「曲库检索 / 发送任务 / 说明」，与 Yunzai / Karin 同一套 HTML/CSS/JS 和 logo。
+- 补齐 poster / ticket / medal / listening / platform / platforms / guide 主题模板与 shared/ticket 片段。
+- 修复歌词卡片 camelCase 传参导致的 `#qqm歌词` 报错。
+- 恢复 OneBot 文件发送失败后的 upload_group_file / upload_private_file 降级。
+- 修复 sandbox iframe 下访问 localStorage 导致页面初始化中断。
+- 打包清单补入 views/library 与 resources/，发行包不再缺 WebUI 和卡片资源。
+
 ## v2.1.18
 
 首个 AstrBot 版本，沿用迁移基线版本号。
