@@ -9,7 +9,7 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import Config from '../components/Config.js'
 import { groupPlatforms } from '../utils/bridge.js'
 import { hasApiToken, normalizeTargets, searchLocalLibrary, startLibrarySend } from '../utils/library-web.js'
@@ -267,7 +267,7 @@ async function resolveBasePath() {
   }
 }
 
-async function patchMenus() {
+async function patchPrototypeMenus() {
   const GI = global.Guoba?.GI
   if (typeof GI !== 'function') return false
   try {
@@ -290,23 +290,61 @@ async function patchMenus() {
   }
 }
 
+async function patchServiceInstance() {
+  const GI = global.Guoba?.GI
+  if (typeof GI !== "function") return false
+  try {
+    const platform = await GI("@/models/platform.js")
+    const root = String(platform?._paths?.pluginRoot || "")
+    if (!root) return false
+    // 必须用无 query 的文件 URL：锅巴 DI 用 loadClass 的 ?timestamp 加载服务类，
+    // 通过 GI 再导入会得到另一个模块实例，改 prototype 不会影响实际服务。
+    const framework = await import(pathToFileURL(path.join(root, "framework", "index.js")).href)
+    const map = framework?.instancesMap
+    const service = map?.get?.("systemService") || map?.get?.("SystemService")
+    if (!service || typeof service.queryMenus !== "function") return false
+    if (service.__qqmusicMenuPatched) return true
+    const original = service.queryMenus.bind(service)
+    service.queryMenus = async function (...args) {
+      const menus = await original(...args)
+      if (!Array.isArray(menus) || menus.some((item) => item?.path === basePath)) return menus
+      menus.push(consoleMenuItem(basePath))
+      return menus
+    }
+    service.__qqmusicMenuPatched = true
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function patchMenus() {
+  await patchPrototypeMenus()
+  return await patchServiceInstance()
+}
+
 /**
  * 在 supportGuoba() 里调用。锅巴启动时 app/server 可能还没就绪，
- * 因此最多重试 30 秒（1 秒一次）；成功后自动停止。
+ * 因此最多重试 120 秒（1 秒一次）；菜单与页面都就绪后自动停止。
  */
 export function registerConsole() {
-  if (typeof global === 'undefined' || !global.Guoba) return
+  if (typeof global === 'undefined') return
   if (stopped || retryTimer) return
   const tick = async () => {
     attempts += 1
-    await resolveBasePath()
-    const mounted = mountApp()
+    let mounted = false
+    if (global.Guoba) {
+      await resolveBasePath()
+      mounted = mountApp()
+    }
     const patched = await patchMenus()
-    if ((mounted && patched) || attempts >= 30) {
+    if ((patched && mounted) || attempts >= 120) {
       stopped = true
       retryTimer = null
-      if (mounted && patched) {
-        logInfo('[qqmusic] 锅巴「QQ音乐管理」页面已注册')
+      if (patched && mounted) {
+        logInfo('[qqmusic] 锅巴「QQ音乐管理」菜单已注册')
+      } else {
+        logWarn('[qqmusic] 未找到锅巴 systemService，侧栏入口未注册')
       }
     }
   }

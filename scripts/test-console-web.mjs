@@ -1,11 +1,26 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { consoleHandler, consoleToken, MENU_PATH, registerConsole } from '../guoba/console-server.js'
 
-class FakeSystemService {
+class DecoySystemService {
   async queryMenus() {
-    return [{ path: '/home' }, { path: '/config' }, { path: '/about' }]
+    return [{ path: '/home' }]
   }
 }
+
+// 模拟真实锅巴：DI 用 loadClass 的 ?timestamp 另加载一份服务类，
+// 通过 GI 再导入得到的 SystemService 并不是实际实例。
+const guobaRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qqmusic-guoba-'))
+fs.mkdirSync(path.join(guobaRoot, 'framework'), { recursive: true })
+fs.writeFileSync(
+  path.join(guobaRoot, 'framework', 'index.js'),
+  `const service = { async queryMenus() { return [{ path: '/home' }, { path: '/config' }, { path: '/about' }] } };` +
+    `globalThis.__qqmusicDiService = service;` +
+    `export const instancesMap = new Map([['systemService', service]]);`,
+  'utf8'
+)
 
 const mounted = new Map()
 global.Guoba = {
@@ -14,11 +29,12 @@ global.Guoba = {
       mounted.set(prefix, handler)
     },
   },
-  GI: async (path) => {
-    if (String(path).startsWith('@/')) {
-      return { _paths: { server: { realMountPrefix: '/guoba' } } }
+  GI: async (spec) => {
+    const name = String(spec)
+    if (name.startsWith('@/')) {
+      return { _paths: { pluginRoot: guobaRoot, server: { realMountPrefix: '/guoba' } } }
     }
-    return { SystemService: FakeSystemService }
+    return { SystemService: DecoySystemService }
   },
 }
 
@@ -36,18 +52,19 @@ global.Bot = new Map([
 ])
 
 registerConsole()
-await new Promise((resolve) => setTimeout(resolve, 80))
+await new Promise((resolve) => setTimeout(resolve, 200))
 
 const mountedPath = `/guoba${MENU_PATH}`
 assert.equal(typeof mounted.get(mountedPath), 'function')
 
-const menus = await new FakeSystemService().queryMenus()
+const menus = await globalThis.__qqmusicDiService.queryMenus()
 const item = menus.find((row) => row.path === mountedPath)
-assert.ok(item, 'menu item should be appended')
+assert.ok(item, 'menu item should be appended to the real DI service')
 assert.equal(item.meta.title, 'QQ音乐管理')
 assert.equal(item.meta.icon, 'ion:musical-notes-outline')
 assert.ok(item.meta.frameSrc.startsWith(`${mountedPath}/?token=`))
 assert.equal(menus.at(-1).path, mountedPath, 'plugin page should be the last sidebar item')
+fs.rmSync(guobaRoot, { recursive: true, force: true })
 
 function response() {
   return {
