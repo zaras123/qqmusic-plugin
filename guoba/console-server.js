@@ -32,6 +32,7 @@ const jobs = new Map()
 let retryTimer = null
 let attempts = 0
 let basePath = MENU_PATH
+let mountPath = MENU_PATH
 let stopped = false
 
 const CONTENT_TYPES = {
@@ -248,6 +249,7 @@ export function consoleMenuItem(pathPrefix = basePath) {
     // 前端路由 path 不能带锅巴挂载前缀（锅巴自身挂在 /guoba 下），iframe 地址才带前缀。
     path: MENU_PATH,
     name: 'QQMusicConsole',
+    component: 'IFRAME',
     meta: {
       title: 'QQ音乐管理',
       icon: 'ion:musical-notes-outline',
@@ -257,26 +259,66 @@ export function consoleMenuItem(pathPrefix = basePath) {
   }
 }
 
-function mountApp() {
-  const app = global.Guoba?.app
-  if (!app || typeof app.use !== 'function') return false
-  if (!app.__qqmusicConsolePaths) app.__qqmusicConsolePaths = new Set()
-  if (app.__qqmusicConsolePaths.has(basePath)) return true
-  app.use(basePath, consoleHandler)
-  app.__qqmusicConsolePaths.add(basePath)
-  return true
+async function loadFramework() {
+  const GI = global.Guoba?.GI
+  if (typeof GI !== 'function') return null
+  try {
+    const platform = await GI('@/models/platform.js')
+    const root = String(platform?._paths?.pluginRoot || '')
+    if (!root) return null
+    // 必须用无 query 的文件 URL：锅巴 DI 用 loadClass 的 ?timestamp 加载服务类，
+    // 通过 GI 再导入会得到另一个模块实例。
+    return await import(pathToFileURL(path.join(root, 'framework', 'index.js')).href)
+  } catch {
+    return null
+  }
 }
 
-async function resolveBasePath() {
-  const GI = global.Guoba?.GI
-  if (typeof GI !== 'function') return
-  try {
-    const mod = await GI('@/models/platform.js')
-    const prefix = String(mod?._paths?.server?.realMountPrefix || '').replace(/\/+$/, '')
-    if (prefix) basePath = prefix + MENU_PATH
-  } catch {
-    // 独立运行/单测没有 Guoba 平台模块，使用根路径
+async function resolvePaths() {
+  const framework = await loadFramework()
+  const application = framework?.instancesMap?.get?.('tokenInterceptor')?.guobaApp
+  if (application?._args) {
+    const prefix = String(application._args.prefix || '').replace(/\/+$/, '')
+    const publicPrefix = String(application._args.mount ?? application._args.prefix ?? '').replace(/\/+$/, '')
+    mountPath = `${prefix}${MENU_PATH}`
+    basePath = `${publicPrefix}${MENU_PATH}`
+    return application
   }
+  try {
+    const GI = global.Guoba?.GI
+    const platform = typeof GI === 'function' ? await GI('@/models/platform.js') : null
+    const prefix = String(platform?._paths?.server?.realMountPrefix || '').replace(/\/+$/, '')
+    basePath = prefix + MENU_PATH
+    mountPath = basePath
+  } catch {
+    basePath = MENU_PATH
+    mountPath = MENU_PATH
+  }
+  return null
+}
+
+async function mountApp() {
+  const framework = await loadFramework()
+  const application = framework?.instancesMap?.get?.('tokenInterceptor')?.guobaApp
+  const app = application?.app || global.Guoba?.app
+  if (!app || typeof app.use !== 'function') return false
+  if (!app.__qqmusicConsolePaths) app.__qqmusicConsolePaths = new Set()
+  if (app.__qqmusicConsolePaths.has(mountPath)) return true
+  const stack = (app._router || app.router)?.stack
+  const routeStart = Array.isArray(stack) ? stack.length : -1
+  app.use(mountPath, consoleHandler)
+  // 锅巴 SPA 兜底是 errorController.router，后注册的页面路由必须挪到它前面，
+  // 否则 /guoba/qqmusic-console 会被 index.html 接走。
+  const fallbackRouter = framework?.instancesMap?.get?.('errorController')?.router
+  if (Array.isArray(stack) && routeStart >= 0) {
+    const fallbackIndex = stack.findIndex((layer) => layer?.handle === fallbackRouter)
+    if (fallbackIndex >= 0 && fallbackIndex < routeStart) {
+      const routes = stack.splice(routeStart)
+      stack.splice(fallbackIndex, 0, ...routes)
+    }
+  }
+  app.__qqmusicConsolePaths.add(mountPath)
+  return true
 }
 
 async function patchPrototypeMenus() {
@@ -303,31 +345,20 @@ async function patchPrototypeMenus() {
 }
 
 async function patchServiceInstance() {
-  const GI = global.Guoba?.GI
-  if (typeof GI !== "function") return false
-  try {
-    const platform = await GI("@/models/platform.js")
-    const root = String(platform?._paths?.pluginRoot || "")
-    if (!root) return false
-    // 必须用无 query 的文件 URL：锅巴 DI 用 loadClass 的 ?timestamp 加载服务类，
-    // 通过 GI 再导入会得到另一个模块实例，改 prototype 不会影响实际服务。
-    const framework = await import(pathToFileURL(path.join(root, "framework", "index.js")).href)
-    const map = framework?.instancesMap
-    const service = map?.get?.("systemService") || map?.get?.("SystemService")
-    if (!service || typeof service.queryMenus !== "function") return false
-    if (service.__qqmusicMenuPatched) return true
-    const original = service.queryMenus.bind(service)
-    service.queryMenus = async function (...args) {
-      const menus = await original(...args)
-      if (!Array.isArray(menus) || menus.some((item) => item?.name === 'QQMusicConsole')) return menus
-      menus.push(consoleMenuItem(basePath))
-      return menus
-    }
-    service.__qqmusicMenuPatched = true
-    return true
-  } catch {
-    return false
+  const framework = await loadFramework()
+  const map = framework?.instancesMap
+  const service = map?.get?.('systemService') || map?.get?.('SystemService')
+  if (!service || typeof service.queryMenus !== 'function') return false
+  if (service.__qqmusicMenuPatched) return true
+  const original = service.queryMenus.bind(service)
+  service.queryMenus = async function (...args) {
+    const menus = await original(...args)
+    if (!Array.isArray(menus) || menus.some((item) => item?.name === 'QQMusicConsole')) return menus
+    menus.push(consoleMenuItem(basePath))
+    return menus
   }
+  service.__qqmusicMenuPatched = true
+  return true
 }
 
 async function patchMenus() {
@@ -344,19 +375,16 @@ export function registerConsole() {
   if (stopped || retryTimer) return
   const tick = async () => {
     attempts += 1
-    let mounted = false
-    if (global.Guoba) {
-      await resolveBasePath()
-      mounted = mountApp()
-    }
+    await resolvePaths()
+    const mounted = await mountApp()
     const patched = await patchMenus()
-    if ((patched && mounted) || attempts >= 120) {
+    if ((mounted && patched) || attempts >= 120) {
       stopped = true
       retryTimer = null
-      if (patched && mounted) {
+      if (mounted && patched) {
         logInfo('[qqmusic] 锅巴「QQ音乐管理」菜单已注册')
       } else {
-        logWarn('[qqmusic] 未找到锅巴 systemService，侧栏入口未注册')
+        logWarn('[qqmusic] 未找到锅巴 systemService 或页面路由，侧栏入口未注册')
       }
     }
   }

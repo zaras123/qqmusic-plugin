@@ -4,37 +4,37 @@ import os from 'node:os'
 import path from 'node:path'
 import { consoleHandler, consoleToken, MENU_PATH, registerConsole } from '../guoba/console-server.js'
 
-class DecoySystemService {
-  async queryMenus() {
-    return [{ path: '/home' }]
-  }
-}
-
 // 模拟真实锅巴：DI 用 loadClass 的 ?timestamp 另加载一份服务类，
-// 通过 GI 再导入得到的 SystemService 并不是实际实例。
+// 前端挂在 /guoba 下，SPA 兜底由 errorController.router 处理。
 const guobaRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'qqmusic-guoba-'))
 fs.mkdirSync(path.join(guobaRoot, 'framework'), { recursive: true })
 fs.writeFileSync(
   path.join(guobaRoot, 'framework', 'index.js'),
-  `const service = { async queryMenus() { return [{ path: '/home' }, { path: '/config' }, { path: '/about' }] } };` +
-    `globalThis.__qqmusicDiService = service;` +
-    `export const instancesMap = new Map([['systemService', service]]);`,
+  [
+    `const service = { async queryMenus() { return [{ path: '/home' }, { path: '/config' }, { path: '/about' }] } };`,
+    `globalThis.__qqmusicDiService = service;`,
+    `const fallbackRouter = { name: 'fallback' };`,
+    `const app = { _router: { stack: [] }, use(path, handler) { this._router.stack.push({ path, handle: handler }); } };`,
+    `app._router.stack.push({ path: '/', handle: fallbackRouter });`,
+    `const application = { app, _args: { prefix: '/guoba', mount: '/guoba' } };`,
+    `globalThis.__qqmusicTestApp = app;`,
+    `globalThis.__qqmusicFallbackRouter = fallbackRouter;`,
+    `export const instancesMap = new Map([`,
+    `  ['systemService', service],`,
+    `  ['tokenInterceptor', { guobaApp: application }],`,
+    `  ['errorController', { router: fallbackRouter }],`,
+    `]);`,
+  ].join('\n'),
   'utf8'
 )
 
-const mounted = new Map()
 global.Guoba = {
-  app: {
-    use(prefix, handler) {
-      mounted.set(prefix, handler)
-    },
-  },
   GI: async (spec) => {
     const name = String(spec)
     if (name.startsWith('@/')) {
       return { _paths: { pluginRoot: guobaRoot, server: { realMountPrefix: '/guoba' } } }
     }
-    return { SystemService: DecoySystemService }
+    return {}
   },
 }
 
@@ -52,15 +52,23 @@ global.Bot = new Map([
 ])
 
 registerConsole()
-await new Promise((resolve) => setTimeout(resolve, 200))
+await new Promise((resolve) => setTimeout(resolve, 250))
 
 const mountedPath = `/guoba${MENU_PATH}`
-assert.equal(typeof mounted.get(mountedPath), 'function')
+const app = globalThis.__qqmusicTestApp
+const fallbackRouter = globalThis.__qqmusicFallbackRouter
+const pageLayer = app._router.stack.find((layer) => layer.path === mountedPath)
+assert.ok(pageLayer, 'console page should be mounted on the real Guoba app')
+assert.equal(typeof pageLayer.handle, 'function')
+const pageIndex = app._router.stack.indexOf(pageLayer)
+const fallbackIndex = app._router.stack.findIndex((layer) => layer.handle === fallbackRouter)
+assert.ok(pageIndex >= 0 && pageIndex < fallbackIndex, 'page route must be before the SPA fallback')
 
 const menus = await globalThis.__qqmusicDiService.queryMenus()
 const item = menus.find((row) => row.name === 'QQMusicConsole')
 assert.ok(item, 'menu item should be appended to the real DI service')
 assert.equal(item.path, MENU_PATH)
+assert.equal(item.component, 'IFRAME')
 assert.equal(item.meta.title, 'QQ音乐管理')
 assert.equal(item.meta.icon, 'ion:musical-notes-outline')
 assert.ok(item.meta.frameSrc.startsWith(`${mountedPath}/?token=`))
