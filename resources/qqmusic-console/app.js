@@ -3,6 +3,18 @@ const $ = (id) => document.getElementById(id);
 const JOB_KEY = bridge.storageKey || "qqmusic.console.job";
 const THEME_KEY = bridge.themeKey || "qqmusic.console.theme";
 
+// AstrBot 插件视图 iframe 是 sandbox（无 allow-same-origin），直接访问 localStorage 会抛异常。
+const memoryStore = new Map();
+function storeGet(key) {
+  try { return localStorage.getItem(key); } catch { return memoryStore.get(key) ?? null; }
+}
+function storeSet(key, value) {
+  try { localStorage.setItem(key, value); } catch { memoryStore.set(key, value); }
+}
+function storeRemove(key) {
+  try { localStorage.removeItem(key); } catch { memoryStore.delete(key); }
+}
+
 const state = {
   items: [],
   groups: [],
@@ -490,7 +502,7 @@ async function pollJobId(jobId) {
     }
   } catch (error) {
     if (error.status === 404) {
-      localStorage.removeItem(JOB_KEY);
+      storeRemove(JOB_KEY);
       state.sending = false;
       updateSelectionSummary();
       return;
@@ -569,7 +581,7 @@ async function sendSelected() {
       method: "POST",
       body: JSON.stringify({ ids, targets }),
     });
-    localStorage.setItem(JOB_KEY, data.jobId);
+    storeSet(JOB_KEY, data.jobId);
     $("job").replaceChildren();
     const line = document.createElement("p");
     line.className = "job-line";
@@ -625,7 +637,7 @@ function bind() {
   });
   $("theme-toggle").addEventListener("click", () => {
     const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    localStorage.setItem(THEME_KEY, next);
+    storeSet(THEME_KEY, next);
     applyTheme(next);
   });
   $("search").addEventListener("click", search);
@@ -661,7 +673,7 @@ function bind() {
 }
 
 async function main() {
-  applyTheme(localStorage.getItem(THEME_KEY) || parentTheme());
+  applyTheme(storeGet(THEME_KEY) || parentTheme());
   bind();
   if (bridge.platformLabel) {
     const crumb = document.querySelector(".crumb");
@@ -681,7 +693,7 @@ async function main() {
   }
   setStatus("正在连接…");
   await Promise.all([loadGroups(), search()]);
-  const lastJob = localStorage.getItem(JOB_KEY);
+  const lastJob = storeGet(JOB_KEY);
   if (lastJob) {
     state.sending = true;
     await pollJobId(lastJob);
