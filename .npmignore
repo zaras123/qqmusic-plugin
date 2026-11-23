@@ -26,3 +26,11 @@ data/
 .serena/
 .agents/
 .codex/
+
+# npm 包体积：源码映射、测试/预览脚本与未被引用的旧帮助图不随插件发布
+dist/**/*.map
+test.mjs
+scripts/test-*.mjs
+scripts/preview-*.mjs
+scripts/check-*.mjs
+resources/img/help.png
