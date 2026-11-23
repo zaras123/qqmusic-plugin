@@ -1,6 +1,13 @@
 # 更新日志
 
 这里只记录 AstrBot 分支的版本；Karin 与 Yunzai 的历史不计入。
+## v2.1.23
+
+审核合规修复与 Yunzai 锅巴侧栏修复。
+
+- AstrBot：按上架审核要求删除 `render.py` 的 `logging` 回退，仅保留 `from astrbot.api import logger`；新增发行测试禁止内置 `logging`。
+- Yunzai：修复锅巴侧栏「QQ音乐管理」未出现的问题——改为给真实 DI `systemService` 追加菜单、路由 path 去掉 `/guoba` 前缀、iframe 相对资源改用 HttpOnly Cookie 鉴权。
+- 三端版本统一到 2.1.23；AstrBot 26 项测试与 ZIP 冒烟、Yunzai 锅巴控制台测试、Karin `npm test` 均通过。
 ## v2.1.22
 
 三端内容与版本同步。
