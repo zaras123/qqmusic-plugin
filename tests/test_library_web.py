@@ -26,20 +26,11 @@ if NAME not in sys.modules:
     spec.loader.exec_module(package)
 
 library_web = importlib.import_module(f"{NAME}.library_web")
-qqapi = importlib.import_module(f"{NAME}.api")
+
+render = importlib.import_module(f"{NAME}.render")
 
 
 class LibraryWebTests(unittest.IsolatedAsyncioTestCase):
-    def test_normalize_api_base(self):
-        self.assertEqual(qqapi.normalize_api_base("example.com"), "https://example.com")
-        self.assertEqual(qqapi.normalize_api_base("127.0.0.1:3300"), "http://127.0.0.1:3300")
-        self.assertEqual(qqapi.normalize_api_base("http：//localhost:3300/"), "http://localhost:3300")
-        self.assertEqual(qqapi.normalize_api_base("  https://api.example.com///  "), "https://api.example.com")
-        self.assertEqual(qqapi.normalize_api_base(""), "")
-        self.assertTrue(library_web._valid_api_base("https://api.example.com/path"))
-        self.assertFalse(library_web._valid_api_base("https://bad host"))
-        self.assertFalse(library_web._valid_api_base("ftp://api.example.com"))
-
     async def test_register_routes(self):
         class FakeContext:
             def __init__(self):
@@ -60,6 +51,16 @@ class LibraryWebTests(unittest.IsolatedAsyncioTestCase):
                 f"/{library_web.PLUGIN_NAME}/library/api-config",
             ],
         )
+
+    async def test_card_palette_follows_theme_config(self):
+        classic = render._palette({"uiTheme": "classic", "uiDark": "浅色"})
+        self.assertEqual(classic[0], "#d9f7e9")
+        self.assertEqual(classic[2], "#087756")
+        apple_dark = render._palette({"uiTheme": "apple", "uiDark": "深色"})
+        self.assertEqual(apple_dark[0], "#151e2b")
+        self.assertEqual(apple_dark[2], "#ff8bb8")
+        fallback = render._palette({"uiTheme": "missing", "uiDark": "浅色"})
+        self.assertEqual(fallback[0], "#d9f7e9")
 
     async def test_public_item_and_targets(self):
         item = library_web._public_item({

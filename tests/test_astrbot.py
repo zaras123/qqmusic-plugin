@@ -14,7 +14,7 @@ from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 from PIL import Image as PillowImage
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -203,6 +203,13 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("测试曲", e.text)
         self.assertIn("netease", [call[2].get("source") for call in self.calls if call[1] == "/search"])
 
+    async def test_lyric_card_accepts_search_metadata(self):
+        self.config.update(renderListCard=False)
+        e = FakeEvent("#qqm歌词 晴天")
+        await self.star.get_lyric(e)
+        self.assertIn("测试歌词", e.text)
+        self.assertNotIn("歌词失败", e.text)
+
     async def test_qr_commands_separate_web_qq_and_app(self):
         self.star._start_webqr_poll = Mock()
         self.star._start_poll = Mock()
@@ -278,6 +285,44 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await delivery.download_audio(self.base + "/bad", self.tmp.name, "bad")
         self.assertFalse(list(Path(self.tmp.name).glob("*.part")))
+
+    async def test_file_upload_falls_back_to_onebot_upload_action(self):
+        self.config.update(
+            sendVocal=False,
+            uploadFile=True,
+            sendTextInfo=False,
+            renderListCard=False,
+            keepFileSec=0,
+        )
+        event = FakeEvent("", platform="aiocqhttp", group="12345")
+        song = {
+            "songmid": "testMID001",
+            "songName": "文件测试",
+            "singerName": "歌手",
+            "interval": 1,
+            "source": "qq",
+        }
+        play = {"url": self.base + "/audio", "quality": "128", "raw": {}, "userKey": "u"}
+        calls = []
+
+        async def fake_onebot(ev, action, params):
+            calls.append((action, params))
+            return {"retcode": 0}
+
+        with patch.object(delivery, "onebot", side_effect=fake_onebot), patch.object(
+            self.star, "_send_chain", AsyncMock(side_effect=RuntimeError("file segment unsupported"))
+        ):
+            result = await delivery.deliver_song(
+                self.star,
+                event,
+                song,
+                play,
+                cfg=self.config,
+                plugin_dir=self.tmp.name,
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(calls[0][0], "upload_group_file")
+        self.assertTrue(calls[0][1]["file"].endswith(".wav"))
 
     async def test_local_audio_retries_official_without_writing(self):
         e = FakeEvent()
@@ -403,14 +448,14 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_real_python_renderer(self):
         e = FakeEvent("#qqm演出")
-        self.config.update(renderListCard=True, renderCover=False, renderEngine="pillow")
+        self.config.update(renderListCard=True, renderCover=False)
         rendered = await asyncio.gather(self.star._render_card(e, {"title": "票务·测试", "rows": ["中文标题"]}, "summary"),
                                        self.star._render_card(e, {"title": "票务·并发", "rows": ["第二张"]}, "summary"))
         self.assertTrue(all(rendered))
         self.assertNotEqual(rendered[0], rendered[1])
         for path in rendered:
             self.assertTrue(Path(path).read_bytes().startswith(b"\xff\xd8\xff"))
-        help_data = main.cardlib.build_help_card_data(self.config, "2.1.18")
+        help_data = main.cardlib.build_help_card_data(self.config, "2.1.19")
         path = await self.star._render_card(e, help_data, "qqmusic-help")
         self.assertTrue(path and Path(path).stat().st_size > 4096)
         with PillowImage.open(path) as preview:
@@ -420,9 +465,7 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_all_card_layouts_offline_and_png_theme(self):
         e = FakeEvent("#qqm帮助")
-        self.config.update(
-            renderListCard=True, imageFormat="png", uiTheme="nebula", renderEngine="pillow"
-        )
+        self.config.update(renderListCard=True, imageFormat="png", uiTheme="nebula")
         shapes = {
             "list": {"keyword": "中文列表", "total": 1, "songs": [{"songName": "一首歌", "singerName": "歌手", "hasMv": True}]},
             "hot": {"items": [{"word": "中文热搜"}]},
@@ -438,8 +481,11 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         for path in results:
             with PillowImage.open(path) as im:
                 self.assertEqual(im.format, "PNG")
-                self.assertEqual(im.width, 960)
+                # HTML 主题卡片按 3x DPR 截图（Pillow 回退为 960 宽）
+                self.assertGreaterEqual(im.width, 960)
+                self.assertEqual(im.width % 3, 0)
                 self.assertLessEqual(im.height, 4800)
+                self.assertLessEqual(im.width * im.height, 8_000_000)
                 im.verify()
         self.config["uiDark"] = "深色"
         path = await self.star._render_card(e, shapes["detail"], "qqmusic-detail")

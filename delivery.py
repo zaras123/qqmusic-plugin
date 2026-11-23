@@ -294,6 +294,21 @@ async def deliver_song(plugin, event, song, play, *, cfg, plugin_dir, options=No
                 sent = True
             except Exception as exc:
                 plugin._log_warn(f"{platform} 文件发送失败（{type(exc).__name__}）")
+                # AstrBot 的 File 段在部分 OneBot 实现上会走 send_msg 文件段；
+                # 这里再退一步走标准 upload_group_file / upload_private_file。
+                if (
+                    platform == "aiocqhttp"
+                    and hasattr(event, "get_group_id")
+                    and hasattr(event, "get_sender_id")
+                ):
+                    try:
+                        action = "upload_group_file" if event.get_group_id() else "upload_private_file"
+                        await onebot(event, action, {"file": path, "name": name})
+                        sent = True
+                    except Exception as upload_exc:
+                        plugin._log_warn(
+                            f"{platform} 文件上传接口也失败（{type(upload_exc).__name__}）"
+                        )
     except Exception as exc:
         plugin._log_warn(f"媒体下载或校验失败（{type(exc).__name__}）")
     finally:

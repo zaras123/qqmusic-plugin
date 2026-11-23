@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QQ音乐 · 平台时长任务</title>
+  <style>
+    @import url("resources/fonts/qqm-cjk.css");
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --accent: #31c27c; --accent-soft: #eef9f3; --page: #e6f6ee; --card: #ffffff; --text: #143528; --muted: #6a8276; --line: rgba(49,194,124,.18); --warn: #ff9f43; }
+    html, body { width: fit-content; margin: 0; background: var(--page); color: var(--text); font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "QQM CJK", sans-serif; -webkit-font-smoothing: antialiased; }
+    body { padding: 14px; }
+    .page { width: 580px; }
+    .card { overflow: hidden; border-radius: 24px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 14px 34px rgba(8,35,24,.10); }
+    .hero { padding: 24px 24px 20px; color: white; background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent), #091a12 24%)); }
+    .eyebrow { font-size: 11px; font-weight: 800; letter-spacing: 0; opacity: .76; text-transform: uppercase; }
+    .title { margin-top: 6px; font-size: 28px; line-height: 1.18; font-weight: 850; }
+    .subtitle { margin-top: 7px; font-size: 13px; line-height: 1.55; opacity: .9; }
+    .status { display: inline-flex; margin-top: 15px; padding: 6px 11px; border-radius: 999px; background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.22); font-size: 12px; font-weight: 750; }
+    .body { padding: 20px; display: grid; gap: 14px; }
+    .song { padding: 17px; border-radius: 17px; background: var(--accent-soft); border: 1px solid var(--line); }
+    .caption { color: var(--muted); font-size: 11px; font-weight: 800; }
+    .song-title { margin-top: 7px; font-size: 21px; line-height: 1.35; font-weight: 850; word-break: break-word; }
+    .artist { margin-top: 5px; color: var(--muted); font-size: 13px; line-height: 1.45; word-break: break-word; }
+    .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+    .stat { min-width: 0; padding: 13px 11px; border-radius: 14px; background: var(--accent-soft); border: 1px solid var(--line); }
+    .stat-value { margin-top: 5px; font-size: 17px; font-weight: 850; color: var(--accent); white-space: nowrap; }
+    .stat-label { color: var(--muted); font-size: 10.5px; font-weight: 700; }
+    .plans { padding-top: 14px; border-top: 1px solid var(--line); }
+    .plan-title { font-size: 14px; font-weight: 850; }
+    .plan-text { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .tip { padding: 12px 14px; border-radius: 14px; background: var(--accent-soft); border: 1px solid var(--line); color: var(--muted); font-size: 11.5px; line-height: 1.55; }
+    .footer { display: flex; justify-content: space-between; padding: 0 2px; color: var(--muted); font-size: 10.5px; }
+    .footer b { color: var(--accent); }
+  </style>
+</head>
+<body><div class="page"><div class="card">
+  <header class="hero">
+    <div class="eyebrow">QQMUSIC · LISTENING TASK</div>
+    <div class="title">{{data.title}}</div>
+    <div class="subtitle">{{data.subtitle}}</div>
+    <div class="status">{{data.status}}</div>
+  </header>
+  <main class="body">
+    <section class="song">
+      <div class="caption">正在刷 / 最近任务</div>
+      <div class="song-title">{{data.song}}</div>
+      {{if data.artist}}<div class="artist">{{data.artist}}</div>{{/if}}
+    </section>
+    <section class="stats">
+      <div class="stat"><div class="stat-label">请求新增</div><div class="stat-value">{{data.requested}}</div></div>
+      <div class="stat"><div class="stat-label">平台接收</div><div class="stat-value">{{data.submitted}}</div></div>
+      <div class="stat"><div class="stat-label">统计增量</div><div class="stat-value">{{data.confirmed}}</div></div>
+    </section>
+    <section class="plans">
+      <div class="plan-title">每日计划</div>
+      <div class="plan-text">{{if data.planText}}{{data.planText}}{{else}}暂无计划，可用 #qqm刷歌计划 创建{{/if}}</div>
+    </section>
+    <section class="tip">{{data.tip}}</section>
+    <div class="footer"><span>#qqm刷歌状态</span><b>qqmusic-plugin</b></div>
+  </main>
+</div></div></body>
+</html>

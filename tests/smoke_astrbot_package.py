@@ -41,6 +41,8 @@ async def smoke():
         assert first._jobs and not first._jobs.done()
         plugin_dir = Path(loaded.module.__file__).parent
         assert (plugin_dir / "views" / "library" / "index.html").is_file()
+        assert (plugin_dir / "views" / "library" / "bridge.js").is_file()
+        assert (plugin_dir / "resources" / "themes" / "classic" / "qqmusic-poster.html").is_file()
         assert (plugin_dir / ".astrbot-plugin" / "i18n" / "zh-CN.json").is_file()
         handlers = star_handlers_registry.get_handlers_by_module_name(module)
         assert any(h.handler_name == "pick_song" for h in handlers)
@@ -68,7 +70,7 @@ async def smoke():
         with patch("asyncio.create_subprocess_exec", side_effect=AssertionError("changelog requires git")):
             await next(h for h in handlers if h.handler_name == "update_log").handler(event)
         text = "\n".join(getattr(c, "text", "") for c in messages)
-        assert loaded.version in text and "默认用 Chromium 渲染" in text
+        assert loaded.version in text and "统一 WebUI" in text
         print(f"Dashboard changelog + ZIP update command + short description OK | {loaded.version}", flush=True)
         if output := os.environ.get("QQMUSIC_SMOKE_PREVIEW"):
             from astrbot.api.message_components import Image

@@ -562,7 +562,13 @@ class QQMusicPlugin(FeatureCommands, Star):
                 event.stop_event()
                 return
             card = cardlib.build_lyric_card_data(
-                **{**song_meta, "songmid": songmid, "lines": lines}, cfg=self._cfg()
+                song_name=song_meta.get("songName") or key,
+                singer_name=song_meta.get("singerName") or "",
+                cover=song_meta.get("cover") or "",
+                album_name=song_meta.get("albumName") or "",
+                songmid=songmid,
+                lines=lines,
+                cfg=self._cfg(),
             )
             await self._reply_card_or_text(
                 event,
