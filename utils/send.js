@@ -1252,37 +1252,64 @@ export async function deliverSong(e, song, play, options = {}) {
           logInfo('官方同曲验收通过：bytes=' + size + ' sha256=' + downloadedSha)
         } catch (recoveryError) { vocalError = recoveryError; logWarn('官方回退失败：' + recoveryError.message) }
       }
-      // A successful HTTP 200 is not proof of intact audio. Retry the official source once,
-      // bypassing both stale URL caches and local retention; every recovered byte is revalidated.
-      if (!localPlayback && !repairState && !play.external && !song.external && (!song.source || song.source === 'qq') && song.songmid) {
-        try {
-          logWarn('官方音源验收失败，重新取流并经API下载验证（仅一次）: ' + firstError.message)
-          const { songUrl, buildSongFileUrl } = await import('./api.js')
-          const fresh = await songUrl(song.songmid, { quality: play.quality || cfg.quality || 'flac',
-            fallback: 0, mediaId: song.media_mid || play.mediaId || song.songmid,
-            userKey: playUserKey, local: false, fresh: true })
-          if (!fresh?.url) throw new Error('重新取流未返回地址')
-          const file = encryptedAudioFile(fresh)
-          const recoveryUrl = buildSongFileUrl({ url: fresh.url, filename: file || fresh.file,
-            ekey: fresh.ekey, vkey: fresh.vkey, userKey: playUserKey, local: false,
-            decrypt: fresh.encrypted === true || Boolean(file) })
-          const recovered = await downloadAudio(recoveryUrl, getTempDir(), 'qqmusic_retry',
-            Number(cfg.downloadTimeout) || 120000, fresh.quality || play.quality, fresh.ext || '')
-          cleanupPaths.add(recovered.filePath)
-          const prepared = await prepareVocalFile(recovered.filePath, prepareOptions)
-          localPath = recovered.filePath
-          size = recovered.size
-          vocalPath = prepared
-          play = { ...play, ...fresh, url: recoveryUrl, encrypted: false }
-          displayName = buildMusicFileName({ singer, title, quality: fresh.quality || play.quality,
-            ext: recovered.ext }, { asciiOnly: false, includeQuality: false })
-          vocalError = null
-          logInfo('官方音源重新取流验证通过: bytes=' + recovered.size +
-            ' sha256=' + recovered.sha256 + ' apiAudio=' + (fresh.audioRevision || 'unknown'))
-        } catch (retryError) {
-          vocalError = retryError
-          logWarn('官方音源重新取流仍失败: ' + retryError.message)
+      // 官方源可能是损坏/截断的 FLAC。按音质从高到低重取，直到拿到能完整解码的文件；
+      // 之前只重试同一档位，坏 FLAC 会一直坏。
+      if (!repairState && !play.external && !song.external &&
+          (!song.source || song.source === 'qq') && song.songmid &&
+          firstError.code !== 'VOCAL_TOOL_MISSING') {
+        const preferred = String(play.quality || cfg.quality || 'flac')
+        const candidates = [...new Set([preferred, '320', 'm4a', '128'])]
+        const { songUrl, buildSongFileUrl } = await import('./api.js')
+        let lastError = vocalError
+        for (const quality of candidates) {
+          try {
+            logWarn(`官方音源验收失败，尝试 ${quality} 重新取流: ${firstError.message}`)
+            const fresh = await songUrl(song.songmid, {
+              quality,
+              fallback: 0,
+              mediaId: song.media_mid || play.mediaId || song.songmid,
+              userKey: playUserKey,
+              local: false,
+              fresh: true,
+            })
+            if (!fresh?.url) throw new Error('重新取流未返回地址')
+            const file = encryptedAudioFile(fresh)
+            const recoveryUrl = buildSongFileUrl({
+              url: fresh.url,
+              filename: file || fresh.file,
+              ekey: fresh.ekey,
+              vkey: fresh.vkey,
+              userKey: playUserKey,
+              local: false,
+              decrypt: fresh.encrypted === true || Boolean(file),
+            })
+            const recovered = await downloadAudio(
+              recoveryUrl,
+              getTempDir(),
+              `qqmusic_retry_${quality}`,
+              Number(cfg.downloadTimeout) || 120000,
+              fresh.quality || quality,
+              fresh.ext || ''
+            )
+            cleanupPaths.add(recovered.filePath)
+            const prepared = await prepareVocalFile(recovered.filePath, prepareOptions)
+            localPath = recovered.filePath
+            size = recovered.size
+            vocalPath = prepared
+            play = { ...play, ...fresh, url: recoveryUrl, encrypted: false }
+            displayName = buildMusicFileName(
+              { singer, title, quality: fresh.quality || quality, ext: recovered.ext },
+              { asciiOnly: false, includeQuality: false }
+            )
+            vocalError = null
+            logInfo(`官方音源 ${quality} 重新取流验证通过: bytes=${recovered.size} sha256=${recovered.sha256} apiAudio=${fresh.audioRevision || 'unknown'}`)
+            break
+          } catch (retryError) {
+            lastError = retryError
+            logWarn(`官方音源 ${quality} 重新取流仍失败: ${retryError.message}`)
+          }
         }
+        if (vocalError) vocalError = lastError
       }
       if (vocalError) {
         logWarn('停止发送异常语音: ' + vocalError.message)
