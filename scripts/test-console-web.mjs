@@ -58,12 +58,13 @@ const mountedPath = `/guoba${MENU_PATH}`
 assert.equal(typeof mounted.get(mountedPath), 'function')
 
 const menus = await globalThis.__qqmusicDiService.queryMenus()
-const item = menus.find((row) => row.path === mountedPath)
+const item = menus.find((row) => row.name === 'QQMusicConsole')
 assert.ok(item, 'menu item should be appended to the real DI service')
+assert.equal(item.path, MENU_PATH)
 assert.equal(item.meta.title, 'QQ音乐管理')
 assert.equal(item.meta.icon, 'ion:musical-notes-outline')
 assert.ok(item.meta.frameSrc.startsWith(`${mountedPath}/?token=`))
-assert.equal(menus.at(-1).path, mountedPath, 'plugin page should be the last sidebar item')
+assert.equal(menus.at(-1).path, MENU_PATH, 'plugin page should be the last sidebar item')
 fs.rmSync(guobaRoot, { recursive: true, force: true })
 
 function response() {

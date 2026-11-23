@@ -245,7 +245,8 @@ export async function consoleHandler(req, res) {
 
 export function consoleMenuItem(pathPrefix = basePath) {
   return {
-    path: pathPrefix,
+    // 前端路由 path 不能带锅巴挂载前缀（锅巴自身挂在 /guoba 下），iframe 地址才带前缀。
+    path: MENU_PATH,
     name: 'QQMusicConsole',
     meta: {
       title: 'QQ音乐管理',
@@ -289,7 +290,7 @@ async function patchPrototypeMenus() {
     const original = proto.queryMenus
     proto.queryMenus = async function (...args) {
       const menus = await original.apply(this, args)
-      if (!Array.isArray(menus) || menus.some((item) => item?.path === basePath)) return menus
+      if (!Array.isArray(menus) || menus.some((item) => item?.name === 'QQMusicConsole')) return menus
       menus.push(consoleMenuItem(basePath))
       return menus
     }
@@ -318,7 +319,7 @@ async function patchServiceInstance() {
     const original = service.queryMenus.bind(service)
     service.queryMenus = async function (...args) {
       const menus = await original(...args)
-      if (!Array.isArray(menus) || menus.some((item) => item?.path === basePath)) return menus
+      if (!Array.isArray(menus) || menus.some((item) => item?.name === 'QQMusicConsole')) return menus
       menus.push(consoleMenuItem(basePath))
       return menus
     }
