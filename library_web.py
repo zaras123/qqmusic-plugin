@@ -90,42 +90,58 @@ def _public_item(raw: dict) -> dict:
     }
 
 
+def _group_field(row, *names):
+    for name in names:
+        try:
+            value = row.get(name) if isinstance(row, dict) else getattr(row, name, None)
+        except Exception:
+            continue
+        if value not in (None, ""):
+            return value
+    return None
+
+
+def _as_int(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _normalize_groups(value) -> list[dict]:
     if isinstance(value, dict):
         for key in ("data", "groups", "list"):
-            if isinstance(value.get(key), list):
-                value = value[key]
+            inner = value.get(key)
+            if isinstance(inner, (list, tuple, dict)):
+                value = inner
                 break
         else:
-            value = []
+            # icqq 的 get_group_list() 返回 {群号: Group}；其他适配器也可能是 map。
+            value = list(value.values())
+    if isinstance(value, dict):
+        value = list(value.values())
     if not isinstance(value, (list, tuple)):
         return []
     out = []
     seen = set()
     for row in value:
-        if not isinstance(row, dict):
+        if row is None or isinstance(row, (str, bytes, int, float, bool)):
             continue
-        gid = row.get("group_id") or row.get("groupId") or row.get("id")
+        gid = _group_field(row, "group_id", "groupId", "gid", "id")
         gid = str(gid if gid is not None else "").strip()
         if not gid or gid in seen:
             continue
         seen.add(gid)
+        name = _group_field(row, "group_name", "groupName", "name", "remark") or gid
         out.append({
             "group_id": gid,
-            "name": str(
-                row.get("group_name")
-                or row.get("groupName")
-                or row.get("name")
-                or row.get("remark")
-                or gid
-            ),
-            "member_count": int(row.get("member_count") or row.get("memberCount") or 0),
-            "active_member_count": int(
-                row.get("active_member_count") or row.get("activeMemberCount") or 0
+            "name": str(name),
+            "member_count": _as_int(_group_field(row, "member_count", "memberCount", "member_num")),
+            "active_member_count": _as_int(
+                _group_field(row, "active_member_count", "activeMemberCount")
             ),
         })
     return sorted(out, key=lambda x: (x["name"].casefold(), x["group_id"]))
-
 
 async def _fetch_groups(platform) -> tuple[list[dict], str]:
     try:

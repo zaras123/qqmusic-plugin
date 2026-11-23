@@ -1,6 +1,21 @@
 # 更新日志
 
 这里只记录 AstrBot 分支的版本；Karin 与 Yunzai 的历史不计入。
+## v2.1.21
+
+修复 AstrBot/icqq 群列表读取，并对三端统一 WebUI 再做一次一致性回归。
+
+**修复**
+
+- 适配 icqq `get_group_list()` 返回 `{群号: Group}` 以及对象行：本地曲库页现在能显示 icqq 群，不再永远落到“手动填写群号”。
+- 群列表解析同时兼容 `{data/groups/list: [...]}` 包装、对象属性缺省与成员数字段异常。
+
+**校验**
+
+- AstrBot 26 项单元测试通过（新增 API 设置保存、icqq 群对象解析用例）。
+- Yunzai WebUI/多适配器/票务/统计/勋章/语音等脚本全部通过；Karin `npm test` 通过。
+- WebUI 静态文件与 Yunzai/Karin 逐字节一致（仅 AstrBot 的 bridge 与 sandbox localStorage 回退不同）。
+- 发行 ZIP 110 项，真实框架加载、帮助分发与热重载通过。
 
 ## v2.1.20
 

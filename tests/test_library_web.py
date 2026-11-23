@@ -154,5 +154,83 @@ class LibraryWebTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(job["results"][0]["ok"])
 
 
+
+    async def test_group_list_accepts_icqq_objects(self):
+        class Group:
+            def __init__(self, gid, name, members):
+                self.group_id = gid
+                self.group_name = name
+                self.member_count = members
+
+        groups = library_web._normalize_groups({
+            123: Group(123, "测试群", 10),
+            "456": Group("456", "第二个群", 20),
+        })
+        self.assertEqual({g["group_id"] for g in groups}, {"123", "456"})
+        by_id = {g["group_id"]: g for g in groups}
+        self.assertEqual(by_id["123"]["name"], "测试群")
+        self.assertEqual(by_id["123"]["member_count"], 10)
+        wrapped = library_web._normalize_groups({
+            "data": [{"group_id": 789, "group_name": "包裹群"}],
+        })
+        self.assertEqual(wrapped[0]["group_id"], "789")
+        self.assertEqual(wrapped[0]["name"], "包裹群")
+
+    async def test_api_config_get_and_save(self):
+        class Cfg(dict):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.saved = 0
+
+            def save_config(self):
+                self.saved += 1
+
+        class Req:
+            def __init__(self, method="GET", payload=None):
+                self.method = method
+                self.query = {}
+                self._payload = payload or {}
+
+            async def json(self, default=None):
+                return self._payload
+
+        cfg = Cfg(apiBase="127.0.0.1:3300", apiToken="")
+        fake = SimpleNamespace(config=cfg, _cfg=lambda: dict(cfg))
+        captured = {}
+
+        def fake_json(data, **kwargs):
+            captured["data"] = data
+            return data
+
+        def fake_error(message, **kwargs):
+            captured["error"] = message
+            return {"error": message}
+
+        with patch.object(library_web, "json_response", fake_json), patch.object(
+            library_web, "error_response", fake_error
+        ):
+            with patch.object(library_web, "request", Req("GET")):
+                await library_web._api_config_handler(fake)
+            self.assertEqual(captured["data"]["apiBase"], "http://127.0.0.1:3300")
+            self.assertFalse(captured["data"]["hasToken"])
+
+            with patch.object(
+                library_web,
+                "request",
+                Req("POST", {"apiBase": "127.0.0.1:3300", "apiToken": " tok "}),
+            ):
+                await library_web._api_config_handler(fake)
+            self.assertEqual(cfg["apiToken"], "tok")
+            self.assertEqual(cfg["apiBase"], "http://127.0.0.1:3300")
+            self.assertEqual(cfg.saved, 1)
+
+            with patch.object(
+                library_web,
+                "request",
+                Req("POST", {"apiBase": "http://user:pass@host/x", "apiToken": "t"}),
+            ):
+                await library_web._api_config_handler(fake)
+            self.assertIn("API 地址格式不正确", captured["error"])
+
 if __name__ == "__main__":
     unittest.main()
