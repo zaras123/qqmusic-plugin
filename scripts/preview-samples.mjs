@@ -440,6 +440,8 @@ const samples = {
     sourceColor: SRC.netease.color,
     sourceShort: SRC.netease.short,
     sourceIsExternal: true,
+    sourceIsLocal: false,
+    sourceLabel: '',
     mvVid: '',
     tip: '正在下载并发送…',
   },

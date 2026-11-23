@@ -694,6 +694,7 @@ export function buildDeliveryTip(cfg = {}, { qualityLabel = '', hasUrl = false, 
 /** 歌曲详情卡片（解析后展示） */
 export function buildDetailCardData(song, { qualityLabel = '', payplay = false, source = '', hasUrl = false, mvVid = '', tip = '', degradeNote = '', error = '', cfg = null } = {}) {
     const isVip = Boolean(song.payplay) || payplay;
+    const isLocal = song.local === true || song.channelKind === 'local';
     // ⚠️ 卡片上**不要用 emoji**（2026-09-24）：宿主机没装 emoji 字体时会变成空方框，
     //    而且 emoji 自带配色、跟主题不搭。这里只给文字 + 一个**图标名**，由主题用
     //    CSS 遮罩画矢量图标（见 resources/shared/theme-icons.css）—— 零字体依赖、跟着主题走。
@@ -737,8 +738,10 @@ export function buildDetailCardData(song, { qualityLabel = '', payplay = false, 
         // 多平台主题用：来源 id / 品牌色 / 短名
         sourceId: song.source || '',
         sourceColor: song.source ? platformColor(song.source) : '#31c27c',
-        sourceShort: song.source ? platformShort(song.source) : 'QQ',
+        sourceShort: isLocal ? (song.sourceLabel || '本地') : song.source ? platformShort(song.source) : 'QQ',
         sourceIsExternal: Boolean(song.source),
+        sourceIsLocal: isLocal,
+        sourceLabel: isLocal ? (song.sourceLabel || '本地曲库') : '',
         tip: baseTip + mvHint,
         mvVid: mvVid || '',
     };

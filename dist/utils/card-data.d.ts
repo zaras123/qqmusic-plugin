@@ -266,8 +266,10 @@ export declare function buildDetailCardData(song: any, { qualityLabel, payplay, 
     source: string;
     sourceId: any;
     sourceColor: string;
-    sourceShort: string;
+    sourceShort: any;
     sourceIsExternal: boolean;
+    sourceIsLocal: boolean;
+    sourceLabel: any;
     tip: string;
     mvVid: string;
 };

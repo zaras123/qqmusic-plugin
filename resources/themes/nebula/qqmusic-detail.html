@@ -24,7 +24,7 @@
             <div class="t-title truncate">{{data.songName}}</div>
             <div class="t-sub truncate">{{data.singerName}}</div>
           </div>
-          <div class="src-chip" style="--src:{{data.sourceColor}};font-size:11.5px;padding:4px 10px">{{data.sourceShort}}</div>
+          <div class="src-chip" style="--src:{{data.sourceColor}};font-size:11.5px;padding:4px 10px">{{if data.sourceIsLocal}}本地{{else}}{{data.sourceShort}}{{/if}}</div>
         </div>
         <div class="pill-row" style="margin-top:10px">
           {{if data.qualityLabel}}<span class="pill pill--accent">{{data.qualityLabel}}</span>{{/if}}
@@ -41,8 +41,8 @@
             <div class="row-main">
               <!-- 这一行说的是**音源**，不是触发方式（调用方给的 source 可能是"播放/点歌/链接解析"，
                    那是动作不是来源 —— 直接显示会让用户以为来源叫"播放"） -->
-              <div class="row-title truncate">{{if data.sourceIsExternal}}{{data.sourceShort}}（其它平台）{{else}}QQ 音乐（你的账号）{{/if}}</div>
-              <div class="row-sub truncate">{{if data.sourceIsExternal}}免登录可直接播{{else}}按你的账号档位取链{{/if}}{{if data.qualityLabel}} · {{data.qualityLabel}}{{/if}}</div>
+              <div class="row-title truncate">{{if data.sourceIsLocal}}本地曲库（原文件）{{else if data.sourceIsExternal}}{{data.sourceShort}}（其它平台）{{else}}QQ 音乐（你的账号）{{/if}}</div>
+              <div class="row-sub truncate">{{if data.sourceIsLocal}}直接投递本地原文件{{else if data.sourceIsExternal}}免登录可直接播{{else}}按你的账号档位取链{{/if}}{{if data.qualityLabel}} · {{data.qualityLabel}}{{/if}}</div>
             </div>
           </div>
           {{if data.albumName}}
@@ -68,7 +68,7 @@
       {{if data.tip}}<div class="note">{{data.tip}}</div>{{/if}}
       <div class="foot">
         <span class="foot-brand">qqmusic-plugin</span>
-        <span class="foot-brand">{{if data.sourceIsExternal}}外源免费曲{{else}}QQ 曲库{{/if}}</span>
+        <span class="foot-brand">{{if data.sourceIsLocal}}本地曲库{{else if data.sourceIsExternal}}外源免费曲{{else}}QQ 曲库{{/if}}</span>
       </div>
     </div>
   </div>

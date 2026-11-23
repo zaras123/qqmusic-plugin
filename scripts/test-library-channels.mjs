@@ -12,7 +12,7 @@ const componentRoot = fs.existsSync(path.join(root, 'components/Config.js')) ? p
 const { default: Config } = await import(pathToFileURL(path.join(componentRoot, 'Config.js')).href)
 const { request, normalizeSearchItem } = await import(pathToFileURL(path.join(runtime, 'api.js')).href)
 const { channelTagOf } = await import(pathToFileURL(path.join(runtime, 'library-compat.js')).href)
-const { buildListCardData } = await import(pathToFileURL(path.join(runtime, 'card-data.js')).href)
+const { buildListCardData, buildDetailCardData } = await import(pathToFileURL(path.join(runtime, 'card-data.js')).href)
 const original = Config.getConfig
 const queries = []
 const server = http.createServer((req, res) => {
@@ -71,3 +71,20 @@ test('search normalization preserves all three plugin channels', () => {
   assert.equal(card.songs[2].sourceTag, '填充 · 酷我 · 128k')
   assert.deepEqual(card.sourceCounts.map((x) => x.label), ['本地 · B站', 'QQ官方', '填充 · 酷我'])
 })
+
+test('local detail card keeps local source', () => {
+  const local = {
+    songmid: 'bi_local', songName: '晴天', singerName: '周杰伦',
+    local: true, channelKind: 'local', sourceLabel: 'B站', quality: '128k', source: 'bilibili',
+  }
+  const detail = buildDetailCardData(local, {
+    qualityLabel: '128k · 本地曲库',
+    source: '本地库 · B站 · 128k',
+    hasUrl: true,
+  })
+  assert.equal(detail.sourceIsLocal, true)
+  assert.equal(detail.sourceShort, 'B站')
+  assert.match(detail.source, /本地库/)
+  assert.match(detail.qualityLabel, /本地曲库/)
+})
+
