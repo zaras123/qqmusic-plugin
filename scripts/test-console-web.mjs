@@ -93,6 +93,19 @@ await consoleHandler(
 )
 assert.equal(res.statusCode, 200)
 assert.match(String(res.body), /QQ音乐管理/)
+assert.match(String(res.headers['Set-Cookie']), /qqmusic_console=/)
+
+res = response()
+await consoleHandler(
+  {
+    method: 'GET',
+    originalUrl: `${mountedPath}/style.css`,
+    headers: { cookie: `qqmusic_console=${consoleToken}` },
+  },
+  res
+)
+assert.equal(res.statusCode, 200)
+assert.match(String(res.headers['Content-Type']), /text\/css/)
 
 res = response()
 await consoleHandler(

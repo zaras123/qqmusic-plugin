@@ -82,8 +82,16 @@ function sendAsset(res, name) {
   }
 }
 
+function hasConsoleCookie(req) {
+  const cookie = String(req?.headers?.cookie || '')
+  return cookie.split(';').some((part) => part.trim() === `qqmusic_console=${consoleToken}`)
+}
+
 function authorized(req, url) {
-  return url.searchParams.get('token') === consoleToken
+  if (url.searchParams.get('token') === consoleToken) return true
+  // iframe 里的相对资源（style.css/app.js/settings.html）不会带 query，
+  // 首次带 token 打开 HTML 时写 HttpOnly Cookie，后续同源请求靠它鉴权。
+  return hasConsoleCookie(req)
 }
 
 function readBody(req) {
@@ -119,6 +127,9 @@ export async function consoleHandler(req, res) {
   const url = new URL(req.originalUrl || req.url || '/', 'http://127.0.0.1')
   if (!authorized(req, url)) {
     return sendJson(res, 403, { ok: false, error: '未授权，请从锅巴侧边栏重新打开页面' })
+  }
+  if (!hasConsoleCookie(req)) {
+    res.setHeader('Set-Cookie', `qqmusic_console=${consoleToken}; Path=${basePath}; HttpOnly; SameSite=Lax`)
   }
   // 锅巴允许自定义挂载前缀；菜单路径可能出现在 /guoba/... 或自定义前缀下，
   // 用最后一段唯一路径定位，避免依赖 realMountPrefix 的具体值。
