@@ -6,6 +6,7 @@
 修复文件发送开关无效与官方 FLAC 校验失败。
 
 - aiocqhttp 文件优先走 `upload_group_file` / `upload_private_file`，不再依赖会被 NapCat/Lagrange 静默吞掉的 File 消息段；`uploadFile` 开关真正生效。
+- QQ 官方/公众号等被动回复平台：`uploadFile` 开启时优先发压缩 MP3 文件，语音不再抢先导致文件被跳过；文件失败再回退语音。
 - 识别 ID3v2 标签后的 `fLaC`，语音统一转 128K MP3，避免把 FLAC 交给语音组件触发 `invalid sync code`。
 - 下载校验 `Content-Length`；`ffprobe` 验证失败时按音质逐档回退（320 / m4a / 128），仍失败才提示，不再发送坏音频。
 - Yunzai/Karin 同步质量回退逻辑；三端版本统一到 2.1.24。

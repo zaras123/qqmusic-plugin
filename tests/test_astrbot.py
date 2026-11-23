@@ -364,6 +364,33 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(uploads, [])
         self.assertTrue(any(isinstance(c, C.Record) for msg in event.sent for c in msg.chain))
 
+    async def test_official_bot_prefers_mp3_file(self):
+        self.config.update(
+            sendVocal=True,
+            uploadFile=True,
+            sendTextInfo=False,
+            renderListCard=False,
+            keepFileSec=0,
+        )
+        event = FakeEvent("", platform="qq_official", group="12345")
+        song = {
+            "songmid": "testMID001",
+            "songName": "官方文件测试",
+            "singerName": "歌手",
+            "interval": 1,
+            "source": "qq",
+        }
+        play = {"url": self.base + "/audio", "quality": "128", "raw": {}, "userKey": "u"}
+        result = await delivery.deliver_song(
+            self.star, event, song, play, cfg=self.config, plugin_dir=self.tmp.name
+        )
+        self.assertTrue(result["ok"])
+        files = [c for msg in event.sent for c in msg.chain if isinstance(c, C.File)]
+        records = [c for msg in event.sent for c in msg.chain if isinstance(c, C.Record)]
+        self.assertEqual(len(files), 1)
+        self.assertTrue(files[0].name.endswith(".mp3"))
+        self.assertEqual(records, [])
+
     async def test_local_audio_retries_official_without_writing(self):
         e = FakeEvent()
         song = {"songmid": "testMID001", "songName": "本地曲", "interval": 1, "source": "qq", "libraryId": "lib_demo"}
