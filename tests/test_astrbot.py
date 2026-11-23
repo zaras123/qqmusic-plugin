@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import tempfile
+import wave
 import unittest
 from datetime import datetime
 from io import BytesIO
@@ -99,7 +100,13 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.calls, self.kv = [], {}
         self.tmp = tempfile.TemporaryDirectory(dir=ROOT / "temp")
         self.addCleanup(self.tmp.cleanup)
-        self.media = b"RIFF" + b"\x00" * 4 + b"WAVE" + b"\x00" * 400
+        wav = BytesIO()
+        with wave.open(wav, "wb") as fh:
+            fh.setnchannels(1)
+            fh.setsampwidth(2)
+            fh.setframerate(8000)
+            fh.writeframes(b"\x00\x00" * 4000)
+        self.media = wav.getvalue()
         def qr(color):
             output = BytesIO()
             PillowImage.new("RGB", (16, 16), color).save(output, format="PNG")
@@ -323,6 +330,39 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(calls[0][0], "upload_group_file")
         self.assertTrue(calls[0][1]["file"].endswith(".wav"))
+
+    async def test_audio_ext_detects_id3_flac(self):
+        head = b"ID3\x04\x00\x00\x00\x00\x00\x00" + b"fLaC" + b"\x00" * 32
+        self.assertEqual(delivery._audio_ext(head), ".flac")
+
+    async def test_upload_file_disabled_sends_voice_only(self):
+        self.config.update(
+            sendVocal=True,
+            uploadFile=False,
+            sendTextInfo=False,
+            renderListCard=False,
+            keepFileSec=0,
+        )
+        event = FakeEvent("", platform="aiocqhttp", group="12345")
+        song = {
+            "songmid": "testMID001",
+            "songName": "文件测试",
+            "singerName": "歌手",
+            "interval": 1,
+            "source": "qq",
+        }
+        play = {"url": self.base + "/audio", "quality": "128", "raw": {}, "userKey": "u"}
+        uploads = []
+        async def fake_onebot(ev, action, params):
+            uploads.append(action)
+            return {"retcode": 0}
+        with patch.object(delivery, "onebot", side_effect=fake_onebot):
+            result = await delivery.deliver_song(
+                self.star, event, song, play, cfg=self.config, plugin_dir=self.tmp.name
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(uploads, [])
+        self.assertTrue(any(isinstance(c, C.Record) for msg in event.sent for c in msg.chain))
 
     async def test_local_audio_retries_official_without_writing(self):
         e = FakeEvent()

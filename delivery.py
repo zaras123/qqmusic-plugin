@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+import shutil
 from urllib.parse import urljoin, urlsplit
 from uuid import uuid4
 from pathlib import Path
@@ -14,6 +15,8 @@ from . import api as qqapi
 from .quality import QUALITY_LABEL
 from .astrbot_transport import onebot, supports
 from .features import safe_page
+
+FFPROBE = shutil.which("ffprobe")
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
@@ -63,7 +66,25 @@ def _audio_ext(head: bytes) -> str:
         return ".wav"
     if head[4:8] == b"ftyp":
         return ".m4a"
-    if head.startswith(b"ID3") or (len(head) >= 2 and head[0] == 0xff and head[1] & 0xe0 == 0xe0):
+    # FLAC 可能带 ID3v2 标签，fLaC 标记在标签之后；只看前 32 字节会误判成 mp3，
+    # 进而把 FLAC 当 mp3 交给语音组件，触发 invalid sync code / invalid frame header。
+    if head.startswith(b"ID3") and len(head) >= 10:
+        size = (
+            ((head[6] & 0x7F) << 21)
+            | ((head[7] & 0x7F) << 14)
+            | ((head[8] & 0x7F) << 7)
+            | (head[9] & 0x7F)
+        )
+        start = 10 + size
+        if head[start : start + 4] == b"fLaC":
+            return ".flac"
+        if head[start : start + 4] == b"MAC ":
+            return ".ape"
+    if b"fLaC" in head[:4096]:
+        return ".flac"
+    if head.startswith(b"ID3") or (
+        len(head) >= 2 and head[0] == 0xFF and head[1] & 0xE0 == 0xE0
+    ):
         return ".mp3"
     return ""
 
@@ -122,9 +143,12 @@ async def download_audio(
             async with sess.get(url, headers=headers, allow_redirects=not authenticated) as res:
                 if res.status not in (200, 206):
                     raise RuntimeError(f"下载失败 HTTP {res.status}")
-                if (res.content_length or 0) > max_size:
+                expected = res.content_length
+                if (expected or 0) > max_size:
                     raise RuntimeError("媒体文件超过 150 MB")
-                head = await res.content.readexactly(32)
+                head = await res.content.read(4096)
+                if not head:
+                    raise RuntimeError("下载内容为空")
                 if quality_hint == "video":
                     ext = ".mp4" if head[4:8] == b"ftyp" else ""
                 else:
@@ -141,6 +165,8 @@ async def download_audio(
                         fh.write(data)
         if size < 256:
             raise RuntimeError("下载内容过小")
+        if expected and expected > 0 and size < expected:
+            raise RuntimeError("下载不完整")
         target = out.with_suffix(ext)
         out.replace(target)
         return {"filePath": str(target), "size": size}
@@ -167,6 +193,37 @@ async def _ffmpeg_mp3(path: str, limit: int | None = None) -> str:
         Path(output).unlink(missing_ok=True)
         raise
     return output
+
+
+async def _probe_codec(path: str) -> str:
+    if not FFPROBE:
+        return "unknown"
+    try:
+        process = await asyncio.create_subprocess_exec(
+            FFPROBE,
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=codec_name",
+            "-of",
+            "csv=p=0",
+            path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        out, _ = await asyncio.wait_for(process.communicate(), timeout=15)
+        return out.decode("utf-8", "ignore").strip() if process.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+async def _audio_ok(path: str) -> bool:
+    # 没有 ffprobe 时不做拦截，避免把正常文件误判成损坏。
+    if not FFPROBE:
+        return True
+    return bool(await _probe_codec(path))
 
 
 def _schedule_cleanup(file_path: str, keep_sec: int):
@@ -273,42 +330,65 @@ async def deliver_song(plugin, event, song, play, *, cfg, plugin_dir, options=No
             dl = await fetch_audio(fresh["url"], fresh.get("quality"))
         path = dl["filePath"]
         files.add(path)
+        if str(play.get("quality") or "") != "video" and not await _audio_ok(path):
+            fresh = None
+            if source == "qq" and re.fullmatch(r"[A-Za-z0-9]{10,20}", mid):
+                try:
+                    fresh = await qqapi.song_url(
+                        mid,
+                        type_="128",
+                        user_key=user_key,
+                        fallback=cfg.get("qualityFallback", True),
+                        official_only=True,
+                    )
+                except Exception:
+                    fresh = None
+            if fresh and fresh.get("url") and not fresh.get("local") and fresh["url"] != url:
+                dl = await fetch_audio(fresh["url"], fresh.get("quality") or "128")
+                path = dl["filePath"]
+                files.add(path)
+            if not await _audio_ok(path):
+                raise RuntimeError("音频文件无法解码")
+
         if preview:
             path = await _ffmpeg_mp3(path, max(5, min(60, int(cfg.get("previewSec", 30)))))
             files.add(path)
         if want_voice:
             try:
-                voice = path
-                if Path(path).suffix.lower() not in {".mp3", ".wav", ".m4a"}:
-                    voice = await _ffmpeg_mp3(path)
-                    files.add(voice)
+                # 语音统一转成 MP3：输入可能是 FLAC/APE、带 ID3 的 FLAC，或被标错扩展名。
+                # 直接交给 AstrBot 的语音组件会在 ffmpeg 里报 invalid sync code。
+                voice = await _ffmpeg_mp3(path)
+                files.add(voice)
                 await plugin._send_chain(event, plugin._plain(text) if text else None, Record.fromFileSystem(voice))
                 sent = True
                 text = ""
             except Exception as exc:
-                plugin._log_warn(f"{platform} 语音发送失败（{type(exc).__name__}），尝试文件")
+                plugin._log_warn(f"{platform} 语音转码/发送失败（{type(exc).__name__}），改发文件")
         if want_file and not (_is_passive_limited(event) and sent):
-            try:
-                name = build_music_filename(singer=singer, title=title, ext=Path(path).suffix)
-                await plugin._send_chain(event, plugin._plain(text) if text else None, File(name, file=path))
-                sent = True
-            except Exception as exc:
-                plugin._log_warn(f"{platform} 文件发送失败（{type(exc).__name__}）")
-                # AstrBot 的 File 段在部分 OneBot 实现上会走 send_msg 文件段；
-                # 这里再退一步走标准 upload_group_file / upload_private_file。
-                if (
-                    platform == "aiocqhttp"
-                    and hasattr(event, "get_group_id")
-                    and hasattr(event, "get_sender_id")
-                ):
-                    try:
-                        action = "upload_group_file" if event.get_group_id() else "upload_private_file"
-                        await onebot(event, action, {"file": path, "name": name})
-                        sent = True
-                    except Exception as upload_exc:
-                        plugin._log_warn(
-                            f"{platform} 文件上传接口也失败（{type(upload_exc).__name__}）"
-                        )
+            name = build_music_filename(singer=singer, title=title, ext=Path(path).suffix)
+            file_sent = False
+            # OneBot 的 File 消息段在 NapCat/Lagrange 上常被 retcode 0 吞掉，
+            # 表现为“开了文件发送但群里没有文件”。aiocqhttp 优先走标准上传接口。
+            if (
+                platform == "aiocqhttp"
+                and hasattr(event, "get_group_id")
+                and hasattr(event, "get_sender_id")
+            ):
+                try:
+                    action = "upload_group_file" if event.get_group_id() else "upload_private_file"
+                    await onebot(event, action, {"file": path, "name": name})
+                    file_sent = True
+                    sent = True
+                except Exception as upload_exc:
+                    plugin._log_warn(
+                        f"{platform} 文件上传失败（{type(upload_exc).__name__}），尝试消息文件段"
+                    )
+            if not file_sent:
+                try:
+                    await plugin._send_chain(event, plugin._plain(text) if text else None, File(name, file=path))
+                    sent = True
+                except Exception as exc:
+                    plugin._log_warn(f"{platform} 文件发送失败（{type(exc).__name__}）")
     except Exception as exc:
         plugin._log_warn(f"媒体下载或校验失败（{type(exc).__name__}）")
     finally:
