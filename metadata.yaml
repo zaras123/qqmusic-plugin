@@ -4,7 +4,7 @@ short_desc: 多音源点歌、歌词、MV、演出票务，卡片主题与 Yunza
 desc: |
   对接 qqmusic-api-enhanced，支持多音源点歌、歌词、MV、音乐分享解析、演出票务和定时点歌。
   卡片与 Yunzai/Karin 共用四套 HTML 主题，浏览器缺失时回退本地绘图；语音、视频与文件按适配器能力投递。
-version: v2.1.24
+version: v2.1.25
 author: zaras123
 repo: https://github.com/zaras123/astrbot_plugin_qqmusic
 astrbot_version: ">=4.29.4,<5"

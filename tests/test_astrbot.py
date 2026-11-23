@@ -364,6 +364,25 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(uploads, [])
         self.assertTrue(any(isinstance(c, C.Record) for msg in event.sent for c in msg.chain))
 
+    async def test_local_detail_card_keeps_local_source(self):
+        data = main.cardlib.build_detail_card_data(
+            {
+                "songName": "晴天",
+                "singerName": "周杰伦",
+                "local": True,
+                "channelKind": "local",
+                "sourceLabel": "B站",
+                "quality": "128k",
+                "source": "bilibili",
+            },
+            quality_label="128k · 本地曲库",
+            source="本地库 · B站 · 128k",
+            has_url=True,
+        )
+        self.assertTrue(data["sourceIsLocal"])
+        self.assertEqual(data["sourceShort"], "B站")
+        self.assertIn("本地库", data["source"])
+
     async def test_official_bot_sends_voice_and_lossless_file(self):
         self.config.update(
             sendVocal=True,
@@ -523,7 +542,7 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(rendered[0], rendered[1])
         for path in rendered:
             self.assertTrue(Path(path).read_bytes().startswith(b"\xff\xd8\xff"))
-        help_data = main.cardlib.build_help_card_data(self.config, "2.1.24")
+        help_data = main.cardlib.build_help_card_data(self.config, "2.1.25")
         path = await self.star._render_card(e, help_data, "qqmusic-help")
         self.assertTrue(path and Path(path).stat().st_size > 4096)
         with PillowImage.open(path) as preview:

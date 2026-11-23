@@ -559,6 +559,7 @@ def build_detail_card_data(
         source_text = "卡片解析"
 
     api_source = str(song.get("source") or "")
+    is_local = bool(song.get("local")) or str(song.get("channelKind") or "") == "local"
     source_label, source_short, source_color, _q = _platform(api_source)
 
     return {
@@ -580,8 +581,10 @@ def build_detail_card_data(
         "source": source_text,
         "sourceId": api_source,
         "sourceColor": source_color if api_source else "#31c27c",
-        "sourceShort": source_short if api_source else "QQ",
+        "sourceShort": (str(song.get("sourceLabel") or "本地") if is_local else (source_short if api_source else "QQ")),
         "sourceIsExternal": bool(api_source),
+        "sourceIsLocal": is_local,
+        "sourceLabel": (str(song.get("sourceLabel") or "本地曲库") if is_local else ""),
         "tip": f"正在下载并发送语音（{quality_label or '默认音质'}）..."
         if has_url
         else "未获取到播放链接",
