@@ -1,6 +1,13 @@
 # 更新日志
 
 这里只记录 AstrBot 分支的版本；Karin 与 Yunzai 的历史不计入。
+## v2.1.22
+
+三端内容与版本同步。
+
+- WebUI 的 `localStorage` 回退同步到 Yunzai/Karin，三端 `app.js` 现在内容一致（bridge 仍按框架区分）。
+- AstrBot 发行包字体子集与 16 MiB 审核修正纳入本版本：ZIP 13,384,526 字节（12.76 MiB）。
+- 版本统一到 2.1.22；AstrBot 26 项测试、发行 ZIP 冒烟、Yunzai WebUI/多适配器测试、Karin `npm test` 均通过。
 ## v2.1.21
 
 修复 AstrBot/icqq 群列表读取，并对三端统一 WebUI 再做一次一致性回归。

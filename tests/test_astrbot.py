@@ -455,7 +455,7 @@ class AstrBotTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(rendered[0], rendered[1])
         for path in rendered:
             self.assertTrue(Path(path).read_bytes().startswith(b"\xff\xd8\xff"))
-        help_data = main.cardlib.build_help_card_data(self.config, "2.1.21")
+        help_data = main.cardlib.build_help_card_data(self.config, "2.1.22")
         path = await self.star._render_card(e, help_data, "qqmusic-help")
         self.assertTrue(path and Path(path).stat().st_size > 4096)
         with PillowImage.open(path) as preview:
