@@ -39,6 +39,11 @@ class SourceBoundary(unittest.TestCase):
             for line in (ROOT / "requirements.txt").read_text().splitlines()
         ))
         for path in (p for p in packager.FILES if p.endswith(".py")):
+            text = (ROOT / path).read_text(encoding="utf8")
+            # AstrBot 上架规范：logger 只能从 astrbot.api 导入，禁止内置 logging。
+            self.assertNotIn("import logging", text, path)
+            self.assertNotIn("logging.getLogger", text, path)
+
             source = ast.parse((ROOT / path).read_bytes(), filename=path)
             for node in ast.walk(source):
                 if isinstance(node, ast.Import):

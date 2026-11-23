@@ -15,12 +15,7 @@ from urllib.parse import urlsplit
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
-try:
-    from astrbot.api import logger
-except Exception:  # pragma: no cover - 独立运行/单测环境没有 AstrBot
-    import logging
-
-    logger = logging.getLogger("astrbot")
+from astrbot.api import logger
 
 ROOT = Path(__file__).resolve().parent
 FONT = ROOT / "astrbot_assets" / "fonts" / "QQM-CJK-Regular.otf"
