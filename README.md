@@ -4,6 +4,12 @@ AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解�
 
 纯 Python 重构已完成，功能未与 Karin 版完全对齐。未迁移项见[迁移差异](#迁移差异)。
 
+## API 与用户群
+
+**插件开源，配套的 `qqmusic-api-enhanced` 后端 API 不开源。** 使用前请加入 [QQ 用户群](https://qm.qq.com/q/GKxEVvF8Ua)，申请 **API 地址和 Token**。群内提供使用反馈与更新通知。
+
+申请后，在 **AstrBot 插件配置**中填写 `apiBase` 与 `apiToken`；也可以在「本地曲库点歌」页面右上角的「插件设置」中填写 API 地址和 Token。Token 是 API 访问凭据，不是 QQ 音乐账号登录凭据，请勿发到群聊、Issue 或公开截图中。
+
 ## 版本记录
 
 见 [更新日志](CHANGELOG.md)。AstrBot 插件管理中可查看完整记录，管理员也可发送 **#qqm更新日志** 查看当前安装版本的更新内容。
@@ -12,7 +18,7 @@ AstrBot 原生 Python 插件，提供多音源点歌、歌词、MV、分享解�
 
 1. 用 **AstrBot 4.29.4** 和 **Python 3.12+**。将 ZIP 内的 `astrbot_plugin_qqmusic` 目录解压到 AstrBot 的 `data/plugins/`。从 Git 安装时直接使用本仓库默认分支；本仓库只放 AstrBot 插件。
 2. 用 **AstrBot 正在使用的 Python 环境**安装插件的 `requirements.txt`，然后在插件管理页加载或重载。卡片主题需要 Playwright：装完依赖后再执行 `python -m playwright install chromium`（已有系统 Chrome/Edge 时可跳过下载）。没有浏览器时不会报错，只是回退到 Pillow 简化卡片。
-3. 在插件配置填写 `apiBase`（不重定向的最终地址）与 `apiToken`（后端启用鉴权时填写，不要发到群里）。管理员先发 `#qqm测试`，再用 `#qqm点歌 晴天`、`#qqm听1` 验证搜索和投递。
+3. 按上方「API 与用户群」说明加群申请 API 地址和 Token，在插件配置填写 `apiBase`（不重定向的最终地址）与 `apiToken`（申请到的 Token，不要发到群里）。管理员先发 `#qqm测试`，再用 `#qqm点歌 晴天`、`#qqm听1` 验证搜索和投递。
 4. 试听与部分音频转换需宿主机安装 FFmpeg 并加入 PATH；普通卡片渲染不需要 FFmpeg。
 
 ### 常用配置
